@@ -156,6 +156,16 @@ export interface ActorField {
   createdAt: string;
 }
 
+export interface ObjectEdit {
+  id: string;
+  objectId: string;
+  content: string | null;
+  contentWarning: string | null;
+  sensitive: boolean;
+  raw: string;
+  createdAt: string;
+}
+
 export interface LocalObject {
   id: string;
   type: string;

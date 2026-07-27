@@ -17,6 +17,7 @@ import type {
   OAuthApp,
   OAuthToken,
   APActor,
+  ObjectEdit,
 } from "@/lib/types";
 
 // ─────────────────────────────────────────
@@ -1138,6 +1139,14 @@ export async function updateObject(
   id: string,
   fields: { content?: string; contentWarning?: string | null; sensitive?: boolean; language?: string | null; raw?: string }
 ): Promise<void> {
+  const prev = await db.prepare("SELECT content, content_warning, sensitive, raw FROM objects WHERE id = ?").bind(id).first<Row>();
+  if (prev) {
+    await db
+      .prepare("INSERT INTO object_edits (id, object_id, content, content_warning, sensitive, raw, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))")
+      .bind(crypto.randomUUID(), id, prev.content ?? null, prev.content_warning ?? null, prev.sensitive ?? 0, prev.raw ?? "{}")
+      .run();
+  }
+
   const setClauses: string[] = [];
   const values: unknown[] = [];
 
@@ -1155,6 +1164,26 @@ export async function updateObject(
     .prepare(`UPDATE objects SET ${setClauses.join(", ")} WHERE id = ?`)
     .bind(...values)
     .run();
+}
+
+export async function getObjectEditHistory(db: D1Database, objectId: string): Promise<ObjectEdit[]> {
+  const rows = await db
+    .prepare("SELECT * FROM object_edits WHERE object_id = ? ORDER BY created_at DESC")
+    .bind(objectId)
+    .all<Row>();
+  return rows.results.map(rowToObjectEdit);
+}
+
+function rowToObjectEdit(r: Row): ObjectEdit {
+  return {
+    id: r.id,
+    objectId: r.object_id,
+    content: r.content ?? null,
+    contentWarning: r.content_warning ?? null,
+    sensitive: Boolean(r.sensitive),
+    raw: r.raw ?? "{}",
+    createdAt: r.created_at,
+  };
 }
 
 export async function deleteObject(db: D1Database, id: string): Promise<void> {

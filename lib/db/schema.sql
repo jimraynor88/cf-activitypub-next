@@ -622,6 +622,21 @@ CREATE TABLE IF NOT EXISTS status_pins (
 CREATE INDEX IF NOT EXISTS idx_status_pins_actor ON status_pins(actor_id);
 
 -- ─────────────────────────────────────────
+-- Object edit history
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS object_edits (
+  id              TEXT PRIMARY KEY,
+  object_id       TEXT NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+  content         TEXT,
+  content_warning TEXT,
+  sensitive       INTEGER NOT NULL DEFAULT 0,
+  raw             TEXT NOT NULL DEFAULT '{}',
+  created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_object_edits_object ON object_edits(object_id, created_at);
+
+-- ─────────────────────────────────────────
 -- Account notes
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS account_notes (
