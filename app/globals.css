@@ -137,7 +137,7 @@ a:hover { color: var(--accent); }
 .status-content p { margin-bottom: 0.75em; }
 .status-content p:last-child { margin-bottom: 0; }
 .status-content a { overflow-wrap: break-word; word-break: break-word; }
-img.emojione { vertical-align: middle; }
+img.emojione { display: inline; vertical-align: middle; }
 
 .avatar { border-radius: 50%; object-fit: cover; background: var(--bg-overlay); flex-shrink: 0; }
 
