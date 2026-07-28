@@ -5,6 +5,7 @@ import { getActorById, getAttachmentsByObjectIds, getAllCustomEmojis } from "@/l
 import { serializeAccount, serializeStatus } from "@/lib/mastodon/serializers";
 import { fetchAndCacheRemoteActor } from "@/lib/activitypub/remote";
 import { validateOutboundUrl } from "@/lib/activitypub/federation";
+import type { D1Database } from "@cloudflare/workers-types";
 
 // GET /api/v2/search?q=...&type=accounts|statuses|hashtags&limit=20&offset=0
 export async function GET(request: NextRequest): Promise<Response> {
@@ -55,8 +56,6 @@ export async function GET(request: NextRequest): Promise<Response> {
             const wf = await wfRes.json() as { links?: { rel: string; href: string }[] };
             const selfLink = wf.links?.find((l) => l.rel === "self");
             if (selfLink?.href) {
-              // Fetch the full actor profile and cache it in D1 so subsequent
-              // operations (follow, view profile, etc.) don't need another round-trip.
               const cached = await fetchAndCacheRemoteActor(env.DB, selfLink.href);
               if (cached) {
                 const actor = await getActorById(env.DB, cached.id);
@@ -100,7 +99,6 @@ export async function GET(request: NextRequest): Promise<Response> {
       .bind(like, limit, offset)
       .all<Record<string, unknown>>();
 
-    // Group by objectId to batch-load attachments
     const objectIds = rows.results.map((r) => r.id as string);
     const [attachmentMap, allEmojis] = await Promise.all([
       objectIds.length > 0 ? getAttachmentsByObjectIds(env.DB, objectIds) : Promise.resolve(new Map()),
@@ -144,9 +142,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (doHashtags) {
     const tagQuery = q.startsWith("#") ? q.slice(1) : q;
     const contentLike = `%#${tagQuery.replace(/[%_]/g, "\\$&")}%`;
-    // Also match against the raw AP JSON where Mastodon stores tags as
-    // {"type":"Hashtag","name":"#tag"} — catches posts where HTML uses
-    // #<span>tag</span> which breaks the content LIKE pattern.
     const rawLike = `%"#${tagQuery.replace(/[%_]/g, "\\$&")}%`;
     const contentRows = await env.DB
       .prepare(
@@ -161,11 +156,9 @@ export async function GET(request: NextRequest): Promise<Response> {
     const tagCounts = new Map<string, number>();
     for (const { content, raw } of contentRows.results) {
       const names = new Set<string>();
-      // Extract from HTML content (local posts: <a class="tag">#tag</a>)
       for (const m of content.match(/#([a-zA-Z0-9_]+)/g) ?? []) {
         names.add(m.slice(1).toLowerCase());
       }
-      // Extract from raw AP JSON tag array (handles all servers)
       if (raw) {
         try {
           const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -189,12 +182,57 @@ export async function GET(request: NextRequest): Promise<Response> {
       .sort((a, b) => b[1] - a[1])
       .slice(offset, offset + limit);
 
-    results.hashtags = sorted.map(([name]) => ({
-      name,
-      url: `https://${domain}/tags/${name}`,
-      history: [],
-    }));
+    results.hashtags = await Promise.all(
+      sorted.map(async ([name]) => ({
+        name,
+        url: `https://${domain}/tags/${name}`,
+        history: await getTagHistory(env.DB, name),
+      }))
+    );
   }
 
   return json(results);
+}
+
+async function getTagHistory(
+  db: D1Database,
+  tagName: string
+): Promise<{ day: string; uses: string; accounts: string }[]> {
+  const like = `%#${tagName.replace(/[%_]/g, "\\$&")}%`;
+  const rows = await db
+    .prepare(
+      `SELECT CAST(strftime('%s', published) / 86400 AS INTEGER) AS day_bucket,
+              COUNT(*) AS uses,
+              COUNT(DISTINCT actor_id) AS accounts
+       FROM objects
+       WHERE (content LIKE ? ESCAPE '\\' OR raw LIKE ? ESCAPE '\\')
+         AND published >= datetime('now', '-7 days')
+         AND visibility IN ('public', 'unlisted')
+       GROUP BY day_bucket
+       ORDER BY day_bucket`
+    )
+    .bind(like, like)
+    .all<{ day_bucket: number; uses: number; accounts: number }>();
+
+  const byDay = new Map<number, { uses: number; accounts: number }>();
+  for (const r of rows.results) {
+    byDay.set(r.day_bucket, { uses: Number(r.uses), accounts: Number(r.accounts) });
+  }
+
+  const now = new Date();
+  const history: { day: string; uses: string; accounts: string }[] = [];
+  for (let i = 0; i <= 6; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    d.setHours(0, 0, 0, 0);
+    const dayBucket = Math.floor(d.getTime() / 1000 / 86400);
+    const dayStart = Math.floor(d.getTime() / 1000);
+    const stats = byDay.get(dayBucket);
+    history.push({
+      day: String(dayStart),
+      uses: String(stats?.uses ?? 0),
+      accounts: String(stats?.accounts ?? 0),
+    });
+  }
+  return history;
 }
