@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 
 CREATE INDEX IF NOT EXISTS idx_attachments_object ON attachments(object_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_attachments_object_url ON attachments(object_id, url);
 
 -- ─────────────────────────────────────────
 -- Activities

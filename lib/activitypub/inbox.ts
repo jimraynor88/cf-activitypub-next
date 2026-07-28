@@ -570,6 +570,7 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
             local: false,
             raw: JSON.stringify(fetched),
           });
+          await saveObjectAttachments(ctx.db, fetched.id, fetched.attachment);
           likedObject = await getObjectById(ctx.db, objectId);
         }
       }
@@ -665,6 +666,7 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
           local: false,
           raw: JSON.stringify(fetched),
         });
+        await saveObjectAttachments(ctx.db, fetched.id, (fetched as APNote).attachment);
       }
     } catch {
       // ignore
@@ -759,6 +761,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
           local: false,
           raw: JSON.stringify(note),
         });
+        await saveObjectAttachments(ctx.db, note.id, note.attachment);
       }
       return;
     }
@@ -995,5 +998,32 @@ async function handleCallHangup(activity: APActivity, ctx: InboxContext): Promis
       type: "call.ended",
       callId,
     });
+  }
+}
+
+async function saveObjectAttachments(
+  db: D1Database,
+  objectId: string,
+  attachment: APAttachment[] | undefined
+): Promise<void> {
+  if (!Array.isArray(attachment)) return;
+  for (const att of attachment) {
+    if (!att?.url) continue;
+    try {
+      await createAttachment(db, {
+        id: att.id || generateId(),
+        objectId,
+        type: att.type.toLowerCase(),
+        url: att.url,
+        remoteUrl: att.url,
+        description: att.name ?? null,
+        blurhash: att.blurhash ?? null,
+        width: att.width ?? null,
+        height: att.height ?? null,
+        fileSize: null,
+        mimeType: att.mediaType ?? null,
+        createdAt: new Date().toISOString(),
+      });
+    } catch { /* ignore */ }
   }
 }
