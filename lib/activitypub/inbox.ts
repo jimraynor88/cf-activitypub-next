@@ -109,8 +109,8 @@ export async function processInboxActivity(
         // Ignore unknown activity types
         break;
     }
-  } catch {
-    // ignore
+  } catch (err) {
+    console.error("[inbox] Error processing activity:", (activity as any)?.type, (activity as any)?.id, err);
   }
 }
 

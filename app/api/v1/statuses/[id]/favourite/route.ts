@@ -7,6 +7,7 @@ import { decodeStatusId } from "@/lib/mastodon/statusId";
 import { buildLike, generateId, followersIRI } from "@/lib/activitypub/utils";
 import { fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
+import { broadcastNotificationEvent } from "@/lib/streaming/broadcast";
 import type { APActor } from "@/lib/types";
 
 // POST /api/v1/statuses/:id/favourite
@@ -56,6 +57,7 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
+      void broadcastNotificationEvent(env.TIMELINE_STREAM, author.id).catch(() => {});
     }
 
     // Deliver Like to remote actor via queue

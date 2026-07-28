@@ -5,6 +5,7 @@ import { getAuthenticatedActor } from "@/lib/auth";
 import { buildFollow, generateId } from "@/lib/activitypub/utils";
 import { deliverToInbox } from "@/lib/activitypub/federation";
 import { fetchAndCacheRemoteActor } from "@/lib/activitypub/remote";
+import { broadcastNotificationEvent } from "@/lib/streaming/broadcast";
 
 // POST /api/v1/accounts/:id/follow
 export async function POST(
@@ -75,6 +76,7 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
+      void broadcastNotificationEvent(env.TIMELINE_STREAM, target.id).catch(() => {});
     } else {
       await createNotification(env.DB, {
         id: generateId(),
@@ -85,6 +87,7 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
+      void broadcastNotificationEvent(env.TIMELINE_STREAM, target.id).catch(() => {});
     }
   } else {
     // Remote follow — deliver Follow activity to the stored inbox URL

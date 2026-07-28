@@ -29,7 +29,7 @@ import {
 import { deliverToInboxes, collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";
-import { broadcastPublicStatus, broadcastHomeStatus } from "@/lib/streaming/broadcast";
+import { broadcastPublicStatus, broadcastHomeStatus, broadcastNotificationEvent } from "@/lib/streaming/broadcast";
 import type { APActor, APAttachment, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {
@@ -223,6 +223,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           read: false,
           createdAt: published,
         });
+        void broadcastNotificationEvent(env.TIMELINE_STREAM, parent.actorId).catch(() => {});
       }
     }
   }
@@ -243,6 +244,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             read: false,
             createdAt: published,
           });
+          void broadcastNotificationEvent(env.TIMELINE_STREAM, mentioned.id).catch(() => {});
         }
       }
     }
