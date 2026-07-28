@@ -52,6 +52,7 @@ interface Status {
   id: string;
   content: string;
   created_at: string;
+  edited_at?: string | null;
   in_reply_to_id: string | null;
   account: Account;
   favourites_count: number;
@@ -472,6 +473,9 @@ function StatusCard({
           </div>
         )}
         <MediaGrid attachments={status.media_attachments ?? []} />
+        {status.edited_at && (
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ editado</div>
+        )}
         <div className="flex gap-5 mt-3" style={{ color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "wrap" }}>
           <button
             className="btn btn-ghost btn-sm"
