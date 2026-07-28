@@ -1383,6 +1383,27 @@ export async function getAnnouncedObjectIds(
 // Notifications
 // ─────────────────────────────────────────
 
+/** Returns IDs of local actors who have liked, boosted, or replied to the given object. Used for "update" notifications. */
+export async function getLocalInteractedActorIds(db: D1Database, objectId: string): Promise<string[]> {
+  const liked = await db
+    .prepare("SELECT l.actor_id FROM likes l JOIN actors a ON a.id = l.actor_id WHERE l.object_id = ? AND a.is_local = 1")
+    .bind(objectId)
+    .all<{ actor_id: string }>();
+  const boosted = await db
+    .prepare("SELECT a2.actor_id FROM announces a2 JOIN actors a ON a.id = a2.actor_id WHERE a2.object_id = ? AND a.is_local = 1")
+    .bind(objectId)
+    .all<{ actor_id: string }>();
+  const replied = await db
+    .prepare("SELECT o.actor_id FROM objects o JOIN actors a ON a.id = o.actor_id WHERE o.in_reply_to_id = ? AND a.is_local = 1")
+    .bind(objectId)
+    .all<{ actor_id: string }>();
+  const ids = new Set<string>();
+  for (const r of liked.results) ids.add(r.actor_id);
+  for (const r of boosted.results) ids.add(r.actor_id);
+  for (const r of replied.results) ids.add(r.actor_id);
+  return [...ids];
+}
+
 export async function createNotification(db: D1Database, notif: LocalNotification): Promise<void> {
   await db
     .prepare(

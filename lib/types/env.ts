@@ -27,6 +27,10 @@ CALLS_API_TOKEN?: string;
   FROM_EMAIL: string;
   /** LibreTranslate instance URL (e.g. https://translate.manalejandro.com/translate) */
   LIBRETRANSLATE_URL: string;
+  /** Web Push VAPID keys — set via: wrangler secret put VAPID_PRIVATE_KEY */
+  VAPID_PUBLIC_KEY?: string;
+  VAPID_PRIVATE_KEY?: string;
+  VAPID_EMAIL?: string;
 }
 
 declare global {

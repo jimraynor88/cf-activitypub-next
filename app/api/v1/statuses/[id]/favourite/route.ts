@@ -1,13 +1,13 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getObjectById, getActorById, createLike, getLike, createNotification, getFollow, canViewStatus } from "@/lib/db";
+import { getObjectById, getActorById, createLike, getLike, getFollow, canViewStatus } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 import { buildLike, generateId, followersIRI } from "@/lib/activitypub/utils";
 import { fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
-import { broadcastNotificationEvent } from "@/lib/streaming/broadcast";
+import { notify } from "@/lib/notify";
 import type { APActor } from "@/lib/types";
 
 // POST /api/v1/statuses/:id/favourite
@@ -48,7 +48,7 @@ export async function POST(
     });
 
     if (author.id !== actor.id) {
-      await createNotification(env.DB, {
+      await notify(env, {
         id: generateId(),
         type: "favourite",
         accountId: actor.id,
@@ -57,7 +57,6 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
-      void broadcastNotificationEvent(env.TIMELINE_STREAM, author.id).catch(() => {});
     }
 
     // Deliver Like to remote actor via queue

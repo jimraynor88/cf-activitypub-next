@@ -119,6 +119,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       baseUrl,
       signingKey,
       timelineStream: env.TIMELINE_STREAM,
+      vapidPublicKey: env.VAPID_PUBLIC_KEY,
+      vapidPrivateKey: env.VAPID_PRIVATE_KEY,
+      vapidEmail: env.VAPID_EMAIL,
     });
   } catch {
     // Still return 202 so the remote server does not keep retrying.

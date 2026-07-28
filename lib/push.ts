@@ -1,0 +1,215 @@
+import type { D1Database } from "@cloudflare/workers-types";
+import { getPushSubscription } from "@/lib/db";
+import type { LocalNotification, LocalPushSubscription } from "@/lib/types";
+
+function b64url(buf: ArrayBuffer): string {
+  return btoa(String.fromCharCode(...new Uint8Array(buf)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlDec(s: string): ArrayBuffer {
+  s = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Uint8Array.from(atob(s), c => c.charCodeAt(0)).buffer as ArrayBuffer;
+}
+
+function strBuf(s: string): ArrayBuffer {
+  return new TextEncoder().encode(s).buffer as ArrayBuffer;
+}
+
+function ab2uint(ab: ArrayBuffer): Uint8Array {
+  return new Uint8Array(ab);
+}
+
+function concat(...bs: ArrayBuffer[]): ArrayBuffer {
+  let len = 0;
+  for (const b of bs) len += b.byteLength;
+  const r = new Uint8Array(len);
+  let off = 0;
+  for (const b of bs) { r.set(ab2uint(b), off); off += b.byteLength; }
+  return r.buffer as ArrayBuffer;
+}
+
+async function hkdf(salt: ArrayBuffer, ikm: ArrayBuffer, info: ArrayBuffer, len: number): Promise<ArrayBuffer> {
+  const prkK = await crypto.subtle.importKey("raw", salt, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const prk = await crypto.subtle.sign("HMAC", prkK, ikm);
+  const rk = await crypto.subtle.importKey("raw", prk, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const blocks: ArrayBuffer[] = [];
+  let prev = new ArrayBuffer(0);
+  for (let i = 1; blocks.length * 32 < len; i++) {
+    const inp = concat(prev, info, new Uint8Array([i]).buffer as ArrayBuffer);
+    prev = await crypto.subtle.sign("HMAC", rk, inp);
+    blocks.push(prev);
+  }
+  return concat(...blocks).slice(0, len);
+}
+
+function notifTitle(type: string): string {
+  switch (type) {
+    case "mention": return "Nueva mención";
+    case "follow": return "Nuevo seguidor";
+    case "follow_request": return "Solicitud de seguimiento";
+    case "favourite": return "Nuevo favorito";
+    case "reblog": return "Nuevo boost";
+    case "poll": return "Encuesta finalizada";
+    case "update": return "Publicación editada";
+    default: return "Nueva notificación";
+  }
+}
+
+const TYPE_MAP: Record<string, string> = {
+  mention: "mention", follow: "follow", follow_request: "follow_request",
+  favourite: "favourite", reblog: "reblog", poll: "poll", update: "update",
+};
+
+export async function deliverPushNotification(
+  db: D1Database,
+  vapidPub: string,
+  vapidPriv: string,
+  vapidEmail: string,
+  notif: LocalNotification,
+): Promise<void> {
+  const sub = await getPushSubscription(db, notif.targetAccountId);
+  if (!sub) return;
+
+  let alerts: Record<string, boolean> = {};
+  try { alerts = JSON.parse(sub.alerts); } catch {}
+  const ak = TYPE_MAP[notif.type];
+  if (ak && alerts[ak] === false) return;
+  if (sub.policy === "none") return;
+
+  const payload = strBuf(JSON.stringify({
+    title: notifTitle(notif.type),
+    body: "",
+    icon: "/favicon.ico",
+    badge: "/favicon.ico",
+    tag: `notif-${notif.id}`,
+    data: { type: notif.type, account_id: notif.accountId, notification_id: notif.id, object_id: notif.objectId },
+  }));
+
+  // Import VAPID private key for ECDSA JWT signing
+  const vapidRaw = ab2uint(b64urlDec(vapidPriv));
+  const vapidKey = await importEcdsaPriv(vapidRaw);
+
+  // Generate ephemeral ECDH key pair for encryption
+  const ecdhKey = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const serverPubRaw = await crypto.subtle.exportKey("raw", ecdhKey.publicKey) as ArrayBuffer;
+
+  // Import client's p256dh public key
+  const clientPub = await crypto.subtle.importKey("raw", b64urlDec(sub.p256dhKey), { name: "ECDH", namedCurve: "P-256" }, true, []);
+
+  // Derive shared secret
+  const sharedSecret = await crypto.subtle.deriveBits({ name: "ECDH", public: clientPub }, ecdhKey.privateKey, 256) as ArrayBuffer;
+
+  // Encrypt payload
+  const authSecret = b64urlDec(sub.authKey);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  const prk = await hkdf(authSecret, sharedSecret, strBuf("Content-Encoding: auth\0"), 32);
+  const cekInfo = concat(strBuf("Content-Encoding: aes128gcm\0"), salt.buffer as ArrayBuffer);
+  const cek = await hkdf(salt.buffer as ArrayBuffer, prk, cekInfo, 16);
+  const nonceBuf = await hkdf(salt.buffer as ArrayBuffer, prk, cekInfo, 16);
+  const nonce = nonceBuf.slice(0, 12);
+
+  const aesKey = await crypto.subtle.importKey("raw", cek, { name: "AES-GCM" }, false, ["encrypt"]);
+  const padding = new Uint8Array(2);
+  const plaintext = concat(payload, padding.buffer as ArrayBuffer);
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv: new Uint8Array(nonce), additionalData: new ArrayBuffer(0), tagLength: 128 }, aesKey, plaintext);
+
+  const rs = new Uint8Array([0x00, 0x00, 0x10, 0x00]);
+  const body = concat(salt.buffer as ArrayBuffer, rs.buffer as ArrayBuffer, new Uint8Array([serverPubRaw.byteLength]).buffer as ArrayBuffer, serverPubRaw, encrypted);
+
+  const origin = new URL(sub.endpoint).origin;
+  const jwt = await vapidJwt(vapidKey, origin, vapidEmail);
+
+  const resp = await fetch(sub.endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Encoding": "aes128gcm",
+      TTL: "86400",
+      Authorization: `Bearer ${jwt}`,
+      "Crypto-Key": `p256ecdsa=${vapidPub}; dh=${b64url(serverPubRaw)}`,
+    },
+    body: body as BodyInit,
+  });
+
+  if (resp.status === 410 || resp.status === 404) {
+    await db.prepare("DELETE FROM push_subscriptions WHERE actor_id = ?").bind(notif.targetAccountId).run();
+  }
+}
+
+export async function deliverPushSafe(
+  db: D1Database,
+  vapidPub: string,
+  vapidPriv: string,
+  vapidEmail: string,
+  notif: LocalNotification,
+): Promise<void> {
+  try {
+    await deliverPushNotification(db, vapidPub, vapidPriv, vapidEmail, notif);
+  } catch {
+    // Push delivery failures are non-critical
+  }
+}
+
+// ── VAPID JWT ──
+
+async function importEcdsaPriv(raw: Uint8Array): Promise<CryptoKey> {
+  const pkcs8 = buildPkcs8(raw);
+  return crypto.subtle.importKey("pkcs8", pkcs8, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+}
+
+async function vapidJwt(key: CryptoKey, aud: string, sub: string): Promise<string> {
+  const h = b64url(strBuf(JSON.stringify({ alg: "ES256", typ: "JWT" })));
+  const now = Math.floor(Date.now() / 1000);
+  const p = b64url(strBuf(JSON.stringify({ aud, exp: now + 43200, sub })));
+  const sig = await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, key, strBuf(`${h}.${p}`));
+  return `${h}.${p}.${b64url(sig)}`;
+}
+
+// ── DER encoding helpers ──
+
+function buildPkcs8(rawPriv: Uint8Array): ArrayBuffer {
+  const keyBytes = new Uint8Array(rawPriv.length + 1);
+  keyBytes[0] = 0x00;
+  keyBytes.set(rawPriv, 1);
+  return derSeq(concat(
+    derInt(new Uint8Array([0x00]).buffer as ArrayBuffer),
+    derSeq(concat(
+      derOid(new Uint8Array([0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07]).buffer as ArrayBuffer),
+      derOid(new Uint8Array([0x01, 0x08]).buffer as ArrayBuffer),
+    )),
+    derOctet(keyBytes.buffer as ArrayBuffer),
+  ));
+}
+
+function derSeq(contents: ArrayBuffer): ArrayBuffer {
+  return derTag(0x30, contents);
+}
+
+function derInt(val: ArrayBuffer): ArrayBuffer {
+  return derTag(0x02, val);
+}
+
+function derOid(val: ArrayBuffer): ArrayBuffer {
+  return derTag(0x06, val);
+}
+
+function derOctet(val: ArrayBuffer): ArrayBuffer {
+  return derTag(0x04, val);
+}
+
+function derTag(tag: number, contents: ArrayBuffer): ArrayBuffer {
+  const c = new Uint8Array(contents);
+  let len: number[];
+  if (c.length < 128) {
+    len = [c.length];
+  } else {
+    const hex = c.length.toString(16);
+    const n = Math.ceil(hex.length / 2);
+    len = [0x80 | n];
+    for (let i = 0; i < n; i++) len.push(parseInt(hex.substr(i * 2, 2), 16));
+  }
+  return concat(new Uint8Array([tag, ...len]).buffer as ArrayBuffer, contents);
+}

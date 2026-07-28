@@ -29,6 +29,7 @@ import {
   getPollVotesByActor,
   createPollVotes,
   getAllCustomEmojis,
+  getLocalInteractedActorIds,
 } from "@/lib/db";
 import {
   buildAccept,
@@ -39,6 +40,8 @@ import {
 import { upsertCustomEmoji } from "@/lib/db";
 import { deliverToInbox, fetchRemoteObject } from "./federation";
 import { broadcastNotificationEvent, broadcastPublicStatus, broadcastHomeStatus, broadcastCallEvent } from "@/lib/streaming/broadcast";
+import { deliverPushSafe } from "@/lib/push";
+import type { LocalNotification } from "@/lib/types";
 import { serializeStatus } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
 
@@ -56,6 +59,20 @@ interface InboxContext {
   signingKey?: { id: string; privateKeyPem: string } | null;
   /** DO namespace for streaming — used to push notification events to connected clients. */
   timelineStream?: DONamespace | null;
+  /** VAPID keys for Web Push delivery. */
+  vapidPublicKey?: string;
+  vapidPrivateKey?: string;
+  vapidEmail?: string;
+}
+
+/** Helper: broadcast streaming event + deliver Web Push for a new notification. */
+async function broadcastAndPush(ctx: InboxContext, notif: LocalNotification): Promise<void> {
+  if (ctx.timelineStream) {
+    void broadcastNotificationEvent(ctx.timelineStream, notif.targetAccountId).catch(() => {});
+  }
+  if (ctx.vapidPublicKey && ctx.vapidPrivateKey && ctx.vapidEmail) {
+    void deliverPushSafe(ctx.db, ctx.vapidPublicKey, ctx.vapidPrivateKey, ctx.vapidEmail, notif);
+  }
 }
 
 export async function processInboxActivity(
@@ -247,7 +264,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
           const mentionedActor = await getActorById(ctx.db, tag.href);
           if (mentionedActor?.isLocal && !mentionedLocalIds.has(mentionedActor.id)) {
             mentionedLocalIds.add(mentionedActor.id);
-            await createNotification(ctx.db, {
+            const notif: LocalNotification = {
               id: generateId(),
               type: "mention",
               accountId: actorId,
@@ -255,8 +272,9 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
               objectId: obj.id,
               read: false,
               createdAt: new Date().toISOString(),
-            });
-            if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, mentionedActor.id).catch(() => {});
+            };
+            await createNotification(ctx.db, notif);
+            await broadcastAndPush(ctx, notif);
           }
         }
       }
@@ -298,7 +316,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
       if (replyTarget.actorId && !mentionedLocalIds.has(replyTarget.actorId)) {
         const targetActor = await getActorById(ctx.db, replyTarget.actorId);
         if (targetActor?.isLocal) {
-          await createNotification(ctx.db, {
+          const notif: LocalNotification = {
             id: generateId(),
             type: "mention",
             accountId: actorId,
@@ -306,8 +324,9 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
             objectId: obj.id,
             read: false,
             createdAt: new Date().toISOString(),
-          });
-          if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, replyTarget.actorId).catch(() => {});
+          };
+          await createNotification(ctx.db, notif);
+          await broadcastAndPush(ctx, notif);
         }
       }
     }
@@ -390,7 +409,7 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
       await updateActor(ctx.db, ctx.recipient.id, {
         followersCount: (recipient.followersCount ?? 0) + 1,
       });
-      await createNotification(ctx.db, {
+      const notif: LocalNotification = {
         id: generateId(),
         type: "follow",
         accountId: actorId,
@@ -398,8 +417,9 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
         objectId: null,
         read: false,
         createdAt: new Date().toISOString(),
-      });
-      if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, ctx.recipient.id).catch(() => {});
+      };
+      await createNotification(ctx.db, notif);
+      await broadcastAndPush(ctx, notif);
     }
 
     // Deliver Accept to requester
@@ -416,7 +436,7 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
       );
     }
   } else if (!existing) {
-    await createNotification(ctx.db, {
+    const notif: LocalNotification = {
       id: generateId(),
       type: "follow_request",
       accountId: actorId,
@@ -424,8 +444,9 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
       objectId: null,
       read: false,
       createdAt: new Date().toISOString(),
-    });
-    if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, ctx.recipient.id).catch(() => {});
+    };
+    await createNotification(ctx.db, notif);
+    await broadcastAndPush(ctx, notif);
   }
 }
 
@@ -599,7 +620,7 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
 
     const owner = await getActorById(ctx.db, likedObject.actorId);
     if (owner?.isLocal) {
-      await createNotification(ctx.db, {
+      const notif: LocalNotification = {
         id: generateId(),
         type: "favourite",
         accountId: actorId,
@@ -607,8 +628,9 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
         objectId,
         read: false,
         createdAt: new Date().toISOString(),
-      });
-      if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, likedObject.actorId).catch(() => {});
+      };
+      await createNotification(ctx.db, notif);
+      await broadcastAndPush(ctx, notif);
     }
   }
 }
@@ -696,7 +718,7 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
 
     const owner = await getActorById(ctx.db, resolvedObj.actorId);
     if (owner?.isLocal) {
-      await createNotification(ctx.db, {
+      const notif: LocalNotification = {
         id: generateId(),
         type: "reblog",
         accountId: actorId,
@@ -704,8 +726,9 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
         objectId,
         read: false,
         createdAt: new Date().toISOString(),
-      });
-      if (ctx.timelineStream) void broadcastNotificationEvent(ctx.timelineStream, resolvedObj.actorId).catch(() => {});
+      };
+      await createNotification(ctx.db, notif);
+      await broadcastAndPush(ctx, notif);
     }
   }
 }
@@ -780,6 +803,21 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
       language: note.contentMap ? Object.keys(note.contentMap)[0] : undefined,
       raw: JSON.stringify(note),
     });
+    // Notify local users who interacted with the edited note
+    const interacted = await getLocalInteractedActorIds(ctx.db, note.id);
+    for (const targetId of interacted) {
+      const notif: LocalNotification = {
+        id: generateId(),
+        type: "update",
+        accountId: actorId,
+        targetAccountId: targetId,
+        objectId: note.id,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+      await createNotification(ctx.db, notif);
+      await broadcastAndPush(ctx, notif);
+    }
     return;
   }
 

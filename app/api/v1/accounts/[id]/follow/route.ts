@@ -1,11 +1,11 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getActorById, getFollow, createFollow, updateActor, createNotification } from "@/lib/db";
+import { getActorById, getFollow, createFollow, updateActor } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { buildFollow, generateId } from "@/lib/activitypub/utils";
 import { deliverToInbox } from "@/lib/activitypub/federation";
 import { fetchAndCacheRemoteActor } from "@/lib/activitypub/remote";
-import { broadcastNotificationEvent } from "@/lib/streaming/broadcast";
+import { notify } from "@/lib/notify";
 
 // POST /api/v1/accounts/:id/follow
 export async function POST(
@@ -67,7 +67,7 @@ export async function POST(
     if (!target.manuallyApprovesFollowers) {
       await updateActor(env.DB, actor.id, { followingCount: actor.followingCount + 1 });
       await updateActor(env.DB, target.id, { followersCount: target.followersCount + 1 });
-      await createNotification(env.DB, {
+      await notify(env, {
         id: generateId(),
         type: "follow",
         accountId: actor.id,
@@ -76,9 +76,8 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
-      void broadcastNotificationEvent(env.TIMELINE_STREAM, target.id).catch(() => {});
     } else {
-      await createNotification(env.DB, {
+      await notify(env, {
         id: generateId(),
         type: "follow_request",
         accountId: actor.id,
@@ -87,7 +86,6 @@ export async function POST(
         read: false,
         createdAt: new Date().toISOString(),
       });
-      void broadcastNotificationEvent(env.TIMELINE_STREAM, target.id).catch(() => {});
     }
   } else {
     // Remote follow — deliver Follow activity to the stored inbox URL

@@ -8,7 +8,6 @@ import {
   deleteObject,
   getActorByUsername,
   updateActor,
-  createNotification,
   createPoll,
   getPollByObjectId,
   getPollOptions,
@@ -29,7 +28,8 @@ import {
 import { deliverToInboxes, collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";
-import { broadcastPublicStatus, broadcastHomeStatus, broadcastNotificationEvent } from "@/lib/streaming/broadcast";
+import { broadcastPublicStatus, broadcastHomeStatus } from "@/lib/streaming/broadcast";
+import { notify } from "@/lib/notify";
 import type { APActor, APAttachment, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     if (parent) {
       const parentOwner = await getActorById(env.DB, parent.actorId);
       if (parentOwner && parentOwner.id !== actor.id) {
-        await createNotification(env.DB, {
+        await notify(env, {
           id: generateId(),
           type: "mention",
           accountId: actor.id,
@@ -223,7 +223,6 @@ export async function POST(request: NextRequest): Promise<Response> {
           read: false,
           createdAt: published,
         });
-        void broadcastNotificationEvent(env.TIMELINE_STREAM, parent.actorId).catch(() => {});
       }
     }
   }
@@ -235,7 +234,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       if (usernameMatch) {
         const mentioned = await getActorByUsername(env.DB, usernameMatch[1], domain);
         if (mentioned && mentioned.id !== actor.id) {
-          await createNotification(env.DB, {
+          await notify(env, {
             id: generateId(),
             type: "mention",
             accountId: actor.id,
@@ -244,7 +243,6 @@ export async function POST(request: NextRequest): Promise<Response> {
             read: false,
             createdAt: published,
           });
-          void broadcastNotificationEvent(env.TIMELINE_STREAM, mentioned.id).catch(() => {});
         }
       }
     }

@@ -127,6 +127,9 @@ export async function POST(
         privateKeyPem: recipient.privateKeyPem,
       },
       timelineStream: env.TIMELINE_STREAM,
+      vapidPublicKey: env.VAPID_PUBLIC_KEY,
+      vapidPrivateKey: env.VAPID_PRIVATE_KEY,
+      vapidEmail: env.VAPID_EMAIL,
     });
   } catch {
     // ignore
