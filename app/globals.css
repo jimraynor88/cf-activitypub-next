@@ -159,30 +159,34 @@ img.emojione { display: inline; vertical-align: middle; }
 @keyframes skeleton { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
 .skeleton { background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-overlay) 50%, var(--bg-elevated) 75%); background-size: 200% 100%; animation: skeleton 1.5s ease-in-out infinite; border-radius: var(--radius-sm); }
 
-/* ── Page grid: 5 columns, 3 center columns hold content ── */
+/* ── Page grid: 5 columns, 3 center columns hold all content ── */
 .page-grid {
   display: grid;
-  grid-template-columns: 1fr minmax(0, 260px) minmax(0, 640px) minmax(0, 300px) 1fr;
+  grid-template-columns: 1fr minmax(0, 260px) minmax(0, 600px) minmax(0, 300px) 1fr;
   min-height: 100vh;
   width: 100%;
 }
 
-.page-grid > .page-sidebar {
-  grid-column: 2;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
+.page-inner {
+  grid-column: 2 / 5;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
 }
 
-.page-grid > .page-main {
-  grid-column: 3;
+.page-sidebar {
+  flex: 0 0 260px;
+  box-sizing: border-box;
+}
+
+.page-main {
+  flex: 1;
+  min-width: 0;
   border-right: 1px solid var(--border);
-  border-left: 1px solid var(--border);
 }
 
-.page-grid > .page-right {
-  grid-column: 4;
+.page-right {
+  flex: 0 0 300px;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -190,18 +194,15 @@ img.emojione { display: inline; vertical-align: middle; }
 }
 
 @media (max-width: 1160px) {
-  .page-grid {
-    grid-template-columns: 1fr minmax(0, 260px) minmax(0, 1fr) 0;
-  }
-  .page-grid > .page-sidebar { grid-column: 2; }
-  .page-grid > .page-main { grid-column: 3; border-right: none; }
-  .page-grid > .page-right { display: none; }
+  .page-right { display: none; }
+  .page-main { border-right: none; }
 }
 
 @media (max-width: 768px) {
   .page-grid {
-    grid-template-columns: 0 1fr;
+    grid-template-columns: 1fr;
   }
-  .page-grid > .page-sidebar { display: none; }
-  .page-grid > .page-main { grid-column: 2; border-left: none; }
+  .page-inner { grid-column: 1; }
+  .page-sidebar { display: none; }
+  .page-main { border-right: none; }
 }

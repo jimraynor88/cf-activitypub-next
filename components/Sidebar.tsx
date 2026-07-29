@@ -107,18 +107,16 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   return (
     <>
     <aside
-      className="hidden md:flex"
       style={{
         width: 260,
         flexShrink: 0,
         padding: "1.5rem 1rem",
         borderRight: "1px solid var(--border)",
-        position: "sticky",
-        top: 0,
-        height: "100vh",
         flexDirection: "column",
         gap: "1.5rem",
+        overflowX: "hidden",
       }}
+      className="hidden md:flex"
     >
       {/* Logo */}
       <Link href="/" className="flex items-center gap-2 px-2">
@@ -175,7 +173,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
         <button
           onClick={toggleTheme}
           className="btn btn-ghost btn-sm"
-          style={{ width: "100%", justifyContent: "space-between" }}
+          style={{ width: "100%", justifyContent: "flex-start", gap: "0.75rem" }}
           title={theme === "dark" ? t.theme_dark : t.theme_light}
         >
           <span>{theme === "dark" ? "🌙" : "☀️"}</span>
