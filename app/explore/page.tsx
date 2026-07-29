@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { StatusCard, Status, Me, AvatarBubble } from "@/components/StatusCard";
@@ -171,11 +172,19 @@ export default function ExplorePage() {
       ];
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/explore" />
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/explore" />} rightPanel={
+        <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "1rem" }}>
+          <h3 style={{ fontWeight: 700, marginBottom: "0.625rem", fontSize: "0.95rem" }}>{t.explore_search_tips}</h3>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
+            <div>👤 <code>@usuario</code> — {t.explore_tip_local}</div>
+            <div>🌐 <code>@user@server.com</code> — {t.explore_tip_remote}</div>
+            <div>#️⃣ <code>#hashtag</code> — {t.explore_tip_hashtag}</div>
+            <div>💬 {t.explore_tip_text}</div>
+          </div>
+        </div>
+      }>
 
-      {/* Main */}
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
         {/* Search bar */}
         <div style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10, background: "var(--bg)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-full)", padding: "0.5rem 1rem", border: "1px solid var(--border)" }}>
@@ -273,29 +282,7 @@ export default function ExplorePage() {
             <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>{t.explore_remote_tip}</p>
           </div>
         )}
-      </main>
-
-      {/* Right panel */}
-      <div className="hidden lg:block" style={{ width: 300, padding: "1.5rem 1rem" }}>
-        <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "1rem" }}>
-          <h3 style={{ fontWeight: 700, marginBottom: "0.625rem", fontSize: "0.95rem" }}>{t.explore_search_tips}</h3>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            <div>👤 <code>@usuario</code> — {t.explore_tip_local}</div>
-            <div>🌐 <code>@user@server.com</code> — {t.explore_tip_remote}</div>
-            <div>#️⃣ <code>#hashtag</code> — {t.explore_tip_hashtag}</div>
-            <div>💬 {t.explore_tip_text}</div>
-          </div>
-        </div>
-        {!token && (
-          <div style={{ marginTop: "1rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "1rem" }}>
-            <h3 style={{ fontWeight: 700, marginBottom: "0.75rem", fontSize: "0.95rem" }}>{t.explore_join}</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <Link href="/register" className="btn btn-primary btn-sm" style={{ textAlign: "center" }}>{t.explore_create}</Link>
-              <Link href="/login" className="btn btn-ghost btn-sm" style={{ textAlign: "center" }}>{t.explore_signin}</Link>
-            </div>
-          </div>
-        )}
-      </div>
+      </PageLayout>
 
       {/* Edit status modal */}
       {editingStatus && (
@@ -341,7 +328,7 @@ export default function ExplorePage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

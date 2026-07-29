@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { InteractionList } from "@/components/InteractionList";
@@ -1015,10 +1016,7 @@ export default function ThreadPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="" />
-
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="" />}>
         {/* Back header with tabs */}
         <div
           style={{
@@ -1194,7 +1192,6 @@ export default function ThreadPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </PageLayout>
   );
 }

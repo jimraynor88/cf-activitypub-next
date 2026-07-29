@@ -1,0 +1,214 @@
+# CF ActivityPub
+
+> Un servidor ActivityPub compatible con Mastodon construido para el edge — impulsado por Cloudflare Workers, D1 y la web abierta.
+
+## Visión general
+
+**CF ActivityPub** es un servidor social completamente funcional que implementa el protocolo [ActivityPub](https://www.w3.org/TR/activitypub/) con compatibilidad con la [API REST de Mastodon](https://docs.joinmastodon.org/api/). Funciona enteramente sobre [Cloudflare Workers](https://workers.cloudflare.com/) — sin servidores tradicionales, sin Docker.
+
+- **Sin cold starts** — el modelo de V8 isolates de Cloudflare arranca al instante en más de 300 ubicaciones
+- **Compatible con clientes Mastodon** — funciona con Ivory, Elk, Tusky, Megalodon y cualquier app Mastodon
+- **Federado** — sigue, impulsa, gusta y menciona a través del fediverso
+- **Criptográficamente seguro** — HTTP Signatures vía Web Crypto API
+- **Notificaciones Web Push** — notificaciones nativas a móvil/escritorio vía VAPID + AES-128-GCM
+- **Potenciado por IA** — texto alternativo automático para imágenes vía Workers AI (LLaVA)
+- **Código abierto** — licencia MIT
+
+## Arquitectura
+
+| Capa | Tecnología |
+|---|---|
+| Runtime | Cloudflare Workers |
+| Framework | Next.js 16 App Router via @opennextjs/cloudflare |
+| Base de datos | Cloudflare D1 (SQLite) |
+| Caché / Sesiones | Cloudflare KV |
+| Almacenamiento multimedia | Cloudflare R2 |
+| Entrega asíncrona | Cloudflare Queues |
+| Streaming en tiempo real | Cloudflare Durable Objects (TimelineStreamDO) |
+| Señalización WebRTC | Cloudflare Durable Objects (CallSignalingDO) |
+| ICE WebRTC | STUN de Cloudflare + TURN opcional de Cloudflare Calls |
+| Inferencia IA | Cloudflare Workers AI (LLaVA para descripciones multimedia) |
+| Correo electrónico | Cloudflare Email Workers (vía binding `send_email`) |
+| Criptografía | Web Crypto API (RSASSA-PKCS1-v1_5 + PBKDF2 + ECDH + AES-128-GCM) |
+| Estilos | Tailwind CSS v4 |
+
+## Variables de entorno
+
+### Secretos (`wrangler secret put`)
+
+```bash
+# Cloudflare Turnstile (protección contra bots en el registro)
+wrangler secret put TURNSTILE_SECRET
+
+# Cloudflare Calls TURN (opcional — relevo WebRTC detrás de NAT simétrico)
+wrangler secret put CALLS_TURN_KEY_ID
+wrangler secret put CALLS_API_TOKEN
+
+# Clave privada VAPID para Web Push (generar con el script)
+wrangler secret put VAPID_PRIVATE_KEY
+```
+
+### Generación de claves VAPID
+
+Las notificaciones Web Push requieren un par de claves VAPID. Genera una con:
+
+```bash
+node scripts/generate-vapid-keys.mjs
+```
+
+Esto imprime `VAPID_PUBLIC_KEY` (seguro en `wrangler.toml` bajo `[vars]`) y `VAPID_PRIVATE_KEY` (debe ser secreto). Define `VAPID_EMAIL` como `mailto:admin@tudominio.com`.
+
+### Variables de texto plano (`[vars]` en `wrangler.toml`)
+
+| Variable | Descripción |
+|---|---|
+| `INSTANCE_URL` | Tu dominio público (ej. `https://social.ejemplo.com`) |
+| `INSTANCE_TITLE` | Nombre visible de la instancia |
+| `INSTANCE_DESCRIPTION` | Descripción corta de la instancia |
+| `INSTANCE_VERSION` | Versión |
+| `VAPID_PUBLIC_KEY` | Clave pública VAPID (de `generate-vapid-keys.mjs`) |
+| `VAPID_EMAIL` | Correo de contacto VAPID (`mailto:...`) |
+| `TURNSTILE_SITE_KEY` | Clave pública de Cloudflare Turnstile |
+| `FROM_EMAIL` | Dirección remitente para correos transaccionales (debe pertenecer a un dominio con Email Routing de Cloudflare) |
+| `LIBRETRANSLATE_URL` | URL de instancia LibreTranslate (vacío para deshabilitar traducción) |
+| `NODE_ENV` | `production` |
+
+## Despliegue
+
+### Requisitos
+
+- Node.js 18+, npm
+- Una cuenta de [Cloudflare](https://dash.cloudflare.com)
+- [Wrangler CLI](https://developers.cloudflare.com/workers/wrangler/)
+
+### 1. Clonar e instalar
+
+```bash
+git clone https://github.com/manalejandro/cf-activitypub-next.git
+cd cf-activitypub-next
+npm install
+```
+
+### 2. Crear recursos en Cloudflare
+
+```bash
+wrangler login
+wrangler d1 create cf-activitypub
+wrangler kv namespace create CF_ACTIVITYPUB_KV
+wrangler r2 bucket create cf-activitypub-media
+wrangler queues create cf-activitypub-delivery
+```
+
+Copia los IDs generados en `wrangler.toml`:
+- `database_id` bajo `[[d1_databases]]`
+- `id` bajo `[[kv_namespaces]]`
+
+### 3. Configurar tu dominio
+
+Edita `wrangler.toml` y define:
+- `INSTANCE_URL` — tu dominio público (ej. `https://social.ejemplo.com`)
+- `pattern` bajo `[[routes]]` — tu dominio personalizado
+
+### 4. Generar claves VAPID para Web Push
+
+```bash
+node scripts/generate-vapid-keys.mjs
+```
+
+Añade `VAPID_PUBLIC_KEY` y `VAPID_EMAIL` a `wrangler.toml` en `[vars]`, luego:
+
+```bash
+wrangler secret put VAPID_PRIVATE_KEY
+```
+
+### 5. Configurar el resto de secretos
+
+```bash
+wrangler secret put TURNSTILE_SECRET
+```
+
+Opcional — solo si necesitas relevo TURN para llamadas WebRTC:
+```bash
+wrangler secret put CALLS_TURN_KEY_ID
+wrangler secret put CALLS_API_TOKEN
+```
+
+### 6. Ejecutar migraciones de base de datos
+
+```bash
+npm run db:migrate
+```
+
+Para reiniciar la base de datos:
+```bash
+wrangler d1 execute cf-activitypub --remote --file=lib/db/drop.sql
+npm run db:migrate
+```
+
+### 7. Desplegar
+
+```bash
+npm run deploy
+```
+
+### Vista previa local
+
+```bash
+npm run preview
+```
+
+Ejecuta el runtime de Cloudflare Workers localmente vía `wrangler dev` (usa D1 remoto por defecto).
+
+## Características
+
+### Federación ActivityPub
+- Descubrimiento de actores vía WebFinger
+- Perfiles de actor, Inbox/Outbox, colecciones de Seguidores/Siguiendo
+- Shared inbox para difusión eficiente
+- HTTP Signatures en todas las solicitudes federadas
+- Maneja: Create, Follow, Accept, Reject, Undo, Like, Announce, Delete, Update
+- Soporte NodeInfo
+
+### API Mastodon
+- OAuth 2.0 (password + client_credentials)
+- Registro de cuentas, gestión de perfil, seguir/dejar de seguir
+- Crear/eliminar estados, favoritos, impulsar, encuestas
+- Líneas de tiempo principal y públicas, líneas de tiempo por hashtag
+- Notificaciones (seguir, mención, favorito, impulso, encuesta, edición)
+- Subida de archivos multimedia (respaldado por R2)
+- Bloqueos, bloqueos por dominio, solicitudes de seguimiento
+
+### Tiempo real
+- Líneas de tiempo en streaming vía Durable Objects
+
+### Notificaciones Web Push
+- Push autenticado con VAPID a todos los servicios de push principales (Apple, Google, Mozilla)
+- Payloads cifrados con AES-128-GCM
+- Gestión del ciclo de vida de suscripciones (limpieza automática en 410/404)
+- Se dispara por: seguir, favorito, impulso, mención, resultados de encuesta, ediciones de estado
+
+### Descripciones de imágenes con IA
+- Generación automática de texto alternativo vía Cloudflare Workers AI (modelo LLaVA)
+- Se activa al subir un archivo multimedia sin descripción
+
+### Llamadas WebRTC
+- Llamadas de voz y vídeo entre usuarios de la misma instancia o entre instancias federadas
+- Durable Object `CallSignalingDO` por llamada que retransmite oferta/respuesta SDP y candidatos ICE
+- Señalización entre instancias vía ActivityPub (`CallOffer`, `CallAnswer`, `CallIceCandidate`, `CallHangup`)
+- Superposición de llamada entrante con aceptar/rechazar, panel de llamada activa con silenciar/cámara/colgar
+- Configuración ICE: STUN de Cloudflare (`stun:stun.cloudflare.com:3478`) por defecto; TURN opcional vía API de Cloudflare Calls
+
+#### TURN opcional (Cloudflare Calls)
+Para habilitar relevo TURN en usuarios detrás de NAT simétrico:
+```bash
+wrangler secret put CALLS_TURN_KEY_ID
+wrangler secret put CALLS_API_TOKEN
+```
+Credenciales en [dash.cloudflare.com](https://dash.cloudflare.com) → Realtime → Calls → TURN.
+
+### Tareas programadas
+- Trigger cron cada minuto para encuestas, auto-borrado y otras tareas de mantenimiento
+
+## Licencia
+
+MIT

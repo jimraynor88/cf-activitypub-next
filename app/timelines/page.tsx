@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
@@ -176,10 +177,37 @@ export default function TimelinesPage() {
   }, [statuses, loadingMore, hasMore]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/timelines" />
-
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/timelines" />} rightPanel={!token ? (
+        <div
+          style={{
+            background: "var(--bg-elevated)",
+            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--border)",
+            padding: "1rem",
+          }}
+        >
+          <h3 style={{ fontWeight: 700, marginBottom: "0.75rem", fontSize: "0.95rem" }}>
+            {t.explore_join}
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <Link
+              href="/register"
+              className="btn btn-primary btn-sm"
+              style={{ textAlign: "center" }}
+            >
+              {t.explore_create}
+            </Link>
+            <Link
+              href="/login"
+              className="btn btn-ghost btn-sm"
+              style={{ textAlign: "center" }}
+            >
+              {t.explore_signin}
+            </Link>
+          </div>
+        </div>
+      ) : undefined}>
         {/* Sticky header with tabs */}
         <div
           style={{
@@ -287,7 +315,7 @@ export default function TimelinesPage() {
             )}
           </div>
         )}
-      </main>
+      </PageLayout>
 
       {/* Edit status modal */}
       {editingStatus && (
@@ -333,40 +361,6 @@ export default function TimelinesPage() {
           </div>
         </div>
       )}
-
-      {/* Right panel — join CTA if not logged in */}
-      {!token && (
-        <div className="hidden lg:block" style={{ width: 300, padding: "1.5rem 1rem" }}>
-          <div
-            style={{
-              background: "var(--bg-elevated)",
-              borderRadius: "var(--radius-lg)",
-              border: "1px solid var(--border)",
-              padding: "1rem",
-            }}
-          >
-            <h3 style={{ fontWeight: 700, marginBottom: "0.75rem", fontSize: "0.95rem" }}>
-              {t.explore_join}
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              <Link
-                href="/register"
-                className="btn btn-primary btn-sm"
-                style={{ textAlign: "center" }}
-              >
-                {t.explore_create}
-              </Link>
-              <Link
-                href="/login"
-                className="btn btn-ghost btn-sm"
-                style={{ textAlign: "center" }}
-              >
-                {t.explore_signin}
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

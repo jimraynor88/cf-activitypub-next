@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { StatusCard } from "@/components/StatusCard";
@@ -278,11 +279,10 @@ export default function HomePage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/home" />
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/home" />}>
 
       {/* Main feed */}
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
         {/* Compose */}
         <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
           <form onSubmit={handlePost} className="flex flex-col gap-3">
@@ -537,8 +537,7 @@ export default function HomePage() {
             {loadingMore ? "Cargando más…" : hasMore ? "" : "No hay más estados"}
           </div>
         )}
-      </main>
-
+      </PageLayout>
 
       {/* Edit status modal */}
       {editingStatus && (
@@ -584,6 +583,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

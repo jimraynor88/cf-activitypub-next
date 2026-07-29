@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { useStartCallButton } from "@/components/CallOverlay";
 import { useLocale } from "@/lib/i18n";
@@ -959,11 +960,8 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
   const { startCall: initiateCall } = useStartCallButton(token);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath={`/users/${username}`} />
-
-      {/* Main */}
-      <main style={{ flex: 1, maxWidth: 600, minWidth: 0, width: "100%", borderRight: "1px solid var(--border)" }}>
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath={`/users/${username}`} />}>
         {loading ? (
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
         ) : notFound || !account ? (
@@ -1292,7 +1290,7 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
             )}
           </>
         )}
-      </main>
+      </PageLayout>
 
       {/* Edit profile modal */}
       {editOpen && account && (
@@ -1647,6 +1645,6 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

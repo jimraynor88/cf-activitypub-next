@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 
@@ -155,11 +156,9 @@ export default function NotificationsPage() {
   }, [hasMore, loadingMore, notifications]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/notifications" />
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/notifications" />}>
 
       {/* Main */}
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
         <div style={{ padding: "1rem 1rem 0.5rem", borderBottom: "1px solid var(--border)" }}>
           <h1 style={{ fontWeight: 700, fontSize: "1.2rem" }}>{t.nav_notifications}</h1>
         </div>
@@ -343,7 +342,6 @@ export default function NotificationsPage() {
         )}
           </>
         )}
-      </main>
-    </div>
+      </PageLayout>
   );
 }
