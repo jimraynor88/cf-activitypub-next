@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -80,19 +81,14 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-        <Sidebar me={me} currentPath="/settings" />
-        <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
-          <div style={{ color: "var(--text-muted)" }}>{t.loading}</div>
-        </main>
-      </div>
+      <PageLayout sidebar={<Sidebar me={me} currentPath="/settings" />}>
+        <div style={{ color: "var(--text-muted)" }}>{t.loading}</div>
+      </PageLayout>
     );
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/settings" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/settings" />}>
         <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <h1 className="text-lg font-bold">{t.settings_title}</h1>
           <button className="btn btn-primary btn-sm" onClick={() => void handleSave()} disabled={saving}>
@@ -176,7 +172,6 @@ export default function SettingsPage() {
             <label htmlFor="spoilers" style={{ fontSize: "0.875rem" }}>{t.settings_expand_spoilers}</label>
           </div>
         </div>
-      </main>
-    </div>
+    </PageLayout>
   );
 }

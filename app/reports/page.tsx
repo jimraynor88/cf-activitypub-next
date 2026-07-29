@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { AvatarBubble, formatTime } from "@/components/StatusCard";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
@@ -96,9 +97,7 @@ export default function ReportsPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/reports" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/reports" />}>
         <div
           style={{
             position: "sticky", top: 0, background: "var(--bg)",
@@ -204,7 +203,6 @@ export default function ReportsPage() {
             );
           })
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

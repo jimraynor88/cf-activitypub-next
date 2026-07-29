@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -69,9 +70,7 @@ export default function MutesPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/mutes" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/mutes" />}>
         <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
           <h1 className="text-lg font-bold">{t.mutes_title}</h1>
         </div>
@@ -108,7 +107,6 @@ export default function MutesPage() {
             </div>
           ))
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

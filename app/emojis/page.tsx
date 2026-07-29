@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
 
 interface Emoji {
@@ -96,9 +97,7 @@ export default function EmojisPage() {
   const federatedEmojis = emojis.filter((e) => e.domain);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar currentPath="/emojis" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)", padding: "1rem" }}>
+    <PageLayout sidebar={<Sidebar currentPath="/emojis" />}>
         <h1 style={{ fontWeight: 700, fontSize: "1.25rem", marginBottom: "1rem" }}>Emojis personalizados</h1>
 
         {/* Upload form */}
@@ -195,7 +194,6 @@ export default function EmojisPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

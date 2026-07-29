@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { StatusCard, type Status } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -118,9 +119,7 @@ export default function ListDetailPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/lists" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/lists" />}>
         <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "0.75rem 1rem", zIndex: 10, display: "flex", alignItems: "center", gap: "0.75rem" }}>
           <button className="btn btn-ghost btn-sm" onClick={() => router.push("/lists")}>←</button>
           <h1 className="text-lg font-bold">{list?.title || t.lists_title}</h1>
@@ -214,7 +213,6 @@ export default function ListDetailPage() {
             ))
           )
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

@@ -3,18 +3,18 @@
 import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { AvatarBubble } from "@/components/StatusCard";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
 
 function LoadingFallback() {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={null} currentPath="/reports" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)", padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
+    <PageLayout sidebar={<Sidebar me={null} currentPath="/reports" />}>
+      <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>
         Loading…
-      </main>
-    </div>
+      </div>
+    </PageLayout>
   );
 }
 
@@ -143,9 +143,7 @@ function NewReportPage() {
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath="/reports" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/reports" />}>
         <div
           style={{
             position: "sticky", top: 0, background: "var(--bg)",
@@ -274,7 +272,6 @@ function NewReportPage() {
             {submitting ? "Submitting…" : "Submit Report"}
           </button>
         </form>
-      </main>
-    </div>
+    </PageLayout>
   );
 }

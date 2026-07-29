@@ -5,6 +5,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { useStartCallButton } from "@/components/CallOverlay";
 import { useLocale } from "@/lib/i18n";
@@ -543,29 +544,27 @@ function RemoteProfileInner() {
 
   if (loading && actorUrl) {
     return (
-      <div style={{ display: "flex", minHeight: "100dvh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-        <Sidebar me={me} currentPath={pathname} />
-        <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)", padding: "2rem" }}>
+      <PageLayout sidebar={<Sidebar me={me} currentPath={pathname} />}>
+        <div style={{ padding: "2rem" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
             <div className="skeleton" style={{ height: 180, borderRadius: "var(--radius)" }} />
             <div className="skeleton" style={{ height: 24, width: "40%" }} />
             <div className="skeleton" style={{ height: 14, width: "60%" }} />
           </div>
-        </main>
-      </div>
+        </div>
+      </PageLayout>
     );
   }
 
   if (!actorUrl || notFound || !account) {
     return (
-      <div style={{ display: "flex", minHeight: "100dvh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-        <Sidebar me={me} currentPath={pathname} />
-        <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)", padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
+      <PageLayout sidebar={<Sidebar me={me} currentPath={pathname} />}>
+        <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
           <span style={{ fontSize: "3rem" }}>🌐</span>
           <p style={{ marginTop: "1rem" }}>Cuenta no encontrada</p>
           <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>{actorUrl}</p>
-        </main>
-      </div>
+        </div>
+      </PageLayout>
     );
   }
 
@@ -575,9 +574,8 @@ function RemoteProfileInner() {
   const isRequested = relationship?.requested === true;
 
   return (
-    <div style={{ display: "flex", minHeight: "100dvh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath={pathname} />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)", overflowY: "auto" }}>
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath={pathname} />}>
         {/* Header banner */}
         <div style={{
           height: 180,
@@ -770,7 +768,7 @@ function RemoteProfileInner() {
             </div>
           )
         )}
-      </main>
+    </PageLayout>
 
       {/* Edit status modal */}
       {editingStatus && (
@@ -816,13 +814,13 @@ function RemoteProfileInner() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
 export default function RemoteProfilePage() {
   return (
-    <Suspense fallback={<div style={{ display: "flex", minHeight: "100dvh", maxWidth: 1100, margin: "0 auto", width: "100%", alignItems: "center", justifyContent: "center", color: "var(--text-muted)" }}>Cargando…</div>}>
+    <Suspense fallback={<PageLayout><div style={{ color: "var(--text-muted)", padding: "2rem", textAlign: "center" }}>Cargando…</div></PageLayout>}>
       <RemoteProfileInner />
     </Suspense>
   );

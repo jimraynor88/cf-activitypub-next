@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
 
 interface PushSubscriptionData {
@@ -166,24 +167,19 @@ export default function PushNotificationsPage() {
 
   if (!browserSupport) {
     return (
-      <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-        <Sidebar currentPath="/settings" />
-        <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
-          <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-            <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Push Notifications</h1>
-          </div>
-          <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
-            Push notifications require a Web Push compatible browser. Your browser does not appear to support this feature.
-          </div>
-        </main>
-      </div>
+      <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
+        <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
+          <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Push Notifications</h1>
+        </div>
+        <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
+          Push notifications require a Web Push compatible browser. Your browser does not appear to support this feature.
+        </div>
+      </PageLayout>
     );
   }
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar currentPath="/settings" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
         <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
           <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Push Notifications</h1>
         </div>
@@ -256,7 +252,6 @@ export default function PushNotificationsPage() {
             )}
           </>
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }

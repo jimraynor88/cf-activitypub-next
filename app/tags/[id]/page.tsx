@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
@@ -205,10 +206,8 @@ export default function TagPage() {
   }, [statuses, loadingMore, hasMore]);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar me={me} currentPath={`/tags/${tagName}`} />
-
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <>
+    <PageLayout sidebar={<Sidebar me={me} currentPath={`/tags/${tagName}`} />}>
         {/* Header */}
         <div
           style={{
@@ -308,7 +307,7 @@ export default function TagPage() {
             </div>
           </div>
         )}
-      </main>
+    </PageLayout>
 
       {/* Edit status modal */}
       {editingStatus && (
@@ -354,6 +353,6 @@ export default function TagPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/Sidebar";
+import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
 
 interface FeaturedTag {
@@ -103,9 +104,7 @@ export default function FeaturedTagsPage() {
   );
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", maxWidth: 1100, margin: "0 auto", width: "100%" }}>
-      <Sidebar currentPath="/settings" />
-      <main style={{ flex: 1, maxWidth: 600, borderRight: "1px solid var(--border)" }}>
+    <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
         <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
           <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Featured Tags</h1>
         </div>
@@ -185,7 +184,6 @@ export default function FeaturedTagsPage() {
             </div>
           ))
         )}
-      </main>
-    </div>
+    </PageLayout>
   );
 }
