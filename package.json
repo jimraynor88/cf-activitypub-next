@@ -9,6 +9,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "eslint",
     "preview": "opennextjs-cloudflare build && wrangler dev",
     "deploy": "opennextjs-cloudflare build && wrangler deploy",
@@ -24,13 +26,18 @@
     "@cloudflare/workers-types": "^4.20250409.0",
     "@opennextjs/cloudflare": "^1.3.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "jsdom": "^30.0.1",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vitest": "^4.1.10",
     "wrangler": "^4.10.0"
   }
 }
