@@ -18,7 +18,8 @@
  *   { "type": "unsubscribe", "stream": "hashtag", "tag": "cats" }
  *
  * Abuse protection (connection caps per client IP, tracked durably so they
- * survive isolate eviction):
+ * survive isolate eviction; enforced right after the WebSocket handshake so
+ * storage I/O never delays the upgrade response):
  *   - Anonymous connections (public / hashtag streams) are capped at 1 socket
  *     per IP and are force-closed after ANON_SOCKET_TTL_MS via a storage alarm,
  *     so nobody can keep an unauthenticated socket reading the instance forever.
@@ -116,39 +117,11 @@ export class TimelineStreamDO extends CFDurableObject {
     // even for IPv6 addresses.
     const ipKey = encodeURIComponent(ip);
 
-    // Per-IP connection cap. Counts live in durable storage so they survive
-    // isolate eviction; stale records are pruned by age as a safety net.
-    const prefix = `stream_conn:${ipKey}:`;
-    const activeKeys = await this.state.storage.list({ prefix, limit: 100 });
-
-    let active = 0;
-    for (const [key] of activeKeys) {
-      const rec = (await this.state.storage.get<{ k: "anon" | "auth"; c: number }>(key)) ?? {
-        k: "auth",
-        c: 0,
-      };
-      const maxAgeMs = rec.k === "anon" ? ANON_RECORD_MAX_AGE_MS : AUTH_RECORD_MAX_AGE_MS;
-      if (Date.now() - rec.c > maxAgeMs) {
-        this.state.waitUntil(this.state.storage.delete(key));
-        continue;
-      }
-      active++;
-    }
-
-    const maxConns = isAnon ? ANON_MAX_CONNS_PER_IP : AUTH_MAX_CONNS_PER_IP;
-    if (active >= maxConns) {
-      return new Response(
-        JSON.stringify({ error: "Too many concurrent streaming connections from this address" }),
-        { status: 429, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
+    // Accept the WebSocket synchronously — the 101 upgrade handshake must
+    // never be delayed by storage I/O. Per-IP abuse caps are enforced
+    // immediately afterwards in an async block (see enforceConnectionCap),
+    // which prunes stale records and closes the socket if the cap is exceeded.
     const socketId = crypto.randomUUID();
-    await this.state.storage.put(`${prefix}${socketId}`, {
-      k: isAnon ? "anon" : "auth",
-      c: Date.now(),
-    });
-
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
 
@@ -163,13 +136,91 @@ export class TimelineStreamDO extends CFDurableObject {
       ...(isAnon ? { anon: true, anonCreatedAt: Date.now() } : {}),
     } satisfies SocketAttachment);
 
+    // Post-handshake cap enforcement. Runs asynchronously so the upgrade
+    // response is not blocked; count is durably recorded so it survives
+    // isolate eviction.
+    this.state.blockConcurrencyWhile(async () => {
+      try {
+        const allowed = await this.enforceConnectionCap(ipKey, socketId, isAnon);
+        if (!allowed) {
+          try { server.close(1013, "too many concurrent connections"); } catch { /* already closed */ }
+        }
+      } catch (err) {
+        console.error("[TimelineStreamDO] connection cap enforcement failed:", err);
+      }
+    });
+
     // Time-box anonymous public streams so an unauthenticated socket cannot
     // idle forever and read the instance without limit.
     if (isAnon) {
-      await this.state.storage.setAlarm(Date.now() + ANON_SOCKET_TTL_MS);
+      this.state.storage
+        .setAlarm(Date.now() + ANON_SOCKET_TTL_MS)
+        .catch(() => { /* best-effort */ });
     }
 
     return new Response(null, { status: 101, webSocket: client });
+  }
+
+  /**
+   * Durable per-IP connection cap. Counts live in durable storage so they
+   * survive isolate eviction. Each record is reconciled against the live
+   * WebSocket attachments held by this Durable Object: records whose socket
+   * is no longer open (leftover from unclean closes, older versions that never
+   * cleaned up, or isolate eviction races) are pruned instead of counting
+   * against the cap. Returns false when the socket exceeds the cap for its kind.
+   */
+  private async enforceConnectionCap(
+    ipKey: string,
+    socketId: string,
+    isAnon: boolean
+  ): Promise<boolean> {
+    const prefix = `stream_conn:${ipKey}:`;
+
+    // Live sockets for this IP, keyed by attachment socketId. The socket being
+    // accepted right now is already registered via acceptWebSocket(), so it is
+    // included below. getWebSockets() reflects the full set of open sockets for
+    // this Durable Object, including restored (hibernated) ones.
+    const live = new Set<string>();
+    for (const ws of this.state.getWebSockets()) {
+      const att = (ws.deserializeAttachment() ?? {}) as SocketAttachment;
+      if (att.ip && encodeURIComponent(att.ip) === ipKey && att.socketId) {
+        live.add(att.socketId);
+      }
+    }
+
+    const activeKeys = await this.state.storage.list<{ k: "anon" | "auth"; c: number }>({
+      prefix,
+      limit: 500,
+    });
+
+    let active = 0;
+    const stale: string[] = [];
+    for (const [key, value] of activeKeys) {
+      const rec = value ?? { k: "auth", c: 0 };
+      const id = key.slice(prefix.length);
+      const maxAgeMs = rec.k === "anon" ? ANON_RECORD_MAX_AGE_MS : AUTH_RECORD_MAX_AGE_MS;
+      // Prune records that are too old or no longer correspond to a live socket.
+      if (Date.now() - rec.c > maxAgeMs || !live.has(id)) {
+        stale.push(key);
+        continue;
+      }
+      active++;
+    }
+
+    if (stale.length > 0) {
+      await this.state.storage.delete(stale);
+    }
+
+    const maxConns = isAnon ? ANON_MAX_CONNS_PER_IP : AUTH_MAX_CONNS_PER_IP;
+    if (active >= maxConns) {
+      return false;
+    }
+
+    await this.state.storage.put(`${prefix}${socketId}`, {
+      k: isAnon ? "anon" : "auth",
+      c: Date.now(),
+    });
+    return true;
   }
 
   // ─── Broadcast endpoint ───────────────────────────────────────────────────
@@ -238,12 +289,10 @@ export class TimelineStreamDO extends CFDurableObject {
   }
 
   /** Release this socket's per-IP connection slot. */
-  private removeConnection(ws: WebSocket): void {
+  private async removeConnection(ws: WebSocket): Promise<void> {
     const att = (ws.deserializeAttachment() ?? {}) as SocketAttachment;
     if (att.ip && att.socketId) {
-      this.state.waitUntil(
-        this.state.storage.delete(`stream_conn:${encodeURIComponent(att.ip)}:${att.socketId}`)
-      );
+      await this.state.storage.delete(`stream_conn:${encodeURIComponent(att.ip)}:${att.socketId}`);
     }
   }
 
@@ -294,14 +343,14 @@ export class TimelineStreamDO extends CFDurableObject {
     }
   }
 
-  webSocketClose(ws: WebSocket): void {
-    this.removeConnection(ws);
+  async webSocketClose(ws: WebSocket): Promise<void> {
+    await this.removeConnection(ws);
     ws.close();
   }
 
-  webSocketError(ws: WebSocket, error: unknown): void {
+  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
     console.error("[TimelineStreamDO] WebSocket error:", error);
-    this.removeConnection(ws);
+    await this.removeConnection(ws);
     ws.close();
   }
 }

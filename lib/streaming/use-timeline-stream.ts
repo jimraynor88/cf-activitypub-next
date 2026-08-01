@@ -39,6 +39,7 @@ export function useTimelineStream(
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retryDelay = 1000;
     let destroyed = false;
+    let openedAt = 0;
 
     function connect() {
       if (destroyed) return;
@@ -55,7 +56,7 @@ export function useTimelineStream(
       ws = new WebSocket(url.toString());
 
       ws.onopen = () => {
-        retryDelay = 1000; // reset back-off on successful connection
+        openedAt = Date.now();
       };
 
       ws.onmessage = (event) => {
@@ -77,7 +78,15 @@ export function useTimelineStream(
       ws.onclose = () => {
         ws = null;
         if (!destroyed) {
-          // Exponential back-off: 1s → 2s → 4s → … capped at 30s
+          // Exponential back-off: 1s → 2s → 4s → … capped at 30s.
+          // Only reset the back-off if the previous connection actually opened
+          // and stayed up for a sustained period (10s). A connection that is
+          // refused or accepted-then-immediately-closed (e.g. server-side
+          // rejection) keeps doubling the delay instead of hammering the server
+          // in a tight ~1s loop.
+          if (openedAt > 0 && Date.now() - openedAt > 10_000) {
+            retryDelay = 1000;
+          }
           retryTimer = setTimeout(() => {
             retryDelay = Math.min(retryDelay * 2, 30_000);
             connect();
