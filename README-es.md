@@ -12,6 +12,7 @@
 - **Criptográficamente seguro** — HTTP Signatures vía Web Crypto API
 - **Notificaciones Web Push** — notificaciones nativas a móvil/escritorio vía VAPID + AES-128-GCM
 - **Potenciado por IA** — texto alternativo automático para imágenes vía Workers AI (LLaVA)
+- **Moderación con IA (Guardian)** — un moderador totalmente autónomo mantiene la instancia a salvo de spam y toxicidad, con un registro de auditoría completo
 - **Código abierto** — licencia MIT
 
 ## Arquitectura
@@ -27,7 +28,7 @@
 | Streaming en tiempo real | Cloudflare Durable Objects (TimelineStreamDO) |
 | Señalización WebRTC | Cloudflare Durable Objects (CallSignalingDO) |
 | ICE WebRTC | STUN de Cloudflare + TURN opcional de Cloudflare Calls |
-| Inferencia IA | Cloudflare Workers AI (LLaVA para descripciones multimedia) |
+| Inferencia IA | Cloudflare Workers AI (LLaVA para descripciones multimedia; Llama Guard + Llama 3.3 para moderación) |
 | Correo electrónico | Cloudflare Email Workers (vía binding `send_email`) |
 | Criptografía | Web Crypto API (RSASSA-PKCS1-v1_5 + PBKDF2 + ECDH + AES-128-GCM) |
 | Estilos | Tailwind CSS v4 |
@@ -46,6 +47,9 @@ wrangler secret put CALLS_API_TOKEN
 
 # Clave privada VAPID para Web Push (generar con el script)
 wrangler secret put VAPID_PRIVATE_KEY
+
+# Token de la API de administración (opcional — si se define, los endpoints admin requieren Bearer)
+wrangler secret put ADMIN_TOKEN
 ```
 
 ### Generación de claves VAPID
@@ -57,6 +61,28 @@ node scripts/generate-vapid-keys.mjs
 ```
 
 Esto imprime `VAPID_PUBLIC_KEY` (seguro en `wrangler.toml` bajo `[vars]`) y `VAPID_PRIVATE_KEY` (debe ser secreto). Define `VAPID_EMAIL` como `mailto:admin@tudominio.com`.
+
+### Generación del token de administración
+
+La API de administración del Guardian se protege con un secreto compartido cuando se define `ADMIN_TOKEN`. Genera un token aleatorio fuerte con:
+
+```bash
+openssl rand -hex 64
+```
+
+Luego configúralo como secreto de Cloudflare:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+Para desarrollo local, ponlo en `.dev.vars` en su lugar:
+
+```
+ADMIN_TOKEN=tu-token-generado
+```
+
+Cuando está configurado, cada petición a `/api/v1/admin/*` debe enviar `Authorization: Bearer <token>`. Sin él, las rutas admin quedan abiertas (comportamiento por defecto).
 
 ### Variables de texto plano (`[vars]` en `wrangler.toml`)
 
@@ -133,6 +159,12 @@ wrangler secret put CALLS_TURN_KEY_ID
 wrangler secret put CALLS_API_TOKEN
 ```
 
+Opcional — solo si quieres proteger la API de administración:
+```bash
+# Genera primero el token: openssl rand -hex 64
+wrangler secret put ADMIN_TOKEN
+```
+
 ### 6. Ejecutar migraciones de base de datos
 
 ```bash
@@ -191,6 +223,18 @@ Ejecuta el runtime de Cloudflare Workers localmente vía `wrangler dev` (usa D1 
 - Generación automática de texto alternativo vía Cloudflare Workers AI (modelo LLaVA)
 - Se activa al subir un archivo multimedia sin descripción
 
+### Moderación con IA (Guardian)
+Moderación totalmente autónoma — no hay administrador humano, la IA gestiona la seguridad de la instancia. La instancia es bilingüe (inglés + español); los prompts y los correos de notificación se adaptan al idioma.
+
+- **Resolución automática de reportes** — los reportes de Mastodon entrantes se evalúan y resuelven (dismiss / warn / delete / suspend), notificando el resultado al denunciante
+- **Filtrado previo a la publicación** — cada estado nuevo se filtra con Llama Guard; el contenido marcado se eleva a un modelo de razonamiento (allow / mark_sensitive / delete / escalate)
+- **Revisión de registros** — los nuevos registros se revisan por si hubiera abuso antes de aprobarse
+- **Patrulla de cuentas** — un ciclo programado escanea estados recientes, cuentas sospechosas, spam duplicado y dominios de spam
+- **Heurísticas deterministas** — señales basadas en reglas (publicaciones solo con enlaces, abuso de mayúsculas/emojis, palabras clave de estafa en inglés y español, inundaciones de publicaciones, seguimiento masivo) alimentan cada decisión de la IA, de modo que el spam se detecta incluso si el LLM no está disponible
+- **Registro de auditoría completo** — cada decisión se escribe en la tabla `moderation_log` con la acción, el motivo y la confianza
+- **Motor de acciones** — las cuentas advertidas / suspendidas / rechazadas (y las publicaciones eliminadas) reciben notificación por correo, y las suspensiones purgan el contenido de la cuenta
+- **API de administración** — lee el registro de moderación vía `GET /api/v1/admin/moderation_log`; opcionalmente protegida por `ADMIN_TOKEN` (Bearer)
+
 ### Llamadas WebRTC
 - Llamadas de voz y vídeo entre usuarios de la misma instancia o entre instancias federadas
 - Durable Object `CallSignalingDO` por llamada que retransmite oferta/respuesta SDP y candidatos ICE
@@ -208,6 +252,7 @@ Credenciales en [dash.cloudflare.com](https://dash.cloudflare.com) → Realtime 
 
 ### Tareas programadas
 - Trigger cron cada minuto para encuestas, auto-borrado y otras tareas de mantenimiento
+- Incluye el ciclo de patrulla del Guardian (barridos de spam/abuso con revisión de IA)
 
 ## Licencia
 

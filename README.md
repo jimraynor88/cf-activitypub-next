@@ -12,6 +12,7 @@
 - **Cryptographically secure** — HTTP Signatures via Web Crypto API
 - **Web Push notifications** — native push to mobile/desktop via VAPID + AES-128-GCM
 - **AI-powered** — automatic image alt-text via Workers AI (LLaVA)
+- **AI moderation (Guardian)** — a fully autonomous moderator keeps the instance safe from spam and toxicity, with a complete audit trail
 - **Fully open source** — MIT licensed
 
 ## Architecture
@@ -27,7 +28,7 @@
 | Realtime streaming | Cloudflare Durable Objects (TimelineStreamDO) |
 | WebRTC signaling | Cloudflare Durable Objects (CallSignalingDO) |
 | WebRTC ICE | Cloudflare STUN + optional Cloudflare Calls TURN |
-| AI inference | Cloudflare Workers AI (LLaVA for media descriptions) |
+| AI inference | Cloudflare Workers AI (LLaVA for media descriptions; Llama Guard + Llama 3.3 for moderation) |
 | Email | Cloudflare Email Workers (via `send_email` binding) |
 | Crypto | Web Crypto API (RSASSA-PKCS1-v1_5 + PBKDF2 + ECDH + AES-128-GCM) |
 | Styling | Tailwind CSS v4 |
@@ -46,6 +47,9 @@ wrangler secret put CALLS_API_TOKEN
 
 # Web Push VAPID private key (generate with the script below)
 wrangler secret put VAPID_PRIVATE_KEY
+
+# Admin API token (optional — if set, admin endpoints require a Bearer token)
+wrangler secret put ADMIN_TOKEN
 ```
 
 ### VAPID key generation
@@ -57,6 +61,28 @@ node scripts/generate-vapid-keys.mjs
 ```
 
 This outputs `VAPID_PUBLIC_KEY` (safe to put in `wrangler.toml` under `[vars]`) and `VAPID_PRIVATE_KEY` (must be set as a secret). Set `VAPID_EMAIL` to a contact address like `mailto:admin@yourdomain.com`.
+
+### Admin token generation
+
+The Guardian admin API is protected by a shared secret when `ADMIN_TOKEN` is set. Generate a strong random token with:
+
+```bash
+openssl rand -hex 64
+```
+
+Then set it as a Cloudflare secret:
+
+```bash
+wrangler secret put ADMIN_TOKEN
+```
+
+For local development, put it in `.dev.vars` instead:
+
+```
+ADMIN_TOKEN=your-generated-token
+```
+
+When configured, every request to `/api/v1/admin/*` must send `Authorization: Bearer <token>`. Without it, admin routes stay open (default behaviour).
 
 ### Plain-text vars (`[vars]` in `wrangler.toml`)
 
@@ -133,6 +159,12 @@ wrangler secret put CALLS_TURN_KEY_ID
 wrangler secret put CALLS_API_TOKEN
 ```
 
+Optional — only needed if you want to protect the admin API:
+```bash
+# Generate the token first: openssl rand -hex 64
+wrangler secret put ADMIN_TOKEN
+```
+
 ### 6. Run database migrations
 
 ```bash
@@ -191,6 +223,18 @@ Runs the Cloudflare Workers runtime locally via `wrangler dev` (uses remote D1 b
 - Automatic alt-text generation via Cloudflare Workers AI (LLaVA model)
 - Triggered on media upload when no description is provided
 
+### AI Moderation (Guardian)
+Fully autonomous moderation — there is no human admin, the AI runs the instance's safety. The instance is bilingual (English + Spanish); prompts and notification emails are language-aware.
+
+- **Report auto-resolution** — incoming Mastodon reports are evaluated and resolved (dismiss / warn / delete / suspend), with the reporter notified of the outcome
+- **Pre-publish screening** — every new status is filtered by Llama Guard; flagged content is escalated to a reasoning model (allow / mark_sensitive / delete / escalate)
+- **Registration screening** — new sign-ups are reviewed for abuse before approval
+- **Account patrol** — a scheduled cycle scans recent statuses, suspicious accounts, duplicate spam and spam domains
+- **Deterministic heuristics** — rule-based signals (link-only posts, caps/emoji abuse, scam keywords in English and Spanish, posting floods, mass-following) feed every AI decision, so spam is caught even if the LLM is unavailable
+- **Complete audit trail** — every decision is written to a `moderation_log` table with the action, reason and confidence
+- **Action engine** — warned / deleted / suspended / rejected accounts are notified by email, and suspensions purge the account's content
+- **Admin API** — read the moderation log via `GET /api/v1/admin/moderation_log`; optionally protected by `ADMIN_TOKEN` (Bearer)
+
 ### WebRTC Calling
 - Voice and video calls between users on the same instance or across federated instances
 - Per-call `CallSignalingDO` Durable Object relays SDP offer/answer and ICE candidates
@@ -208,6 +252,7 @@ Credentials at [dash.cloudflare.com](https://dash.cloudflare.com) → Realtime �
 
 ### Scheduled tasks
 - Cron trigger runs every minute for polling, auto-delete, and other maintenance tasks
+- Includes the Guardian patrol cycle (spam/abuse sweeps with AI review)
 
 ## License
 
