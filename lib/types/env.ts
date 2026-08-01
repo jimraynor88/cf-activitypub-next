@@ -33,6 +33,8 @@ CALLS_API_TOKEN?: string;
   VAPID_EMAIL?: string;
   /** Optional shared secret for admin endpoints — set via: wrangler secret put ADMIN_TOKEN */
   ADMIN_TOKEN?: string;
+  /** Optional Cloudflare Vectorize index — semantic memory for AI moderation. */
+  VECTORIZE?: VectorizeIndex;
 }
 
 declare global {

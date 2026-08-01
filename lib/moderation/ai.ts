@@ -122,6 +122,8 @@ export async function evaluateContent(
     statusesCount: number;
     previousWarnings: number;
     flags: string[];
+    /** RAG precedent — confirmed-abuse cases semantically similar to this content. */
+    precedent?: string | null;
   }
 ): Promise<ContentVerdict | null> {
   const v = await ask(env, buildContentPrompt(status), ["allow", "mark_sensitive", "delete", "escalate"], 320);

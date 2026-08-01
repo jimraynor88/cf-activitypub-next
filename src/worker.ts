@@ -187,13 +187,23 @@ async function handleStreamingUpgrade(request: Request, env: Env): Promise<Respo
       headers: { "Content-Type": "application/json" },
     });
   }
-  return forwardToTimelineDO(env, request, channel);
+
+  // The web UI's timelines page connects to public streams even while logged
+  // in. Resolve the token so those are treated as authenticated (normal
+  // concurrent limit, no forced session timeout) instead of anonymous.
+  const token = extractToken(request, url);
+  let authed = false;
+  if (token) {
+    const row = await resolveToken(env.DB, token);
+    authed = Boolean(row);
+  }
+  return forwardToTimelineDO(env, request, channel, authed);
 }
 
-function forwardToTimelineDO(env: Env, request: Request, channel: string): Promise<Response> | Response {
+function forwardToTimelineDO(env: Env, request: Request, channel: string, authed = false): Promise<Response> | Response {
   const doId = env.TIMELINE_STREAM.idFromName("timeline");
   const stub = env.TIMELINE_STREAM.get(doId);
-  const doUrl = `https://timeline-do/connect?channel=${encodeURIComponent(channel)}`;
+  const doUrl = `https://timeline-do/connect?channel=${encodeURIComponent(channel)}&authed=${authed ? 1 : 0}`;
   return stub.fetch(new Request(doUrl, request));
 }
 

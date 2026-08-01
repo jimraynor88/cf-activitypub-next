@@ -28,7 +28,8 @@
 | Realtime streaming | Cloudflare Durable Objects (TimelineStreamDO) |
 | WebRTC signaling | Cloudflare Durable Objects (CallSignalingDO) |
 | WebRTC ICE | Cloudflare STUN + optional Cloudflare Calls TURN |
-| AI inference | Cloudflare Workers AI (LLaVA for media descriptions; Llama Guard + Llama 3.3 for moderation) |
+| AI inference | Cloudflare Workers AI (LLaVA for media descriptions; Llama Guard + Llama 3.3 + BGE-M3 embeddings for moderation) |
+| Semantic memory | Cloudflare Vectorize (moderation abuse memory + RAG precedent) |
 | Email | Cloudflare Email Workers (via `send_email` binding) |
 | Crypto | Web Crypto API (RSASSA-PKCS1-v1_5 + PBKDF2 + ECDH + AES-128-GCM) |
 | Styling | Tailwind CSS v4 |
@@ -83,6 +84,18 @@ ADMIN_TOKEN=your-generated-token
 ```
 
 When configured, every request to `/api/v1/admin/*` must send `Authorization: Bearer <token>`. Without it, admin routes stay open (default behaviour).
+
+### Vectorize index (optional)
+
+The AI moderation ("Guardian") gets a semantic memory of confirmed abuse via [Cloudflare Vectorize](https://developers.cloudflare.com/vectorize/): near-duplicates of known spam are blocked without a fresh AI call, and similar past cases are shown to the reasoning model as precedent.
+
+Create the index (dimensions must match the `@cf/baai/bge-m3` embedding model):
+
+```bash
+npx wrangler vectorize create moderation-vectors --dimensions=1024 --metric=cosine
+```
+
+Then uncomment the `[[vectorize]]` block at the top of `wrangler.toml`. Without a binding, moderation keeps working unchanged — the vector memory simply stays off.
 
 ### Plain-text vars (`[vars]` in `wrangler.toml`)
 
@@ -231,6 +244,7 @@ Fully autonomous moderation — there is no human admin, the AI runs the instanc
 - **Registration screening** — new sign-ups are reviewed for abuse before approval
 - **Account patrol** — a scheduled cycle scans recent statuses, suspicious accounts, duplicate spam and spam domains
 - **Deterministic heuristics** — rule-based signals (link-only posts, caps/emoji abuse, scam keywords in English and Spanish, posting floods, mass-following) feed every AI decision, so spam is caught even if the LLM is unavailable
+- **Vector memory (Cloudflare Vectorize)** — confirmed abuse is embedded and stored; near-duplicates of known spam are blocked immediately without a fresh AI call, and similar past cases are injected into the decision prompt as RAG precedent
 - **Complete audit trail** — every decision is written to a `moderation_log` table with the action, reason and confidence
 - **Action engine** — warned / deleted / suspended / rejected accounts are notified by email, and suspensions purge the account's content
 - **Admin API** — read the moderation log via `GET /api/v1/admin/moderation_log`; optionally protected by `ADMIN_TOKEN` (Bearer)

@@ -119,8 +119,13 @@ export function buildContentPrompt(status: {
   statusesCount: number;
   previousWarnings: number;
   flags: string[];
+  /** RAG precedent — confirmed-abuse cases semantically similar to this content. */
+  precedent?: string | null;
 }): string {
   const flagsText = status.flags.length > 0 ? status.flags.join(", ") : "(ninguna)";
+  const precedentSection = status.precedent
+    ? `\nCasos previos confirmados por el Guardian con contenido muy similar (usa esto como precedente para decidir igual de forma consistente; los motivos se conservan en su idioma original):\n${status.precedent}\n`
+    : "";
   return `Evalúa el contenido de esta publicación para proteger la instancia.
 
 ## Publicación
@@ -129,7 +134,7 @@ export function buildContentPrompt(status: {
 - Aviso de contenido (CW): ${status.contentWarning || "(sin aviso)"}
 - Nº de adjuntos multimedia: ${status.mediaCount}
 - Texto: "${status.content || "(sin texto)"}"
-- Señales automáticas detectadas: ${flagsText}
+- Señales automáticas detectadas: ${flagsText}${precedentSection}
 
 El texto puede estar en inglés o en español (o mezclado) — evalúalo en cualquier idioma; los enlaces de spam y estafa usan ambas lenguas.
 

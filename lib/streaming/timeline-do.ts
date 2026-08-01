@@ -16,9 +16,25 @@
  * additional channels after the initial connection:
  *   { "type": "subscribe",   "stream": "public" }
  *   { "type": "unsubscribe", "stream": "hashtag", "tag": "cats" }
+ *
+ * Abuse protection (connection caps per client IP, tracked durably so they
+ * survive isolate eviction):
+ *   - Anonymous connections (public / hashtag streams) are capped at 1 socket
+ *     per IP and are force-closed after ANON_SOCKET_TTL_MS via a storage alarm,
+ *     so nobody can keep an unauthenticated socket reading the instance forever.
+ *   - Authenticated connections (home / notification / direct / list) are
+ *     capped at AUTH_MAX_CONNS_PER_IP per IP.
  */
 
 import { DurableObject as CFDurableObject } from "cloudflare:workers";
+
+const ANON_MAX_CONNS_PER_IP = 1;
+const AUTH_MAX_CONNS_PER_IP = 20;
+/** Anonymous public streams are time-boxed to this session length. */
+const ANON_SOCKET_TTL_MS = 5 * 60 * 1000;
+/** How long a stale connection record may linger before being cleaned up. */
+const ANON_RECORD_MAX_AGE_MS = ANON_SOCKET_TTL_MS + 60_000;
+const AUTH_RECORD_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 /** Map a Mastodon stream name + optional tag/list to an internal channel name. */
 function resolveStreamToChannel(stream: string, tag?: string | null, listId?: string | null): string | null {
@@ -50,7 +66,14 @@ function resolveStreamToChannel(stream: string, tag?: string | null, listId?: st
   }
 }
 
-type SocketAttachment = { channels?: string[]; initialChannel?: string };
+type SocketAttachment = {
+  channels?: string[];
+  initialChannel?: string;
+  ip?: string;
+  socketId?: string;
+  anon?: boolean;
+  anonCreatedAt?: number;
+};
 
 export class TimelineStreamDO extends CFDurableObject {
   readonly state: DurableObjectState;
@@ -76,13 +99,55 @@ export class TimelineStreamDO extends CFDurableObject {
 
   // ─── WebSocket upgrade ────────────────────────────────────────────────────
 
-  private handleConnect(request: Request, url: URL): Response {
+  private async handleConnect(request: Request, url: URL): Promise<Response> {
     const upgradeHeader = request.headers.get("Upgrade");
     if (!upgradeHeader || upgradeHeader.toLowerCase() !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
 
     const channel = url.searchParams.get("channel") ?? "public";
+    const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+    // Public/hashtag streams are anonymous unless the worker resolved a valid
+    // token (logged-in users viewing the public timeline) and flagged the
+    // connection as authenticated.
+    const authed = url.searchParams.get("authed") === "1";
+    const isAnon = !authed && (channel.startsWith("public") || channel.startsWith("hashtag"));
+    // IPs are encodeURIComponent'd so the ":"-separated key stays parseable
+    // even for IPv6 addresses.
+    const ipKey = encodeURIComponent(ip);
+
+    // Per-IP connection cap. Counts live in durable storage so they survive
+    // isolate eviction; stale records are pruned by age as a safety net.
+    const prefix = `stream_conn:${ipKey}:`;
+    const activeKeys = await this.state.storage.list({ prefix, limit: 100 });
+
+    let active = 0;
+    for (const [key] of activeKeys) {
+      const rec = (await this.state.storage.get<{ k: "anon" | "auth"; c: number }>(key)) ?? {
+        k: "auth",
+        c: 0,
+      };
+      const maxAgeMs = rec.k === "anon" ? ANON_RECORD_MAX_AGE_MS : AUTH_RECORD_MAX_AGE_MS;
+      if (Date.now() - rec.c > maxAgeMs) {
+        this.state.waitUntil(this.state.storage.delete(key));
+        continue;
+      }
+      active++;
+    }
+
+    const maxConns = isAnon ? ANON_MAX_CONNS_PER_IP : AUTH_MAX_CONNS_PER_IP;
+    if (active >= maxConns) {
+      return new Response(
+        JSON.stringify({ error: "Too many concurrent streaming connections from this address" }),
+        { status: 429, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const socketId = crypto.randomUUID();
+    await this.state.storage.put(`${prefix}${socketId}`, {
+      k: isAnon ? "anon" : "auth",
+      c: Date.now(),
+    });
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair) as [WebSocket, WebSocket];
@@ -90,7 +155,19 @@ export class TimelineStreamDO extends CFDurableObject {
     // Tag the hibernated socket with the channel name so we can fan-out by tag.
     // Also store the initial channel in the attachment for dynamic subscription tracking.
     this.state.acceptWebSocket(server, [channel]);
-    server.serializeAttachment({ channels: [], initialChannel: channel } satisfies SocketAttachment);
+    server.serializeAttachment({
+      channels: [],
+      initialChannel: channel,
+      ip,
+      socketId,
+      ...(isAnon ? { anon: true, anonCreatedAt: Date.now() } : {}),
+    } satisfies SocketAttachment);
+
+    // Time-box anonymous public streams so an unauthenticated socket cannot
+    // idle forever and read the instance without limit.
+    if (isAnon) {
+      await this.state.storage.setAlarm(Date.now() + ANON_SOCKET_TTL_MS);
+    }
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -133,6 +210,42 @@ export class TimelineStreamDO extends CFDurableObject {
   }
 
   // ─── WebSocket Hibernation callbacks ──────────────────────────────────────
+
+  /**
+   * Storage alarm — wakes the hibernated DO to force-close anonymous public
+   * stream sockets that have reached ANON_SOCKET_TTL_MS, then reschedules for
+   * the nearest remaining expiry (if any anonymous sockets are still open).
+   */
+  async alarm(): Promise<void> {
+    const now = Date.now();
+    let nextExpiry = Infinity;
+
+    for (const ws of this.state.getWebSockets()) {
+      const att = (ws.deserializeAttachment() ?? {}) as SocketAttachment;
+      if (att.anon && att.anonCreatedAt != null) {
+        const age = now - att.anonCreatedAt;
+        if (age >= ANON_SOCKET_TTL_MS) {
+          try { ws.close(1000, "public stream session expired"); } catch { /* already closed */ }
+        } else {
+          nextExpiry = Math.min(nextExpiry, att.anonCreatedAt + ANON_SOCKET_TTL_MS);
+        }
+      }
+    }
+
+    if (nextExpiry !== Infinity) {
+      await this.state.storage.setAlarm(nextExpiry);
+    }
+  }
+
+  /** Release this socket's per-IP connection slot. */
+  private removeConnection(ws: WebSocket): void {
+    const att = (ws.deserializeAttachment() ?? {}) as SocketAttachment;
+    if (att.ip && att.socketId) {
+      this.state.waitUntil(
+        this.state.storage.delete(`stream_conn:${encodeURIComponent(att.ip)}:${att.socketId}`)
+      );
+    }
+  }
 
   webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
     if (typeof message !== "string") return;
@@ -182,11 +295,13 @@ export class TimelineStreamDO extends CFDurableObject {
   }
 
   webSocketClose(ws: WebSocket): void {
+    this.removeConnection(ws);
     ws.close();
   }
 
   webSocketError(ws: WebSocket, error: unknown): void {
     console.error("[TimelineStreamDO] WebSocket error:", error);
+    this.removeConnection(ws);
     ws.close();
   }
 }

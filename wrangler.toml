@@ -24,6 +24,15 @@ LIBRETRANSLATE_URL = ""
 #   wrangler secret put CALLS_API_TOKEN
 #   wrangler secret put ADMIN_TOKEN  (optional — if set, admin endpoints require it)
 
+# Guardian vector memory (Cloudflare Vectorize). OPTIONAL — the moderation
+# system works without it; this adds semantic spam detection + RAG precedent.
+# Enable it by creating the index and uncommenting the binding below:
+#   npx wrangler vectorize create moderation-vectors --dimensions=1024 --metric=cosine
+# (1024 dims to match the @cf/baai/bge-m3 embedding model used by lib/moderation/vectors.ts)
+# [[vectorize]]
+# binding = "VECTORIZE"
+# index_name = "moderation-vectors"
+
 [[routes]]
 pattern = "cf-ap.example.com"
 custom_domain = true

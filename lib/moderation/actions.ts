@@ -12,12 +12,15 @@ import { createActor, getActorById, getActorByUsername, getObjectById } from "@/
 import { sendModerationNoticeEmail } from "@/lib/email";
 import { recordModeration, hadAction, type ModerationSource } from "./log";
 import { GUARDIAN_MODEL } from "./ai";
+import { rememberAbuse, buildAbuseVectorId } from "./vectors";
+import { stripHtml } from "./heuristics";
 
 export interface ModerationEnv {
   DB: D1Database;
   AI?: Ai;
   EMAIL?: SendEmail;
   KV?: KVNamespace;
+  VECTORIZE?: VectorizeIndex;
   INSTANCE_TITLE?: string;
   INSTANCE_URL?: string;
   FROM_EMAIL?: string;
@@ -167,6 +170,23 @@ export async function rejectAccount(env: ModerationEnv, opts: ActionBase & { act
     emailTo: actor.email,
     relatedId: opts.relatedId ?? null,
   });
+
+  // Remember the rejected profile so similar spam registrations are caught
+  // without a fresh AI call.
+  const detailText = typeof opts.details?.content === "string" ? opts.details.content : "";
+  const profileText = detailText || `${actor.username} ${actor.displayName ?? ""} ${actor.summary ?? ""}`.trim();
+  if (profileText) {
+    await rememberAbuse(env, {
+      id: buildAbuseVectorId("registration", actorId),
+      kind: "registration",
+      action: "reject",
+      text: profileText,
+      reason: reason ?? undefined,
+      confidence: opts.confidence ?? undefined,
+      model: m.model,
+    });
+  }
+
   return { action: "rejected", applied: true, emailSent };
 }
 
@@ -225,6 +245,21 @@ export async function suspendAccount(env: ModerationEnv, opts: ActionBase & { ac
     emailTo: actor.email,
     relatedId: opts.relatedId ?? null,
   });
+
+  // Remember the offending content so near-duplicates are caught immediately.
+  const content = typeof opts.details?.content === "string" ? opts.details.content : "";
+  if (content) {
+    await rememberAbuse(env, {
+      id: buildAbuseVectorId("account", actorId),
+      kind: "account",
+      action: "suspend",
+      text: content,
+      reason: reason ?? undefined,
+      confidence: opts.confidence ?? undefined,
+      model: m.model,
+    });
+  }
+
   return { action: "suspended", applied: true, emailSent };
 }
 
@@ -284,6 +319,20 @@ export async function deleteStatus(env: ModerationEnv, opts: ActionBase & { obje
     emailTo: owner?.email ?? null,
     relatedId: opts.relatedId ?? obj.actorId,
   });
+
+  // Remember the offending text so near-duplicate spam is caught without the LLM.
+  if (obj.content) {
+    await rememberAbuse(env, {
+      id: buildAbuseVectorId("status", objectId),
+      kind: "status",
+      action: "delete",
+      text: stripHtml(obj.content),
+      reason: reason ?? undefined,
+      confidence: opts.confidence ?? undefined,
+      model: m.model,
+    });
+  }
+
   return { action: "deleted", applied: true, emailSent };
 }
 

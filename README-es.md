@@ -28,7 +28,8 @@
 | Streaming en tiempo real | Cloudflare Durable Objects (TimelineStreamDO) |
 | Señalización WebRTC | Cloudflare Durable Objects (CallSignalingDO) |
 | ICE WebRTC | STUN de Cloudflare + TURN opcional de Cloudflare Calls |
-| Inferencia IA | Cloudflare Workers AI (LLaVA para descripciones multimedia; Llama Guard + Llama 3.3 para moderación) |
+| Inferencia IA | Cloudflare Workers AI (LLaVA para descripciones multimedia; Llama Guard + Llama 3.3 + embeddings BGE-M3 para moderación) |
+| Memoria semántica | Cloudflare Vectorize (memoria de abuso de moderación + precedente RAG) |
 | Correo electrónico | Cloudflare Email Workers (vía binding `send_email`) |
 | Criptografía | Web Crypto API (RSASSA-PKCS1-v1_5 + PBKDF2 + ECDH + AES-128-GCM) |
 | Estilos | Tailwind CSS v4 |
@@ -83,6 +84,18 @@ ADMIN_TOKEN=tu-token-generado
 ```
 
 Cuando está configurado, cada petición a `/api/v1/admin/*` debe enviar `Authorization: Bearer <token>`. Sin él, las rutas admin quedan abiertas (comportamiento por defecto).
+
+### Índice Vectorize (opcional)
+
+La moderación con IA ("Guardian") obtiene una memoria semántica del abuso confirmado vía [Cloudflare Vectorize](https://developers.cloudflare.com/vectorize/): los casi-duplicados de spam conocido se bloquean sin una nueva llamada a la IA, y los casos previos similares se muestran al modelo de razonamiento como precedente.
+
+Crea el índice (las dimensiones deben coincidir con el modelo de embeddings `@cf/baai/bge-m3`):
+
+```bash
+npx wrangler vectorize create moderation-vectors --dimensions=1024 --metric=cosine
+```
+
+Después descomenta el bloque `[[vectorize]]` al inicio de `wrangler.toml`. Sin el binding, la moderación sigue funcionando igual — la memoria vectorial simplemente queda desactivada.
 
 ### Variables de texto plano (`[vars]` en `wrangler.toml`)
 
@@ -231,6 +244,7 @@ Moderación totalmente autónoma — no hay administrador humano, la IA gestiona
 - **Revisión de registros** — los nuevos registros se revisan por si hubiera abuso antes de aprobarse
 - **Patrulla de cuentas** — un ciclo programado escanea estados recientes, cuentas sospechosas, spam duplicado y dominios de spam
 - **Heurísticas deterministas** — señales basadas en reglas (publicaciones solo con enlaces, abuso de mayúsculas/emojis, palabras clave de estafa en inglés y español, inundaciones de publicaciones, seguimiento masivo) alimentan cada decisión de la IA, de modo que el spam se detecta incluso si el LLM no está disponible
+- **Memoria vectorial (Cloudflare Vectorize)** — el abuso confirmado se incrusta y almacena; los casi-duplicados de spam conocido se bloquean al instante sin una nueva llamada a la IA, y los casos previos similares se inyectan en el prompt de decisión como precedente RAG
 - **Registro de auditoría completo** — cada decisión se escribe en la tabla `moderation_log` con la acción, el motivo y la confianza
 - **Motor de acciones** — las cuentas advertidas / suspendidas / rechazadas (y las publicaciones eliminadas) reciben notificación por correo, y las suspensiones purgan el contenido de la cuenta
 - **API de administración** — lee el registro de moderación vía `GET /api/v1/admin/moderation_log`; opcionalmente protegida por `ADMIN_TOKEN` (Bearer)

@@ -7,9 +7,10 @@
  * flagged a severe category, the pipeline blocks defensively.
  */
 
-import { screenContent, type SafetyVerdict } from "./classifier";
+import { screenContent } from "./classifier";
 import { evaluateContent } from "./ai";
 import { stripHtml, computeContentSignals } from "./heuristics";
+import { vectorPreScreen } from "./vectors";
 import { warnAccount, suspendAccount, deleteStatus, markStatusSensitive, recordNoAction, GUARDIAN_MODEL } from "./actions";
 import { countWarnings } from "./log";
 import { runWithTimeout } from "./util";
@@ -45,21 +46,68 @@ export async function screenStatus(
   input: ScreenStatusInput
 ): Promise<ScreenStatusOutput> {
   const plainText = stripHtml(input.contentHtml);
-  if (!plainText || !env.AI) return { blocked: false, markedSensitive: false };
-  const ai = env.AI;
+  if (!plainText) return { blocked: false, markedSensitive: false };
 
-  const screen: SafetyVerdict | null = await runWithTimeout(
-    screenContent(ai, plainText),
-    2500,
-    null
-  );
-
-  if (!screen || screen.safe) return { blocked: false, markedSensitive: false };
-
-  const guardCodes = new Set(screen.categories.map((c) => c.split(":")[0].trim().toUpperCase()));
-  const severe = [...guardCodes].some((c) => SEVERE_GUARD_CODES.has(c));
+  // 1. Fast Llama Guard filter + Vectorize similarity pre-screen in parallel.
+  //    The vector memory catches near-duplicate spam without a fresh LLM call.
+  const [screen, vector] = await Promise.all([
+    env.AI ? runWithTimeout(screenContent(env.AI, plainText), 2500, null) : Promise.resolve(null),
+    vectorPreScreen(env, plainText),
+  ]);
 
   const signals = computeContentSignals(input.contentHtml);
+  if (vector.flagged) signals.flags.push("similar_confirmed_spam");
+
+  const details = {
+    stage: input.objectId ? "scheduled_scan" : "content_gate",
+    authorId: input.authorId,
+    objectId: input.objectId,
+    flags: signals.flags,
+    guardCategories: screen?.categories ?? [],
+    vectorMatch: vector.best
+      ? { id: vector.best.id, kind: vector.best.kind, action: vector.best.action, score: Number(vector.best.score.toFixed(4)) }
+      : null,
+    content: plainText.slice(0, 300),
+  };
+
+  // 2. Auto-action: this content is a near-duplicate of previously confirmed
+  //    abuse — reuse the stored decision instead of re-asking the model.
+  if (vector.autoAction && vector.best) {
+    const previousWarnings = await countWarnings(env.DB, input.authorId);
+    const reason = `Contenido casi idéntico a abuso confirmado previamente (similitud ${vector.best.score.toFixed(2)}): ${vector.best.reason ?? "spam conocido"}`.slice(0, 500);
+
+    if (vector.autoAction === "suspend") {
+      await suspendAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
+      if (input.objectId) {
+        await deleteStatus(env, { objectId: input.objectId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
+      }
+      return { blocked: true, markedSensitive: false, reason };
+    }
+
+    if (vector.autoAction === "delete") {
+      if (previousWarnings >= 1) {
+        await suspendAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
+      } else {
+        await warnAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
+      }
+      if (input.objectId) {
+        await deleteStatus(env, { objectId: input.objectId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
+      }
+      return { blocked: true, markedSensitive: false, reason };
+    }
+
+    // "reject" precedents are registration-specific; nothing to do here.
+  }
+
+  // 3. Guard fast screen: nothing flagged and no vector signal → allow.
+  if (!screen || screen.safe) {
+    if (!vector.flagged) return { blocked: false, markedSensitive: false };
+    // Only a moderate vector signal — let the reasoning model decide.
+  }
+
+  const guardCodes = new Set(screen ? screen.categories.map((c) => c.split(":")[0].trim().toUpperCase()) : []);
+  const severe = [...guardCodes].some((c) => SEVERE_GUARD_CODES.has(c));
+
   const previousWarnings = await countWarnings(env.DB, input.authorId);
 
   const verdict = await runWithTimeout(
@@ -74,19 +122,11 @@ export async function screenStatus(
       statusesCount: input.statusesCount,
       previousWarnings,
       flags: signals.flags,
+      precedent: vector.precedent,
     }),
     6000,
     null
   );
-
-  const details = {
-    stage: input.objectId ? "scheduled_scan" : "content_gate",
-    authorId: input.authorId,
-    objectId: input.objectId,
-    flags: signals.flags,
-    guardCategories: screen.categories,
-    content: plainText.slice(0, 300),
-  };
 
   const action = verdict?.action ?? (severe ? "delete" : [...guardCodes].some((c) => SENSITIVE_GUARD_CODES.has(c)) ? "mark_sensitive" : "allow");
 
