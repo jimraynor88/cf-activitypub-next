@@ -34,26 +34,29 @@ export default function PushNotificationsPage() {
 
   useEffect(() => {
     if (!token) { window.location.href = "/login"; return; }
-    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
-      setBrowserSupport(false);
-      setLoading(false);
-      return;
-    }
-    void fetchSubscription();
-  }, []);
 
-  async function fetchSubscription() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/push/subscription", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json() as PushSubscriptionData;
-      setSubscription(data);
+    async function fetchSubscription() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/push/subscription", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json() as PushSubscriptionData;
+        setSubscription(data);
+      }
+      setLoading(false);
     }
-    setLoading(false);
-  }
+
+    Promise.resolve().then(() => {
+      if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)) {
+        setBrowserSupport(false);
+        setLoading(false);
+        return;
+      }
+      void fetchSubscription();
+    });
+  }, [token]);
 
   async function handleSubscribe() {
     if (!token) return;
@@ -145,8 +148,6 @@ export default function PushNotificationsPage() {
   async function handleToggleAlert(key: NotificationType, value: boolean) {
     if (!token || !subscription) return;
     setError(null);
-
-    const updatedAlerts = { ...subscription.alerts, [key]: value };
 
     const res = await fetch("/api/v1/push/subscription", {
       method: "PUT",

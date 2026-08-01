@@ -58,12 +58,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   other: "Other",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  open: "Open",
-  resolved: "Resolved",
-  dismissed: "Dismissed",
-};
-
 export default function ReportsPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
@@ -74,27 +68,25 @@ export default function ReportsPage() {
 
   useEffect(() => {
     if (!token) { router.push("/login"); return; }
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+    async function fetchReports() {
+      if (!token) return;
+      const res = await fetch("/api/v1/reports", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setReports(await res.json() as Report[]);
+      setLoading(false);
+    }
     void fetchMe();
     void fetchReports();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchReports() {
-    if (!token) return;
-    const res = await fetch("/api/v1/reports", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setReports(await res.json() as Report[]);
-    setLoading(false);
-  }
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/reports" />}>
@@ -123,7 +115,7 @@ export default function ReportsPage() {
         ) : reports.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
             <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🚩</div>
-            <div style={{ fontWeight: 600 }}>You haven't submitted any reports</div>
+            <div style={{ fontWeight: 600 }}>You haven&apos;t submitted any reports</div>
           </div>
         ) : (
           reports.map((report) => {

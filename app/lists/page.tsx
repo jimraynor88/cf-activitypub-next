@@ -43,29 +43,29 @@ export default function ListsPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchLists() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/lists", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setLists(await res.json() as List[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchLists();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchLists() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/lists", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setLists(await res.json() as List[]);
-    setLoading(false);
-  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

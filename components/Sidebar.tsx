@@ -24,19 +24,21 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   const [localMe, setLocalMe] = useState<SidebarAccount | null | undefined>(propMe);
   const me = propMe ?? localMe;
 
-  // Start with "light" to match SSR; useEffect corrects from localStorage without hydration mismatch
+  // Start with "light" to match SSR; effect corrects from localStorage without hydration mismatch
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as "light" | "dark" | null;
-    const resolved: "light" | "dark" =
-      saved === "light" || saved === "dark"
-        ? saved
-        : window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "dark"
-        : "light";
-    setTheme(resolved);
-    document.documentElement.setAttribute("data-theme", resolved);
+    Promise.resolve().then(() => {
+      const saved = localStorage.getItem("theme") as "light" | "dark" | null;
+      const resolved: "light" | "dark" =
+        saved === "light" || saved === "dark"
+          ? saved
+          : window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+      setTheme(resolved);
+      document.documentElement.setAttribute("data-theme", resolved);
+    });
   }, []);
 
   function toggleTheme() {
@@ -59,18 +61,20 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   // Self-fetch current user info when page doesn't pass `me` prop
   useEffect(() => {
     if (propMe !== undefined) return;
-    const token = getToken();
-    if (!token) { setLocalMe(null); return; }
-    fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    }).then(async (res) => {
-      if (res.ok) {
-        const data = await res.json() as SidebarAccount;
-        setLocalMe(data);
-      } else {
-        setLocalMe(null);
-      }
-    }).catch(() => setLocalMe(null));
+    Promise.resolve().then(() => {
+      const token = getToken();
+      if (!token) { setLocalMe(null); return; }
+      fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json() as SidebarAccount;
+          setLocalMe(data);
+        } else {
+          setLocalMe(null);
+        }
+      }).catch(() => setLocalMe(null));
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

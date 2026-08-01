@@ -122,7 +122,6 @@ export default function NotificationsPage() {
     void fetchFollowRequests();
     void fetchMe();
     void markAllRead();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Real-time: prepend new notifications as they arrive via streaming.

@@ -34,7 +34,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!actor) return unauthorized();
 
   const contentType = request.headers.get("Content-Type") ?? "";
-  let body: Record<string, string | undefined> = {};
+  const body: Record<string, string | undefined> = {};
 
   if (contentType.includes("application/json")) {
     const parsed = await request.json() as Record<string, Record<string, string>>;

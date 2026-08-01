@@ -29,10 +29,28 @@ export default function FeaturedTagsPage() {
   const wrapperRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
+    async function fetchTags() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/featured_tags", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setTags(await res.json() as FeaturedTag[]);
+      setLoading(false);
+    }
+
+    async function fetchSuggestions() {
+      if (!token) return;
+      const res = await fetch("/api/v1/featured_tags/suggestions", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setSuggestions(await res.json() as Suggestion[]);
+    }
+
     if (!token) { window.location.href = "/login"; return; }
     void fetchTags();
     void fetchSuggestions();
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -43,24 +61,6 @@ export default function FeaturedTagsPage() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  async function fetchTags() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/featured_tags", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setTags(await res.json() as FeaturedTag[]);
-    setLoading(false);
-  }
-
-  async function fetchSuggestions() {
-    if (!token) return;
-    const res = await fetch("/api/v1/featured_tags/suggestions", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setSuggestions(await res.json() as Suggestion[]);
-  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();

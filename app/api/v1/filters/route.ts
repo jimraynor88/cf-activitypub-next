@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getFilters, createFilter, deleteFilter } from "@/lib/db";
+import { getFilters, createFilter } from "@/lib/db";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();

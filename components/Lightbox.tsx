@@ -23,12 +23,21 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
   const onNavRef = useRef(onNav);
   const indexRef = useRef(index);
 
-  onCloseRef.current = onClose;
-  onNavRef.current = onNav;
-  indexRef.current = index;
+  // Reset the loading indicator whenever the displayed item changes
+  const [prevImgIndex, setPrevImgIndex] = useState(index);
+  if (prevImgIndex !== index) {
+    setPrevImgIndex(index);
+    setImgLoaded(false);
+  }
+
+  // Keep latest callbacks/index available to the keydown listener
+  useEffect(() => {
+    onCloseRef.current = onClose;
+    onNavRef.current = onNav;
+    indexRef.current = index;
+  });
 
   useEffect(() => {
-    setImgLoaded(false);
     document.body.style.overflow = "hidden";
 
     const handleKey = (e: KeyboardEvent) => {
@@ -127,6 +136,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
             )}
           </div>
         ) : (
+          // eslint-disable-next-line @next/next/no-img-element -- full-size viewer needs natural aspect ratio (maxWidth/maxHeight + objectFit contain), which next/image fill cannot express
           <img
             src={item.url}
             alt={item.description ?? ""}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -32,6 +33,13 @@ interface Account {
   acct: string;
   display_name: string;
   avatar: string;
+}
+
+interface Mention {
+  id: string;
+  username: string;
+  url: string;
+  acct: string;
 }
 
 interface MediaAttachment {
@@ -68,6 +76,7 @@ interface Status {
   language?: string | null;
   poll: Poll | null;
   emojis?: EmojiData[];
+  mentions?: Mention[];
 }
 
 interface Me {
@@ -108,12 +117,12 @@ function Avatar({
   const fallback = (account.display_name?.[0] ?? account.username?.[0] ?? "?").toUpperCase();
   if (!err && account.avatar) {
     return (
-      <img
+      <Image
         src={account.avatar}
         alt={account.display_name}
         width={size}
         height={size}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         onError={() => setErr(true)}
       />
     );
@@ -168,6 +177,7 @@ function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 onClick={() => setLbIdx(i)}
                 style={{
                   display: "block",
+                  position: "relative",
                   aspectRatio: attachments.length === 1 ? "16/9" : "1/1",
                   overflow: "hidden",
                   border: "none",
@@ -176,10 +186,12 @@ function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                   background: "none",
                 }}
               >
-                <img
+                <Image
                   src={att.preview_url ?? att.url}
                   alt={att.description ?? ""}
-                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 600px"
+                  style={{ objectFit: "cover" }}
                 />
               </button>
             );
@@ -360,7 +372,7 @@ function StatusCard({
   const [translating, setTranslating] = useState(false);
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [showTranslation, setShowTranslation] = useState(false);
-  const { t: i18n, locale } = useLocale();
+  const { t: i18n } = useLocale();
 
   async function handleTranslate() {
     if (translatedContent) {
@@ -583,7 +595,39 @@ function ReplyBox({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const descRefs = useRef<Record<string, string>>({});
+  const prefilled = useRef(false);
 
+  // By default a reply names everyone related to the replied-to status (the
+  // author plus the accounts mentioned in it), so the conversation participants
+  // all get notified — Mastodon's "reply to all" behaviour.
+  const relatedHandles = useMemo(() => {
+    const parts: string[] = [];
+    const seen = new Set<string>();
+    const add = (handle: string) => {
+      const key = handle.replace(/^@/, "").toLowerCase();
+      if (!handle || seen.has(key)) return;
+      seen.add(key);
+      parts.push(handle);
+    };
+    if (replyTo.account && replyTo.account.id !== me?.id) {
+      add(`@${replyTo.account.acct}`);
+    }
+    for (const m of replyTo.mentions ?? []) {
+      if (m.id === me?.id) continue;
+      if (m.acct === replyTo.account?.acct) continue;
+      add(`@${m.acct}`);
+    }
+    return parts.join(" ");
+  }, [replyTo, me]);
+
+  useEffect(() => {
+    if (prefilled.current || !me) return;
+    prefilled.current = true;
+    if (relatedHandles && !text) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setText(`${relatedHandles} `);
+    }
+  }, [me, relatedHandles, text]);
   const closeEmoji = useCallback(() => setEmojiOpen(false), []);
 
   const insertEmoji = useCallback((emoji: string) => {
@@ -690,9 +734,9 @@ function ReplyBox({
       </div>
       <div style={{ display: "flex", gap: "0.75rem" }}>
         {me && (
-          <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: "50%", overflow: "hidden", background: "var(--accent-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--accent)", fontSize: "0.9rem" }}>
+          <div style={{ width: 36, height: 36, position: "relative", flexShrink: 0, borderRadius: "50%", overflow: "hidden", background: "var(--accent-bg)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--accent)", fontSize: "0.9rem" }}>
             {me.avatar
-              ? <img src={me.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ? <Image src={me.avatar} alt="" fill sizes="36px" style={{ objectFit: "cover" }} />
               : (me.display_name?.[0] ?? me.username?.[0] ?? "?").toUpperCase()}
           </div>
         )}
@@ -757,7 +801,7 @@ function ReplyBox({
                 <div key={f.id} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
                   <div style={{ position: "relative", flexShrink: 0, width: 64, height: 64 }}>
                     {f.type === "image" || f.type === "gifv" ? (
-                      <img src={f.preview_url ?? f.url} alt={f.description ?? ""} style={{ width: 64, height: 64, objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
+                      <Image src={f.preview_url ?? f.url} alt={f.description ?? ""} width={64} height={64} style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
                     ) : (
                       <div style={{ width: 64, height: 64, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>{f.type === "audio" ? "🎵" : "🎬"}</div>
                     )}
@@ -855,26 +899,23 @@ export default function ThreadPage() {
   const token = getToken();
 
   useEffect(() => {
-    if (searchParams.get("reply") === "1") {
-      setAutoReply(true);
-      router.replace(`/statuses/${encodeURIComponent(statusId)}`, { scroll: false });
-    }
+    Promise.resolve().then(() => {
+      if (searchParams.get("reply") === "1") {
+        setAutoReply(true);
+        router.replace(`/statuses/${encodeURIComponent(statusId)}`, { scroll: false });
+      }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (autoReply && focal) {
-      setReplyTarget(focal);
-      setAutoReply(false);
-    }
+    Promise.resolve().then(() => {
+      if (autoReply && focal) {
+        setReplyTarget(focal);
+        setAutoReply(false);
+      }
+    });
   }, [autoReply, focal]);
-
-  useEffect(() => {
-    if (!token) { router.push("/login"); return; }
-    void load();
-    void fetchMe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusId]);
 
   async function load() {
     setLoading(true);
@@ -907,6 +948,15 @@ export default function ThreadPage() {
     });
     if (res.ok) setMe(await res.json() as Me);
   }
+
+  useEffect(() => {
+    if (!token) { router.push("/login"); return; }
+    Promise.resolve().then(() => {
+      void load();
+      void fetchMe();
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusId]);
 
   function handleFav(toggled: Status) {
     const update = (s: Status): Status =>

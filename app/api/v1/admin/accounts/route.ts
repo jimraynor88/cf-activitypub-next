@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
-import { getActorById, rowToActor } from "@/lib/db";
+import { rowToActor } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -38,10 +38,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
   binds.push(limit, offset);
 
-  let rows: any = { results: [] };
+  let rows: Record<string, unknown>[] = [];
   let totalCount = 0;
   try {
-    rows = await env.DB.prepare(sql).bind(...binds).all();
+    const result = await env.DB.prepare(sql).bind(...binds).all<Record<string, unknown>>();
+    rows = result.results;
     const totalRow = await env.DB.prepare(
       "SELECT COUNT(*) as count FROM actors WHERE 1=1" +
       (status !== "all" ? (status === "active" ? " AND email_verified = 1" : status === "pending" ? " AND email_verified = 0" : " AND suspended = 1") : "") +
@@ -49,19 +50,19 @@ export async function GET(request: NextRequest): Promise<Response> {
       (q ? " AND (username LIKE ? OR display_name LIKE ?)" : "")
     ).bind(...(role !== "all" ? [role] : []), ...(q ? [`%${q}%`, `%${q}%`] : [])).first<{ count: number }>();
     totalCount = totalRow?.count ?? 0;
-  } catch (e) {
+  } catch {
     // Missing columns (role, suspended) — run migration: npx wrangler d1 execute cf-ap --remote --file=lib/db/migrations/007-admin-columns.sql
   }
 
-  const accounts = rows.results.map((r: any) => {
-    const actor = rowToActor(r as any);
+  const accounts = rows.map((r) => {
+    const actor = rowToActor(r);
     return {
       id: actor.id,
       username: actor.username,
       domain: actor.domain,
       created_at: actor.createdAt,
       email: actor.email,
-      role: r.role ?? "user",
+      role: String(r.role ?? "user"),
       confirmed: actor.emailVerified,
       suspended: Boolean(r.suspended),
       approved: true,
@@ -72,6 +73,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   return json({ accounts, total: totalCount });
 }
 
-export async function POST(request: NextRequest): Promise<Response> {
+export async function POST(): Promise<Response> {
   return json({ error: "Not implemented" }, 501);
 }

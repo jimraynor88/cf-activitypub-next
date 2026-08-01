@@ -34,29 +34,29 @@ export default function MutesPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchMuted() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/mutes", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMuted(await res.json() as Account[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchMuted();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchMuted() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/mutes", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMuted(await res.json() as Account[]);
-    setLoading(false);
-  }
 
   async function handleUnmute(account: Account) {
     if (!token) return;

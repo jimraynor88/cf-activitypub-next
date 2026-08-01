@@ -3,6 +3,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useState, useEffect, Suspense } from "react";
+import Image from "next/image";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -100,8 +101,8 @@ function AvatarImg({ account, size = 42 }: { account: Account; size?: number }) 
   const fallback = (account.display_name?.[0] ?? account.username?.[0] ?? "?").toUpperCase();
   if (!err && account.avatar) {
     return (
-      <img src={account.avatar} alt={account.display_name} width={size} height={size}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+      <Image src={account.avatar} alt={account.display_name} width={size} height={size}
+        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         onError={() => setErr(true)} />
     );
   }
@@ -127,8 +128,8 @@ function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
           att.type === "image" || att.type === "gifv" ? (
             <button key={att.id} type="button" onClick={() => setLbIdx(i)}
               title={att.description ?? undefined}
-              style={{ display: "block", aspectRatio: attachments.length === 1 ? "16/9" : "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "none" }}>
-              <img src={att.preview_url ?? att.url} alt={att.description ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+              style={{ display: "block", position: "relative", aspectRatio: attachments.length === 1 ? "16/9" : "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "none" }}>
+              <Image src={att.preview_url ?? att.url} alt={att.description ?? ""} fill sizes="(max-width: 768px) 100vw, 600px" style={{ objectFit: "cover" }} />
             </button>
           ) : att.type === "video" ? (
             <button key={att.id} type="button" onClick={() => setLbIdx(i)}

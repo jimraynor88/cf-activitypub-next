@@ -34,8 +34,6 @@ import {
 import {
   buildAccept,
   generateId,
-  activityIRI,
-  extractUsername,
 } from "./utils";
 import { upsertCustomEmoji } from "@/lib/db";
 import { deliverToInbox, fetchRemoteObject } from "./federation";
@@ -127,7 +125,8 @@ export async function processInboxActivity(
         break;
     }
   } catch (err) {
-    console.error("[inbox] Error processing activity:", (activity as any)?.type, (activity as any)?.id, err);
+    const failed = activity as { type?: unknown; id?: unknown };
+    console.error("[inbox] Error processing activity:", failed?.type, failed?.id, err);
   }
 }
 

@@ -1,8 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorById, getActorStatuses, getFollow, getActorFields, getDomainCallsSupport } from "@/lib/db";
-import { serializeAccount, serializeStatus } from "@/lib/mastodon/serializers";
-import { getAuthenticatedActor } from "@/lib/auth";
+import { getActorById, getActorFields, getDomainCallsSupport } from "@/lib/db";
+import { serializeAccount } from "@/lib/mastodon/serializers";
 import { fetchAndCacheRemoteActor } from "@/lib/activitypub/remote";
 
 // GET /api/v1/accounts/:id

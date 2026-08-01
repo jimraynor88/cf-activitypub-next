@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
+import Image from "next/image";
 import { EMOJI_CATEGORIES } from "@/lib/emoji-data";
 
 interface CustomEmoji {
@@ -161,7 +162,7 @@ export function EmojiPicker({ onInsert, open, onClose, anchorRef, direction = "d
                       }}
                       title={`:${emoji.shortcode}:`}
                     >
-                      <img
+                      <Image
                         src={emoji.url}
                         alt={`:${emoji.shortcode}:`}
                         width={22}

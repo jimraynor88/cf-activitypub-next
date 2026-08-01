@@ -1,7 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { createAttachment } from "@/lib/db";
 
 // POST /api/v1/media — Upload a media attachment (stored in R2)
 export async function POST(request: NextRequest): Promise<Response> {

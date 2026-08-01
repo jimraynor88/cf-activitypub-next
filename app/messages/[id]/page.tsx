@@ -24,6 +24,25 @@ export default function ConversationDetailPage() {
 
   useEffect(() => {
     if (!token || !params?.id) { router.push("/login"); return; }
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+    async function fetchConversation() {
+      if (!token || !params?.id) return;
+      const res = await fetch(`/api/v1/conversations/${encodeURIComponent(params.id)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json() as { id: string; accounts: { id: string; username: string; acct: string; display_name: string; avatar: string }[]; last_status: Status | null };
+        setConv(data);
+        if (data.last_status) setMessages([data.last_status]);
+      }
+      setLoading(false);
+    }
     void fetchMe();
     void fetchConversation();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -32,27 +51,6 @@ export default function ConversationDetailPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchConversation() {
-    if (!token || !params?.id) return;
-    const res = await fetch(`/api/v1/conversations/${encodeURIComponent(params.id)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      const data = await res.json() as { id: string; accounts: { id: string; username: string; acct: string; display_name: string; avatar: string }[]; last_status: Status | null };
-      setConv(data);
-      if (data.last_status) setMessages([data.last_status]);
-    }
-    setLoading(false);
-  }
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();

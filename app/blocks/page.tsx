@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -45,39 +46,40 @@ export default function BlocksPage() {
 
   useEffect(() => {
     if (!token) { router.push("/login"); return; }
+
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchBlocked() {
+      if (!token) return;
+      setLoadingUsers(true);
+      const res = await fetch("/api/v1/blocks", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setBlocked(await res.json() as Account[]);
+      setLoadingUsers(false);
+    }
+
+    async function fetchDomains() {
+      if (!token) return;
+      setLoadingDomains(true);
+      const res = await fetch("/api/v1/domain_blocks", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setDomains(await res.json() as string[]);
+      setLoadingDomains(false);
+    }
+
     void fetchMe();
     void fetchBlocked();
     void fetchDomains();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchBlocked() {
-    if (!token) return;
-    setLoadingUsers(true);
-    const res = await fetch("/api/v1/blocks", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setBlocked(await res.json() as Account[]);
-    setLoadingUsers(false);
-  }
-
-  async function fetchDomains() {
-    if (!token) return;
-    setLoadingDomains(true);
-    const res = await fetch("/api/v1/domain_blocks", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setDomains(await res.json() as string[]);
-    setLoadingDomains(false);
-  }
 
   async function handleUnblock(account: Account) {
     if (!token) return;
@@ -207,10 +209,12 @@ export default function BlocksPage() {
                     {/* Avatar */}
                     <Link href={profileHref} style={{ flexShrink: 0 }}>
                       {account.avatar ? (
-                        <img
+                        <Image
                           src={account.avatar}
                           alt=""
-                          style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover" }}
+                          width={42}
+                          height={42}
+                          style={{ borderRadius: "50%", objectFit: "cover" }}
                         />
                       ) : (
                         <div

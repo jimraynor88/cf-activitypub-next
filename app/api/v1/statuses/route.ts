@@ -1,11 +1,10 @@
 import { type NextRequest } from "next/server";
-import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
+import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import {
   getActorById,
   getObjectById,
   createObject,
   createAttachment,
-  deleteObject,
   getActorByUsername,
   updateActor,
   createPoll,
@@ -20,17 +19,18 @@ import { decodeStatusId } from "@/lib/mastodon/statusId";
 import {
   buildNote,
   buildCreate,
-  buildDelete,
   generateId,
-  actorIRI,
   followersIRI,
+  isLocalIRI,
 } from "@/lib/activitypub/utils";
-import { deliverToInboxes, collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
+import { collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";
+import { buildReplyMentions, mentionKey, type ThreadNode } from "@/lib/activitypub/replies";
+import { PUBLIC_ADDRESS } from "@/lib/activitypub/vocab";
 import { broadcastPublicStatus, broadcastHomeStatus } from "@/lib/streaming/broadcast";
 import { notify } from "@/lib/notify";
-import type { APActor, APAttachment, LocalAttachment } from "@/lib/types";
+import type { APActor, APAttachment, APTag, LocalActor, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {
   const mimeType = att.mimeType ?? "application/octet-stream";
@@ -48,6 +48,28 @@ function toAPAttachment(att: LocalAttachment): APAttachment {
     ...(att.width != null ? { width: att.width } : {}),
     ...(att.height != null ? { height: att.height } : {}),
   };
+}
+
+/** Fetch a remote status that is being replied to but isn't cached locally. */
+async function fetchReplyParent(actor: LocalActor, iri: string): Promise<ThreadNode | null> {
+  try {
+    const fetched = await fetchRemoteObject(iri, `${actor.id}#main-key`, actor.privateKeyPem!);
+    if (!fetched || typeof fetched !== "object") return null;
+    const note = fetched as {
+      attributedTo?: string | { id?: string };
+      inReplyTo?: string;
+      tag?: APTag[];
+    };
+    const attributedTo =
+      typeof note.attributedTo === "string" ? note.attributedTo : note.attributedTo?.id ?? null;
+    return {
+      actorId: attributedTo,
+      inReplyToId: note.inReplyTo ?? null,
+      mentions: note.tag,
+    };
+  } catch {
+    return null;
+  }
 }
 
 // POST /api/v1/statuses — Publish a new status
@@ -69,7 +91,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     body = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
   }
 
-  const content = (body.status as string | undefined)?.trim();
+  let content = (body.status as string | undefined)?.trim();
   const pollRaw = body.poll as { options?: string[]; expires_in?: number; multiple?: boolean } | undefined;
   const hasPoll = pollRaw && Array.isArray(pollRaw.options) && pollRaw.options.filter((o) => String(o).trim()).length >= 2;
   if (!content && !hasPoll) return json({ error: "status content or poll is required" }, 422);
@@ -83,7 +105,6 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Process content: linkify mentions, hashtags, URLs, custom emoji → HTML
   const localEmojis = await getAllCustomEmojis(env.DB);
-  const { html: htmlContent, tags: contentTags } = processStatusContent(content ?? "", baseUrl, localEmojis);
 
   const scheduledAt = body.scheduled_at as string | undefined;
   if (scheduledAt) {
@@ -102,6 +123,72 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
   }
 
+  // ── Auto-mention conversation participants when replying ──────────────────
+  // Mastodon notifies the author of the replied-to status and everyone mentioned
+  // anywhere in the thread, even when the reply names nobody: the reply is
+  // addressed to them, delivered to their inboxes and they get a notification.
+  // Mirror that behaviour by prepending their @handles to the content (and, for
+  // accounts that can't be resolved, adding bare Mention tags).
+  const parent = inReplyToId ? await getObjectById(env.DB, inReplyToId) : null;
+  const parentNode: ThreadNode | null = parent
+    ? parent
+    : inReplyToId?.startsWith("https://")
+      ? await fetchReplyParent(actor, inReplyToId)
+      : null;
+
+  let replyMentionTags: APTag[] = [];
+  if (inReplyToId && parentNode) {
+    // Which actors are already mentioned in the user's own text (avoid dupes)
+    const { tags: userMentionTags } = processStatusContent(content ?? "", baseUrl, localEmojis);
+    const alreadyMentioned = new Set<string>();
+    for (const tag of userMentionTags) {
+      const key = mentionKey(tag);
+      if (key) alreadyMentioned.add(key);
+    }
+    const mentions = await buildReplyMentions(env.DB, parentNode, baseUrl, actor.id, alreadyMentioned);
+    replyMentionTags = mentions.tags;
+    if (mentions.text) {
+      content = `${mentions.text} ${content}`;
+    }
+  }
+
+  const { html: htmlContent, tags: contentTags } = processStatusContent(content ?? "", baseUrl, localEmojis);
+
+  // Merge tag-only mention additions and de-duplicate Mention tags by actor
+  const seenMentionKeys = new Set<string>();
+  const allTags: APTag[] = [];
+  for (const tag of [...contentTags, ...replyMentionTags]) {
+    if (tag.type === "Mention" && tag.href) {
+      const key = mentionKey(tag);
+      if (key && seenMentionKeys.has(key)) continue;
+      if (key) seenMentionKeys.add(key);
+    }
+    allTags.push(tag);
+  }
+
+  // Address the conversation participants in to/cc (Mastodon TagManager logic:
+  // mentions go to `cc` except for direct messages, where they are the `to`).
+  const mentionedIRIs = allTags
+    .filter((t) => t.type === "Mention" && t.href && t.href !== actor.id)
+    .map((t) => t.href!);
+  const followersAudience = followersIRI(baseUrl, actor.username);
+  let noteTo: string[];
+  let noteCc: string[];
+  if (visibility === "public") {
+    noteTo = [PUBLIC_ADDRESS];
+    noteCc = [followersAudience, ...mentionedIRIs];
+  } else if (visibility === "unlisted") {
+    noteTo = [followersAudience];
+    noteCc = [PUBLIC_ADDRESS, ...mentionedIRIs];
+  } else if (visibility === "followers") {
+    noteTo = [followersAudience];
+    noteCc = [...mentionedIRIs];
+  } else {
+    // direct
+    noteTo = [...mentionedIRIs];
+    noteCc = [];
+  }
+
   const id = generateId();
   const published = new Date().toISOString();
 
@@ -114,7 +201,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     sensitive,
     summary: sensitive ? spoilerText : undefined,
     language,
-    tags: contentTags,
+    tags: allTags,
+    to: noteTo,
+    cc: noteCc,
   });
   // note.attachment will be set after linkedAttachments is populated below
 
@@ -209,42 +298,32 @@ export async function POST(request: NextRequest): Promise<Response> {
       .prepare("UPDATE objects SET replies_count = replies_count + 1 WHERE id = ?")
       .bind(inReplyToId)
       .run();
-
-    const parent = await getObjectById(env.DB, inReplyToId);
-    if (parent) {
-      const parentOwner = await getActorById(env.DB, parent.actorId);
-      if (parentOwner && parentOwner.id !== actor.id) {
-        await notify(env, {
-          id: generateId(),
-          type: "mention",
-          accountId: actor.id,
-          targetAccountId: parent.actorId,
-          objectId: note.id,
-          read: false,
-          createdAt: published,
-        });
-      }
-    }
   }
 
-  // Create notifications for mentioned local users
-  for (const tag of contentTags) {
-    if (tag.type === "Mention" && tag.href && tag.href !== actor.id && tag.href.startsWith(baseUrl)) {
-      const usernameMatch = tag.href.match(/\/users\/([a-zA-Z0-9_]+)$/);
-      if (usernameMatch) {
-        const mentioned = await getActorByUsername(env.DB, usernameMatch[1], domain);
-        if (mentioned && mentioned.id !== actor.id) {
-          await notify(env, {
-            id: generateId(),
-            type: "mention",
-            accountId: actor.id,
-            targetAccountId: mentioned.id,
-            objectId: note.id,
-            read: false,
-            createdAt: published,
-          });
-        }
-      }
+  // Create notifications for mentioned local users. The parent author is always
+  // auto-mentioned on replies (see above), so this also covers the "reply
+  // without naming anyone" case. Notifications are de-duplicated per recipient.
+  const notified = new Set<string>();
+  if (inReplyToId && parent?.actorId && parent.actorId !== actor.id) {
+    const parentOwner = await getActorById(env.DB, parent.actorId);
+    if (parentOwner?.isLocal) notified.add(parentOwner.id);
+  }
+  for (const tag of allTags) {
+    if (tag.type !== "Mention" || !tag.href || tag.href === actor.id || !tag.href.startsWith(baseUrl)) continue;
+    const usernameMatch = tag.href.match(/\/users\/([a-zA-Z0-9_]+)$/);
+    if (!usernameMatch) continue;
+    const mentioned = await getActorByUsername(env.DB, usernameMatch[1], domain);
+    if (mentioned?.isLocal && mentioned.id !== actor.id && !notified.has(mentioned.id)) {
+      notified.add(mentioned.id);
+      await notify(env, {
+        id: generateId(),
+        type: "mention",
+        accountId: actor.id,
+        targetAccountId: mentioned.id,
+        objectId: note.id,
+        read: false,
+        createdAt: published,
+      });
     }
   }
 
@@ -261,8 +340,30 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // Fan-out delivery
-  if (visibility !== "direct") {
-    const createActivity = buildCreate(baseUrl, actor.id, note, generateId());
+  const createActivity = buildCreate(baseUrl, actor.id, note, generateId());
+  const fetchActor = async (id: string): Promise<APActor | null> => {
+    const cached = await getActorById(env.DB, id);
+    if (cached) return cached as unknown as APActor;
+    const remote = await fetchRemoteObject(id, `${actor.id}#main-key`, actor.privateKeyPem!);
+    return remote as APActor | null;
+  };
+
+  // Inboxes of every remote account mentioned in the status. This includes the
+  // auto-mentioned conversation participants (replied-to author + thread), so a
+  // reply always reaches the people it answers, even if they don't follow us.
+  // Local accounts are notified directly and never delivered to our own inbox.
+  const mentionIRIs = allTags
+    .filter((t) => t.type === "Mention" && t.href)
+    .map((t) => t.href!)
+    .filter((href) => href !== actor.id && !isLocalIRI(href, domain));
+  const mentionInboxes = await collectFollowerInboxes(mentionIRIs, fetchActor);
+
+  if (visibility === "direct") {
+    // Direct replies are delivered only to the addressed accounts
+    if (mentionInboxes.length > 0) {
+      await enqueueDeliveries(env.DELIVERY_QUEUE, mentionInboxes, JSON.stringify(createActivity), actor.id);
+    }
+  } else {
     // Get IDs of actors who follow the current user (actor_id = follower, target_id = followed)
     const followers = await env.DB
       .prepare("SELECT actor_id FROM follows WHERE target_id = ? AND state = 'accepted'")
@@ -270,14 +371,8 @@ export async function POST(request: NextRequest): Promise<Response> {
       .all<{ actor_id: string }>();
 
     const followerIds = followers.results.map((r) => r.actor_id);
-    const fetchActor = async (id: string): Promise<APActor | null> => {
-      const cached = await getActorById(env.DB, id);
-      if (cached) return cached as unknown as APActor;
-      const remote = await fetchRemoteObject(id, `${actor.id}#main-key`, actor.privateKeyPem!);
-      return remote as APActor | null;
-    };
-
     const inboxes = await collectFollowerInboxes(followerIds, fetchActor);
+    inboxes.push(...mentionInboxes);
     if (inboxes.length > 0) {
       // Use queue for reliable delivery with automatic retries
       await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(createActivity), actor.id);

@@ -32,29 +32,29 @@ export default function FollowedTagsPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchTags() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/followed_tags", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setTags(await res.json() as Tag[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchTags();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchTags() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/followed_tags", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setTags(await res.json() as Tag[]);
-    setLoading(false);
-  }
 
   async function handleUnfollow(name: string) {
     if (!token) return;

@@ -3,7 +3,6 @@ import { describe, it, expect } from "vitest";
 // Import the translation objects directly — they are plain objects.
 // The file uses "use client" but the dictionaries are module-level constants.
 // We re-export them here so tests don't need jsdom for the context/hook.
-import type { Translations } from "@/lib/i18n";
 
 // Inline the dictionaries since lib/i18n.tsx is "use client" and imports React
 const EN = {

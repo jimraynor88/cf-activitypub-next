@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getObjectById, getActorById, getAttachmentsByObjectId, getLike, getAnnounce } from "@/lib/db";
+import { getObjectById, getActorById, getAttachmentsByObjectId, getAnnounce } from "@/lib/db";
 import { serializeStatus } from "@/lib/mastodon/serializers";
 
 export async function GET(request: NextRequest): Promise<Response> {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -18,28 +18,28 @@ export default function BookmarksPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchBookmarks() {
+      if (!token) return;
+      const res = await fetch("/api/v1/bookmarks", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setStatuses(await res.json() as Status[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchBookmarks();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchBookmarks() {
-    if (!token) return;
-    const res = await fetch("/api/v1/bookmarks", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setStatuses(await res.json() as Status[]);
-    setLoading(false);
-  }
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/bookmarks" />}>

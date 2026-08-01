@@ -1,7 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
 import { getObjectById, getActorById } from "@/lib/db";
-import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 

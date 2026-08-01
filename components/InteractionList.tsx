@@ -25,17 +25,19 @@ export function InteractionList({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    fetch(apiUrl, { credentials: "include" })
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to fetch");
-        return res.json() as Promise<Account[]>;
-      })
-      .then((data) => {
-        setAccounts(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    Promise.resolve().then(() => {
+      setLoading(true);
+      fetch(apiUrl, { credentials: "include" })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch");
+          return res.json() as Promise<Account[]>;
+        })
+        .then((data) => {
+          setAccounts(data);
+          setLoading(false);
+        })
+        .catch(() => setLoading(false));
+    });
   }, [apiUrl]);
 
   useEffect(() => {

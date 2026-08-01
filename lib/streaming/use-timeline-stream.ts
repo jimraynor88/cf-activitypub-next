@@ -28,7 +28,9 @@ export function useTimelineStream(
 ): void {
   const { enabled = true, extraParams } = options;
   const onEventRef = useRef(onEvent);
-  onEventRef.current = onEvent;
+  useEffect(() => {
+    onEventRef.current = onEvent;
+  });
 
   useEffect(() => {
     if (!enabled || typeof window === "undefined") return;

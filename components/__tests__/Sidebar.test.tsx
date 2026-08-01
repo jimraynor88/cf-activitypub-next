@@ -1,16 +1,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { Sidebar } from "@/components/Sidebar";
+
+type MockLinkProps = { children?: ReactNode; href?: string; [key: string]: unknown };
+type MockImageProps = { alt?: string; src?: string; width?: number; height?: number; [key: string]: unknown };
 
 // Mock next/link and next/image
 vi.mock("next/link", () => ({
-  default: ({ children, href, ...props }: any) => (
-    <a href={href} {...props}>{children}</a>
+  default: (props: MockLinkProps) => (
+    <a href={props.href} {...props}>{props.children}</a>
   ),
 }));
 
 vi.mock("next/image", () => ({
-  default: ({ alt, ...props }: any) => <img alt={alt} {...props} />,
+  // eslint-disable-next-line @next/next/no-img-element -- test stub for next/image
+  default: (props: MockImageProps) => <img alt={props.alt} {...props} />,
 }));
 
 // Mock i18n

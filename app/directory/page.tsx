@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
-import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
 interface DirectoryEntry {
@@ -37,34 +37,34 @@ export default function DirectoryPage() {
   const token = getToken();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    async function fetchDirectory() {
+      if (!token) return;
+      setLoading(true);
+      const params = new URLSearchParams({ local: String(local), order });
+      const res = await fetch(`/api/v1/directory?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setEntries(await res.json() as DirectoryEntry[]);
+      setLoading(false);
+    }
+
     void fetchDirectory();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [local, order]);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchDirectory() {
-    if (!token) return;
-    setLoading(true);
-    const params = new URLSearchParams({ local: String(local), order });
-    const res = await fetch(`/api/v1/directory?${params}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setEntries(await res.json() as DirectoryEntry[]);
-    setLoading(false);
-  }
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/directory" />}>
@@ -172,11 +172,12 @@ export default function DirectoryPage() {
                     }}
                   >
                     {entry.avatar ? (
-                      <img
+                      <Image
                         src={entry.avatar}
                         alt=""
                         className="avatar"
-                        style={{ width: 56, height: 56 }}
+                        width={56}
+                        height={56}
                       />
                     ) : (
                       <div

@@ -1,8 +1,8 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { createReport, getActorById, getReportById, getReportsByActor, getObjectById } from "@/lib/db";
-import { serializeAccount, serializeStatus } from "@/lib/mastodon/serializers";
+import { createReport, getActorById, getReportsByActor, getObjectById } from "@/lib/db";
+import { serializeAccount } from "@/lib/mastodon/serializers";
 import { generateId } from "@/lib/activitypub/utils";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 import { evaluateReport } from "@/lib/moderation/ai";

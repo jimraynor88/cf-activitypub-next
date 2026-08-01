@@ -580,12 +580,14 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("en");
 
   useEffect(() => {
-    const saved = localStorage.getItem("locale") as Locale | null;
-    if (saved === "en" || saved === "es") {
-      setLocaleState(saved);
-    } else if (navigator.language.slice(0, 2) === "es") {
-      setLocaleState("es");
-    }
+    Promise.resolve().then(() => {
+      const saved = localStorage.getItem("locale") as Locale | null;
+      if (saved === "en" || saved === "es") {
+        setLocaleState(saved);
+      } else if (navigator.language.slice(0, 2) === "es") {
+        setLocaleState("es");
+      }
+    });
   }, []);
 
   function setLocale(l: Locale) {

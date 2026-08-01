@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
@@ -27,12 +28,7 @@ export default function EmojisPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const token = getToken();
 
-  useEffect(() => {
-    if (!token) { window.location.href = "/login"; return; }
-    void loadEmojis();
-  }, []);
-
-  async function loadEmojis() {
+  const loadEmojis = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/emojis", {
@@ -41,7 +37,12 @@ export default function EmojisPage() {
       if (res.ok) setEmojis(await res.json() as Emoji[]);
     } catch { /* ignore */ }
     setLoading(false);
-  }
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) { window.location.href = "/login"; return; }
+    Promise.resolve().then(() => void loadEmojis());
+  }, [loadEmojis, token]);
 
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
@@ -151,7 +152,7 @@ export default function EmojisPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginBottom: "1.5rem" }}>
             {localEmojis.map((emoji) => (
               <div key={emoji.id} style={{ display: "flex", alignItems: "center", gap: "0.75rem", padding: "0.5rem 0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius)", border: "1px solid var(--border)", opacity: emoji.disabled ? 0.5 : 1 }}>
-                <img src={emoji.url} alt={`:${emoji.shortcode}:`} width={28} height={28} style={{ flexShrink: 0 }} />
+                <Image src={emoji.url} alt={`:${emoji.shortcode}:`} width={28} height={28} style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>: {emoji.shortcode} :</div>
                   {emoji.category && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{emoji.category}</div>}
@@ -186,7 +187,7 @@ export default function EmojisPage() {
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
               {federatedEmojis.map((emoji) => (
                 <div key={emoji.id} style={{ display: "flex", alignItems: "center", gap: "0.4rem", padding: "0.3rem 0.5rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", fontSize: "0.82rem" }}>
-                  <img src={emoji.url} alt={`:${emoji.shortcode}:`} width={18} height={18} />
+                  <Image src={emoji.url} alt={`:${emoji.shortcode}:`} width={18} height={18} />
                   <span>{emoji.shortcode}</span>
                   <span style={{ color: "var(--text-muted)", fontSize: "0.72rem" }}>{emoji.domain}</span>
                 </div>

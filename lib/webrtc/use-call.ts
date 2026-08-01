@@ -622,6 +622,7 @@ export function useCall(accessToken?: string | null): UseCallReturn {
   }, [isVideoOff]);
 
   // ── Screen share toggle ───────────────────────────────────────────────────
+  const toggleScreenShareRef = useRef<() => Promise<void>>(async () => {});
   const toggleScreenShare = useCallback(async (): Promise<void> => {
     const pc = pcRef.current;
     if (!pc) return;
@@ -661,7 +662,7 @@ export function useCall(accessToken?: string | null): UseCallReturn {
           pc.addTrack(screenTrack, displayStream);
         }
         // Auto-stop when the user clicks "Stop sharing" in the browser UI
-        screenTrack.onended = () => { toggleScreenShare().catch(() => {}); };
+        screenTrack.onended = () => { toggleScreenShareRef.current().catch(() => {}); };
         setIsSharingScreen(true);
         setScreenStream(displayStream);
       } catch (err) {
@@ -669,6 +670,10 @@ export function useCall(accessToken?: string | null): UseCallReturn {
       }
     }
   }, [isSharingScreen, isVideoOff]);
+
+  useEffect(() => {
+    toggleScreenShareRef.current = toggleScreenShare;
+  }, [toggleScreenShare]);
 
   // Cleanup on unmount
   useEffect(() => () => { cleanup(); }, []); // eslint-disable-line react-hooks/exhaustive-deps

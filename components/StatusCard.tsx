@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Lightbox } from "./Lightbox";
 import { InteractionList } from "./InteractionList";
@@ -97,12 +98,12 @@ export function AvatarBubble({ account, size = 42 }: { account: Account; size?: 
   const fallback = (account.display_name?.[0] ?? account.username?.[0] ?? "?").toUpperCase();
   if (!err && account.avatar) {
     return (
-      <img
+      <Image
         src={account.avatar}
         alt={account.display_name}
         width={size}
         height={size}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         onError={() => setErr(true)}
       />
     );
@@ -157,6 +158,7 @@ export function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 title={att.description ?? undefined}
                 style={{
                   display: "block",
+                  position: "relative",
                   aspectRatio: attachments.length === 1 ? "16/9" : "1/1",
                   overflow: "hidden",
                   border: "none",
@@ -165,10 +167,12 @@ export function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                   background: "none",
                 }}
               >
-                <img
+                <Image
                   src={att.preview_url ?? att.url}
                   alt={att.description ?? ""}
-                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 600px"
+                  style={{ objectFit: "cover" }}
                 />
               </button>
             );
@@ -322,7 +326,6 @@ export function StatusCard({
   onDelete,
   onEdit,
   onPin,
-  onMute,
 }: {
   status: Status;
   isFocal?: boolean;
@@ -333,7 +336,6 @@ export function StatusCard({
   onDelete?: (s: Status) => void;
   onEdit?: (s: Status) => void;
   onPin?: (s: Status) => void;
-  onMute?: (s: Status) => void;
 }) {
   const [cwExpanded, setCwExpanded] = useState(false);
   const renderedContent = useMemo(
@@ -399,27 +401,46 @@ export function StatusCard({
   }
 
   // Sync when the parent replaces the status (different id or parent-driven toggle)
-  useEffect(() => {
+  // React-recommended "adjusting state during render" pattern, keyed on the
+  // values we keep as optimistic local state.
+  const [prevSync, setPrevSync] = useState({
+    id: status.id,
+    favourited: status.favourited,
+    favouritesCount: status.favourites_count,
+    reblogged: status.reblogged,
+    reblogsCount: status.reblogs_count,
+    bookmarked: status.bookmarked ?? false,
+    pinned: status.pinned ?? false,
+    muted: status.muted ?? false,
+  });
+  if (
+    prevSync.id !== status.id ||
+    prevSync.favourited !== status.favourited ||
+    prevSync.favouritesCount !== status.favourites_count ||
+    prevSync.reblogged !== status.reblogged ||
+    prevSync.reblogsCount !== status.reblogs_count ||
+    prevSync.bookmarked !== (status.bookmarked ?? false) ||
+    prevSync.pinned !== (status.pinned ?? false) ||
+    prevSync.muted !== (status.muted ?? false)
+  ) {
+    setPrevSync({
+      id: status.id,
+      favourited: status.favourited,
+      favouritesCount: status.favourites_count,
+      reblogged: status.reblogged,
+      reblogsCount: status.reblogs_count,
+      bookmarked: status.bookmarked ?? false,
+      pinned: status.pinned ?? false,
+      muted: status.muted ?? false,
+    });
     setFavourited(status.favourited);
-    setFavouritesCount(status.favourites_count);
-  }, [status.id, status.favourited, status.favourites_count]);
-
-  useEffect(() => {
     setReblogged(status.reblogged);
-    setReblogsCount(status.reblogs_count);
-  }, [status.id, status.reblogged, status.reblogs_count]);
-
-  useEffect(() => {
     setBookmarked(status.bookmarked ?? false);
-  }, [status.id, status.bookmarked]);
-
-  useEffect(() => {
     setPinned(status.pinned ?? false);
-  }, [status.id, status.pinned]);
-
-  useEffect(() => {
     setMuted(status.muted ?? false);
-  }, [status.id, status.muted]);
+    setFavouritesCount(status.favourites_count);
+    setReblogsCount(status.reblogs_count);
+  }
 
   const isRemote = status.account.acct.includes("@");
   const profileHref = isRemote

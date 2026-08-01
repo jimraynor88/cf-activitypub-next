@@ -21,32 +21,37 @@ export default async function OAuthAuthorizePage({ searchParams }: Props) {
 
   let appName = client_id;
   let appWebsite: string | null = null;
+  let errorTitle: string | null = null;
+  let errorBody: string | null = null;
 
   try {
     const { env } = getCloudflareContext();
     const app = await getOAuthAppByClientId(env.DB, client_id);
     if (!app) {
-      return (
-        <div style={{ fontFamily: "sans-serif", maxWidth: 480, margin: "80px auto", padding: 24 }}>
-          <h1 style={{ color: "#d32f2f" }}>Unknown application</h1>
-          <p>No application registered with client_id <code>{client_id}</code>.</p>
-        </div>
-      );
+      errorTitle = "Unknown application";
+      errorBody = `No application registered with client_id ${client_id}.`;
+    } else {
+      // Validate redirect_uri matches registered one
+      const registeredUris = app.redirectUri.split(/[\n,]/).map((u) => u.trim());
+      if (!registeredUris.includes(redirect_uri) && redirect_uri !== "urn:ietf:wg:oauth:2.0:oob") {
+        errorTitle = "Redirect URI mismatch";
+        errorBody = "The redirect URI does not match what was registered for this application.";
+      } else {
+        appName = app.name;
+        appWebsite = app.website;
+      }
     }
-    // Validate redirect_uri matches registered one
-    const registeredUris = app.redirectUri.split(/[\n,]/).map((u) => u.trim());
-    if (!registeredUris.includes(redirect_uri) && redirect_uri !== "urn:ietf:wg:oauth:2.0:oob") {
-      return (
-        <div style={{ fontFamily: "sans-serif", maxWidth: 480, margin: "80px auto", padding: 24 }}>
-          <h1 style={{ color: "#d32f2f" }}>Redirect URI mismatch</h1>
-          <p>The redirect URI does not match what was registered for this application.</p>
-        </div>
-      );
-    }
-    appName = app.name;
-    appWebsite = app.website;
   } catch {
     // Not in Cloudflare context during build — render the form anyway
+  }
+
+  if (errorTitle) {
+    return (
+      <div style={{ fontFamily: "sans-serif", maxWidth: 480, margin: "80px auto", padding: 24 }}>
+        <h1 style={{ color: "#d32f2f" }}>{errorTitle}</h1>
+        <p>{errorBody}</p>
+      </div>
+    );
   }
 
   const scopes = scope.split(/\s+/).filter(Boolean);

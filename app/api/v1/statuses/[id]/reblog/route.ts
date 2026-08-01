@@ -2,12 +2,12 @@ import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
 import {
   getObjectById, getActorById, createAnnounce, getAnnounce,
-  createObject, updateActor, getFollow, canViewStatus,
+  getFollow, canViewStatus,
 } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
-import { buildAnnounce, generateId, followersIRI } from "@/lib/activitypub/utils";
+import { buildAnnounce, generateId } from "@/lib/activitypub/utils";
 import { collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { notify } from "@/lib/notify";

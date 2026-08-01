@@ -75,7 +75,7 @@ export interface APAttachment extends APObject {
 export interface APTag {
   type: "Mention" | "Hashtag" | "Emoji";
   href?: string;
-  name: string;
+  name?: string;
   icon?: APImage;
   updated?: string;
 }

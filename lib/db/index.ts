@@ -802,7 +802,7 @@ export async function getReportById(db: D1Database, id: string): Promise<{ id: s
     .bind(id)
     .first<{ id: string; actor_id: string; target_id: string; status_ids: string | null; comment: string; category: string; rule_ids: string | null; forwarded: number; action_taken: number; created_at: string }>();
   if (!row) return null;
-  return { ...row, forwarded: Boolean(row.forwarded), action_taken: Boolean(row.action_taken) } as any;
+  return { ...row, forwarded: Boolean(row.forwarded), action_taken: Boolean(row.action_taken) };
 }
 
 export async function getReportsByActor(db: D1Database, actorId: string): Promise<{
@@ -814,7 +814,7 @@ export async function getReportsByActor(db: D1Database, actorId: string): Promis
     .prepare("SELECT id, actor_id, target_id, status_ids, comment, category, rule_ids, forwarded, action_taken, created_at FROM reports WHERE actor_id = ? ORDER BY created_at DESC")
     .bind(actorId)
     .all<{ id: string; actor_id: string; target_id: string; status_ids: string | null; comment: string; category: string; rule_ids: string | null; forwarded: number; action_taken: number; created_at: string }>();
-  return rows.results.map((r) => ({ ...r, forwarded: Boolean(r.forwarded), action_taken: Boolean(r.action_taken) })) as any;
+  return rows.results.map((r) => ({ ...r, forwarded: Boolean(r.forwarded), action_taken: Boolean(r.action_taken) }));
 }
 
 // ─────────────────────────────────────────
@@ -887,19 +887,6 @@ export async function updateActor(
   id: string,
   fields: Partial<LocalActor>
 ): Promise<void> {
-  const allowed = [
-    "display_name",
-    "summary",
-    "avatar_url",
-    "header_url",
-    "public_key_pem",
-    "followers_count",
-    "following_count",
-    "statuses_count",
-    "discoverable",
-    "manually_approves_followers",
-  ] as const;
-
   const map: Record<string, string> = {
     displayName: "display_name",
     summary: "summary",

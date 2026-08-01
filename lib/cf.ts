@@ -51,9 +51,10 @@ export function unauthorized(): Response {
 // Rate limiting helper (KV-backed)
 // ─────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type KVNamespace = { get(key: string): Promise<string | null>; put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void> };
+
 export async function checkRateLimit(
-  kv: any,
+  kv: KVNamespace,
   key: string,
   maxAttempts: number,
   windowSeconds: number

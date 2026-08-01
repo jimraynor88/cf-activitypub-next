@@ -150,16 +150,17 @@ export default function TimelinesPage() {
 
   // Mount: initial load
   useEffect(() => {
-    void fetchTimeline("local");
-    void fetchMe();
+    Promise.resolve().then(() => {
+      void fetchTimeline("local");
+      void fetchMe();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // View change: reload timeline
   useEffect(() => {
     viewRef.current = view;
-    void fetchTimeline(view);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    Promise.resolve().then(() => void fetchTimeline(view));
   }, [view]);
 
   // Infinite scroll sentinel

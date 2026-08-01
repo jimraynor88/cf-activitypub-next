@@ -412,7 +412,7 @@ async function executeScheduled(env: Env): Promise<void> {
   }
 }
 
-export default {
+const worker = {
   // Proxy all HTTP requests to the OpenNext Next.js handler,
   // but intercept streaming and WebSocket endpoints first.
   async fetch(
@@ -473,3 +473,5 @@ export default {
     ctx.waitUntil(executeScheduled(env));
   },
 };
+
+export default worker;

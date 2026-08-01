@@ -1,4 +1,4 @@
-import { getCloudflareContext, json } from "@/lib/cf";
+import { json } from "@/lib/cf";
 
 // GET /.well-known/nodeinfo
 export async function GET(request: Request): Promise<Response> {

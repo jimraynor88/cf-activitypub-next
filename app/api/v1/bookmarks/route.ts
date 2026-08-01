@@ -3,7 +3,6 @@ import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { getBookmarkedStatusIds, getObjectById, getActorById, getAttachmentsByObjectId, getLike, getAnnounce } from "@/lib/db";
 import { serializeStatus } from "@/lib/mastodon/serializers";
-import { encodeStatusId } from "@/lib/mastodon/statusId";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();

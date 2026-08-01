@@ -49,7 +49,7 @@ export default function AdminReportsPage() {
   }, [token]);
 
   useEffect(() => {
-    fetchReports();
+    Promise.resolve().then(() => void fetchReports());
   }, [fetchReports]);
 
   async function performAction(id: string, action: string) {

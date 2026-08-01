@@ -65,7 +65,7 @@ export default function AdminAccountsPage() {
   }, [token, search, roleFilter, statusFilter]);
 
   useEffect(() => {
-    fetchAccounts();
+    Promise.resolve().then(() => void fetchAccounts());
   }, [fetchAccounts]);
 
   async function performAction(id: string, action: string) {

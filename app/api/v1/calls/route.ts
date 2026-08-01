@@ -51,8 +51,6 @@ export async function POST(request: NextRequest): Promise<Response> {
   // ── Resolve target actor ─────────────────────────────────────────────────
   let calleeUsername: string;
   let calleeDomain: string;
-  let calleeId: string;
-  let calleeAcct: string;
 
   const atIdx = target_acct.lastIndexOf("@");
   if (atIdx <= 0) {
@@ -72,8 +70,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     return json({ error: "Target account not found" }, 404);
   }
 
-  calleeId = calleeActor.id;
-  calleeAcct = isLocalCallee
+  const calleeId = calleeActor.id;
+  const calleeAcct = isLocalCallee
     ? calleeActor.username
     : `${calleeActor.username}@${calleeDomain}`;
 

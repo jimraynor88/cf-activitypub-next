@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getFilterById, updateFilter, deleteFilter, getFilterKeywords } from "@/lib/db";
+import { getFilterById, updateFilter, deleteFilter } from "@/lib/db";
 
 export async function GET(
   _request: NextRequest,

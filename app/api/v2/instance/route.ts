@@ -11,12 +11,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     .prepare("SELECT COUNT(*) as count FROM actors WHERE is_local = 1")
     .first<{ count: number }>();
 
-  const postRow = await env.DB
-    .prepare("SELECT COUNT(*) as count FROM objects WHERE is_local = 1")
-    .first<{ count: number }>();
-
   const userCount = userRow?.count ?? 0;
-  const postCount = postRow?.count ?? 0;
 
   const title = env.INSTANCE_TITLE ?? domain;
   const description = env.INSTANCE_DESCRIPTION ?? "An ActivityPub server";

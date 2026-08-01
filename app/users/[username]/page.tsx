@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -126,12 +127,12 @@ function Avatar({ account, size = 42 }: { account: { display_name: string; usern
 
   if (!imgError && account.avatar) {
     return (
-      <img
+      <Image
         src={account.avatar}
         alt={account.display_name}
         width={size}
         height={size}
-        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         onError={() => setImgError(true)}
       />
     );
@@ -177,12 +178,14 @@ function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 type="button"
                 onClick={() => setLbIdx(i)}
                 title={att.description ?? undefined}
-                style={{ display: "block", aspectRatio: attachments.length === 1 ? "16/9" : "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "none" }}
+                style={{ display: "block", position: "relative", aspectRatio: attachments.length === 1 ? "16/9" : "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "none" }}
               >
-                <img
+                <Image
                   src={att.preview_url ?? att.url}
                   alt={att.description ?? "media"}
-                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 600px"
+                  style={{ objectFit: "cover" }}
                 />
               </button>
             );
@@ -460,13 +463,15 @@ function ProfileMediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
             type="button"
             onClick={() => setLbIdx(i)}
             title={att.description ?? undefined}
-            style={{ display: "block", aspectRatio: "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "var(--bg-elevated)" }}
+            style={{ display: "block", position: "relative", aspectRatio: "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "var(--bg-elevated)" }}
           >
             {att.type === "image" || att.type === "gifv" ? (
-              <img
+              <Image
                 src={att.preview_url ?? att.url}
                 alt={att.description ?? ""}
-                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                fill
+                sizes="(max-width: 768px) 100vw, 600px"
+                style={{ objectFit: "cover" }}
               />
             ) : (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>
@@ -1000,14 +1005,17 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
                   overflow: "hidden",
                   background: "var(--accent-bg)",
                   display: "flex", alignItems: "center", justifyContent: "center",
+                  position: "relative",
                   fontSize: "2.5rem", fontWeight: 700, color: "var(--accent)",
                 }}
               >
                 {account.avatar ? (
-                  <img
+                  <Image
                     src={account.avatar}
                     alt={account.display_name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    fill
+                    sizes="88px"
+                    style={{ objectFit: "cover" }}
                   />
                 ) : (
                   (account.display_name?.[0] ?? account.username?.[0] ?? "?").toUpperCase()
@@ -1376,10 +1384,12 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
                   }}
                 >
                   {avatarPreview || account.avatar ? (
-                    <img
+                    <Image
                       src={avatarPreview ?? account.avatar}
                       alt="avatar"
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      fill
+                      sizes="64px"
+                      style={{ objectFit: "cover" }}
                     />
                   ) : (
                     <span style={{ fontSize: "1.5rem", fontWeight: 700, color: "var(--accent)" }}>

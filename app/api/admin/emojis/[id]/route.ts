@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
+import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { deleteCustomEmoji, disableCustomEmoji } from "@/lib/db";
 

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
@@ -87,7 +87,6 @@ export default function HomePage() {
   useEffect(() => {
     void fetchTimeline();
     void fetchMe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function fetchTimeline() {
@@ -370,7 +369,7 @@ export default function HomePage() {
                   <div key={f.id} style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
                     <div style={{ position: "relative", flexShrink: 0, width: 72, height: 72 }}>
                       {f.type === "image" || f.type === "gifv" ? (
-                        <img src={f.preview_url ?? f.url} alt={f.description ?? ""} style={{ width: 72, height: 72, objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
+                        <Image src={f.preview_url ?? f.url} alt={f.description ?? ""} width={72} height={72} style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
                       ) : (
                         <div style={{ width: 72, height: 72, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>{f.type === "audio" ? "🎵" : "🎬"}</div>
                       )}

@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getObjectById, getActorById } from "@/lib/db";
+import { getObjectById } from "@/lib/db";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 
 export async function POST(

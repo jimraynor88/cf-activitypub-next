@@ -24,6 +24,18 @@ interface Me {
 }
 
 const CONTEXT_OPTIONS = ["home", "notifications", "public", "thread", "account"] as const;
+
+function formatExpires(expiresAt: string | null): string {
+  if (!expiresAt) return "Never";
+  const diff = new Date(expiresAt).getTime() - Date.now();
+  if (diff <= 0) return "Expired";
+  const mins = Math.round(diff / 60000);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  return `${days}d`;
+}
 const EXPIRES_OPTIONS = [
   { label: "Never", value: 0 },
   { label: "30 minutes", value: 1800 },
@@ -51,28 +63,29 @@ export default function FiltersPage() {
 
   useEffect(() => {
     if (!token) { router.push("/login"); return; }
+
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchFilters() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/filters", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setFilters(await res.json() as Filter[]);
+      setLoading(false);
+    }
+
     void fetchMe();
     void fetchFilters();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchFilters() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/filters", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setFilters(await res.json() as Filter[]);
-    setLoading(false);
-  }
 
   function toggleContext(val: string) {
     setContext((prev) =>
@@ -117,18 +130,6 @@ export default function FiltersPage() {
     });
     setFilters((prev) => prev.filter((f) => f.id !== filter.id));
     setDeletingId(null);
-  }
-
-  function formatExpires(expiresAt: string | null): string {
-    if (!expiresAt) return "Never";
-    const diff = new Date(expiresAt).getTime() - Date.now();
-    if (diff <= 0) return "Expired";
-    const mins = Math.round(diff / 60000);
-    if (mins < 60) return `${mins}m`;
-    const hours = Math.round(mins / 60);
-    if (hours < 24) return `${hours}h`;
-    const days = Math.round(hours / 24);
-    return `${days}d`;
   }
 
   return (

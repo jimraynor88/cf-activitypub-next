@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -37,29 +38,29 @@ export default function EndorsementsPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchEndorsements() {
+      if (!token) return;
+      setLoading(true);
+      const res = await fetch("/api/v1/endorsements", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setEndorsed(await res.json() as Account[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchEndorsements();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchEndorsements() {
-    if (!token) return;
-    setLoading(true);
-    const res = await fetch("/api/v1/endorsements", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setEndorsed(await res.json() as Account[]);
-    setLoading(false);
-  }
 
   async function handleUnendorse(account: Account) {
     if (!token) return;
@@ -106,11 +107,12 @@ export default function EndorsementsPage() {
               >
                 <Link href={profileHref} style={{ flexShrink: 0 }}>
                   {account.avatar ? (
-                    <img
+                    <Image
                       src={account.avatar}
                       alt=""
                       className="avatar"
-                      style={{ width: 46, height: 46 }}
+                      width={46}
+                      height={46}
                     />
                   ) : (
                     <div

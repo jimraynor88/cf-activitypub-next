@@ -9,9 +9,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
 
-  let row: any = {};
+  let row: Record<string, unknown> | null = null;
   try {
-    row = (await env.DB.prepare("SELECT * FROM actors WHERE id = ?").bind(id).first()) as any;
+    row = await env.DB.prepare("SELECT * FROM actors WHERE id = ?").bind(id).first<Record<string, unknown>>();
   } catch { /* missing columns — run migration */ }
   if (!row?.id) return notFound();
 

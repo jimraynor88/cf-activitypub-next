@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, activityJson, notFound } from "@/lib/cf";
 import { getActorByUsername, getActorStatuses, getAttachmentsByObjectIds } from "@/lib/db";
-import { buildActor, buildNote, buildCreate, buildOrderedCollection, buildOrderedCollectionPage, objectIRI, actorIRI } from "@/lib/activitypub/utils";
+import { buildNote, buildCreate, buildOrderedCollection, buildOrderedCollectionPage, actorIRI } from "@/lib/activitypub/utils";
 import type { APAttachment, APTag, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {

@@ -1,6 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { getPushSubscription } from "@/lib/db";
-import type { LocalNotification, LocalPushSubscription } from "@/lib/types";
+import type { LocalNotification } from "@/lib/types";
 
 function b64url(buf: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buf)))

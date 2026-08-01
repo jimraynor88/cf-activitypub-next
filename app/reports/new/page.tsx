@@ -60,11 +60,11 @@ function NewReportPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = getToken();
-  const { t } = useLocale();
+  useLocale();
 
   const [me, setMe] = useState<Me | null>(null);
-  const [accountId, setAccountId] = useState(searchParams.get("account_id") ?? "");
-  const [statusId, setStatusId] = useState(searchParams.get("status_id") ?? "");
+  const [accountId] = useState(searchParams.get("account_id") ?? "");
+  const [statusId] = useState(searchParams.get("status_id") ?? "");
   const [category, setCategory] = useState("other");
   const [comment, setComment] = useState("");
   const [forward, setForward] = useState(false);
@@ -75,43 +75,44 @@ function NewReportPage() {
 
   useEffect(() => {
     if (!token) { router.push("/login"); return; }
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
     void fetchMe();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (accountId) void fetchAccount();
+    if (accountId) {
+      async function fetchAccount() {
+        if (!token || !accountId) return;
+        const res = await fetch(`/api/v1/accounts/${encodeURIComponent(accountId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setPreviewAccount(await res.json() as TargetAccount);
+      }
+      void fetchAccount();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountId]);
 
   useEffect(() => {
-    if (statusId) void fetchStatus();
+    if (statusId) {
+      async function fetchStatus() {
+        if (!token || !statusId) return;
+        const res = await fetch(`/api/v1/statuses/${encodeURIComponent(statusId)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) setPreviewStatus(await res.json() as StatusPreview);
+      }
+      void fetchStatus();
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusId]);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchAccount() {
-    if (!token || !accountId) return;
-    const res = await fetch(`/api/v1/accounts/${encodeURIComponent(accountId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setPreviewAccount(await res.json() as TargetAccount);
-  }
-
-  async function fetchStatus() {
-    if (!token || !statusId) return;
-    const res = await fetch(`/api/v1/statuses/${encodeURIComponent(statusId)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setPreviewStatus(await res.json() as StatusPreview);
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

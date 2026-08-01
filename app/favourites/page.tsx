@@ -18,28 +18,28 @@ export default function FavouritesPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchFavourites() {
+      if (!token) return;
+      const res = await fetch("/api/v1/favourites", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setStatuses(await res.json() as Status[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchFavourites();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchFavourites() {
-    if (!token) return;
-    const res = await fetch("/api/v1/favourites", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setStatuses(await res.json() as Status[]);
-    setLoading(false);
-  }
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/favourites" />}>

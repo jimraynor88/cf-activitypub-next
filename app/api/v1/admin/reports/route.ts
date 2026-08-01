@@ -1,7 +1,6 @@
-import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
 
-export async function GET(request: NextRequest): Promise<Response> {
+export async function GET(): Promise<Response> {
   const { env } = getCloudflareContext();
 
   const rows = await env.DB

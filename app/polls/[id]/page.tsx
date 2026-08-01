@@ -59,7 +59,7 @@ export default function PollPage() {
 
   useEffect(() => {
     if (!pollId) return;
-    setLoading(true);
+    Promise.resolve().then(() => setLoading(true));
     async function load() {
       try {
         const res = await fetch(`/api/v1/polls/${encodeURIComponent(pollId)}`, {
@@ -78,7 +78,6 @@ export default function PollPage() {
       setLoading(false);
     }
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pollId]);
 
   const showResults = !!poll && (poll.voted || poll.expired);

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorByUsername, getActorById, upsertRemoteActor } from "@/lib/db";
+import { getActorByUsername, upsertRemoteActor } from "@/lib/db";
 import { verifySignature, extractSigningKeyId } from "@/lib/activitypub/security";
 import { processInboxActivity } from "@/lib/activitypub/inbox";
 import { fetchRemoteObject } from "@/lib/activitypub/federation";

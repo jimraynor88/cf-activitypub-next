@@ -175,9 +175,9 @@ export default function TagPage() {
 
   useEffect(() => {
     if (!tagName) return;
-    void fetchTimeline();
-    void fetchMe();
-    void fetchTagInfo();
+    Promise.resolve().then(() => void fetchTimeline());
+    Promise.resolve().then(() => void fetchMe());
+    Promise.resolve().then(() => void fetchTagInfo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagName]);
 

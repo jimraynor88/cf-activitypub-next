@@ -253,7 +253,7 @@ async function notifyPeer(
 
   try {
     await broadcastCallEvent(env.TIMELINE_STREAM, username, event);
-  } catch (err) {
+  } catch {
     // skip
   }
 }

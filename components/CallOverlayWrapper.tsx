@@ -12,7 +12,7 @@ export function CallOverlayWrapper() {
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
-    setToken(getToken());
+    Promise.resolve().then(() => setToken(getToken()));
   }, []);
 
   if (!token) return null;

@@ -7,8 +7,10 @@
  */
 
 // Use a structural type to avoid @cloudflare/workers-types version mismatches.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DONamespace = { idFromName(name: string): any; get(id: any): { fetch(input: string | URL, init?: RequestInit): Promise<Response> } };
+export type DONamespace = {
+  idFromName(name: string): unknown;
+  get(id: unknown): { fetch(input: string | URL, init?: RequestInit): Promise<Response> };
+};
 
 const DO_HOST = "https://timeline-do";
 

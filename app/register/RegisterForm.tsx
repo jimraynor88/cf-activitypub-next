@@ -67,7 +67,9 @@ export default function RegisterForm({ turnstileSiteKey }: Props) {
 
   useEffect(() => {
     if (resendEmail) {
-      setPendingEmail(decodeURIComponent(resendEmail));
+      Promise.resolve().then(() => {
+        setPendingEmail(decodeURIComponent(resendEmail));
+      });
     }
   }, [resendEmail]);
 

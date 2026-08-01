@@ -25,28 +25,28 @@ export default function MessagesPage() {
   const { t } = useLocale();
 
   useEffect(() => {
+    async function fetchMe() {
+      if (!token) return;
+      const res = await fetch("/api/v1/accounts/verify_credentials", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setMe(await res.json() as Me);
+    }
+
+    async function fetchConversations() {
+      if (!token) return;
+      const res = await fetch("/api/v1/conversations", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setConversations(await res.json() as Conversation[]);
+      setLoading(false);
+    }
+
     if (!token) { router.push("/login"); return; }
     void fetchMe();
     void fetchConversations();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function fetchMe() {
-    if (!token) return;
-    const res = await fetch("/api/v1/accounts/verify_credentials", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchConversations() {
-    if (!token) return;
-    const res = await fetch("/api/v1/conversations", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setConversations(await res.json() as Conversation[]);
-    setLoading(false);
-  }
 
   async function handleMarkRead(id: string) {
     if (!token) return;

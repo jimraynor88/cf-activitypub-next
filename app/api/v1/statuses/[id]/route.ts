@@ -1,10 +1,10 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getObjectById, getActorById, deleteObject, updateObject, updateActor, createLike, deleteLike, getLike, getLikedObjectIds, createAnnounce, deleteAnnounce, getAnnounce, getAnnouncedObjectIds, getAttachmentsByObjectId, getPollByObjectId, getPollOptions, getAllCustomEmojis, getFollow, canViewStatus } from "@/lib/db";
+import { getObjectById, getActorById, deleteObject, updateObject, updateActor, getLikedObjectIds, getAnnouncedObjectIds, getAttachmentsByObjectId, getPollByObjectId, getPollOptions, getAllCustomEmojis, getFollow, canViewStatus } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId, encodeStatusId } from "@/lib/mastodon/statusId";
-import { buildDelete, buildUpdate, buildNote, buildLike, buildAnnounce, buildUndo, generateId, followersIRI } from "@/lib/activitypub/utils";
+import { buildDelete, buildUpdate, buildNote, generateId } from "@/lib/activitypub/utils";
 import { collectFollowerInboxes } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";

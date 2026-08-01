@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { LocalActor } from "@/lib/types";
 
 // Mock crypto for auth tests
 const mockCrypto = {
@@ -11,8 +12,6 @@ const mockCrypto = {
     deriveBits: vi.fn().mockResolvedValue(new Uint8Array(32).fill(0xab)),
   },
 };
-
-const originalCrypto = globalThis.crypto;
 
 beforeEach(() => {
   vi.stubGlobal("crypto", mockCrypto);
@@ -109,7 +108,7 @@ describe("clearAuthCookie", () => {
 describe("requireAuth", () => {
   it("returns null when actor exists", async () => {
     const { requireAuth } = await getAuthModule();
-    const actor = { id: "1", username: "test", displayName: null, createdAt: "", role: "user" } as any;
+    const actor = { id: "1", username: "test", displayName: null, createdAt: "", role: "user" } as unknown as LocalActor;
     expect(requireAuth(actor)).toBeNull();
   });
 

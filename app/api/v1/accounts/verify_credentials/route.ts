@@ -3,7 +3,7 @@ import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { getActorById, getActorFields, setActorFields } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
-import { buildActor, buildUpdateActor, generateId, keyIRI } from "@/lib/activitypub/utils";
+import { buildActor, buildUpdateActor, generateId } from "@/lib/activitypub/utils";
 import { collectFollowerInboxes } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import type { APActor } from "@/lib/types";

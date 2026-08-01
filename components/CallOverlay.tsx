@@ -46,10 +46,12 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
   const cycleSize = useCallback(() => {
     setCallSize((s) => s === "mini" ? "normal" : s === "normal" ? "full" : "mini");
   }, []);
-  // Reset size when call ends
-  useEffect(() => {
+  // Reset size when call ends (render-phase adjustment keyed on phase change)
+  const [prevPhase, setPrevPhase] = useState(callState.phase);
+  if (prevPhase !== callState.phase) {
+    setPrevPhase(callState.phase);
     if (callState.phase === "idle" || callState.phase === "ended") setCallSize("mini");
-  }, [callState.phase]);
+  }
 
   // Wire up streaming events → call hook
   useTimelineStream("user", handleStreamingEvent);
@@ -73,7 +75,6 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
     }
   // callState.phase is a dependency so the effect re-runs when the video
   // element is first mounted (transition to "active" phase).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [localStream, screenStream, isSharingScreen, callState.phase]);
 
   useEffect(() => {
@@ -81,7 +82,6 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
       remoteVideoRef.current.srcObject = remoteStream;
     }
   // callState.phase ensures this re-runs when the element mounts in "active" phase.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteStream, callState.phase]);
 
   if (callState.phase === "idle") return null;
@@ -225,7 +225,6 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
           {/* Remote video / audio panel */}
           {hasVideoPanel ? (
             <div className={videoAreaClass}>
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <video
                 ref={remoteVideoRef}
                 autoPlay
@@ -235,7 +234,6 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               {/* Local video (PiP) — only shown when local video is active */}
               {showLocalPip && (
                 <div className={`absolute bottom-3 right-3 bg-black rounded-lg overflow-hidden ${isFullscreen ? "w-36 aspect-video" : "w-20 aspect-video"}`}>
-                  {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
                   <video
                     ref={localVideoRef}
                     autoPlay
@@ -251,7 +249,6 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               <span className="text-3xl">🎙️</span>
               <p className="text-sm font-medium">{callState.peerAcct}</p>
               {/* Hidden audio element for remote audio */}
-              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
               <audio ref={remoteVideoRef as React.RefObject<HTMLAudioElement>} autoPlay />
             </div>
           )}
