@@ -65,7 +65,6 @@ queue = "cf-activitypub-delivery"
 max_batch_size = 20
 max_batch_timeout = 5
 max_retries = 5
-visibility_timeout = 60
 dead_letter_queue = "cf-activitypub-delivery-dlq"
 
 [ai]
