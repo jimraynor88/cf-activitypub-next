@@ -2,17 +2,27 @@
  * Shared content-screening pipeline used by BOTH the pre-publish gate
  * (app/api/v1/statuses) and the scheduled moderation cycle (src/worker.ts).
  *
- * Flow: fast Llama Guard screen → only flagged content escalates to the
- * reasoning model → action. If the reasoning model is unavailable but the guard
- * flagged a severe category, the pipeline blocks defensively.
+ * Cost-aware pyramid (Workers AI neurons are a limited daily budget):
+ *
+ *   Tier 0 (free)       Deterministic signals + author trust + KV content-hash
+ *                       cache. Clean content from a trusted author → allow with
+ *                       ZERO AI calls. Identical content already reviewed →
+ *                       reuse the stored verdict.
+ *   Tier 1 (cheap)      Llama Guard 8B fast screen + Vectorize similarity.
+ *   Tier 2 (expensive)  Reasoning model (70B) — only when Tier 1 flags content
+ *                       or the author has a behavior review flag.
+ *
+ * A per-account daily budget (KV) caps how many times any AI tier may run for a
+ * given author; once exhausted the pipeline falls back to heuristics only.
  */
 
 import { screenContent } from "./classifier";
 import { evaluateContent } from "./ai";
-import { stripHtml, computeContentSignals } from "./heuristics";
+import { stripHtml, computeContentSignals, contentHash } from "./heuristics";
 import { vectorPreScreen } from "./vectors";
 import { warnAccount, suspendAccount, deleteStatus, markStatusSensitive, recordNoAction, GUARDIAN_MODEL } from "./actions";
 import { countWarnings } from "./log";
+import { isTrustedAuthor, getCachedContentVerdict, cacheContentVerdict, chargeAI } from "./budget";
 import { runWithTimeout } from "./util";
 import type { ModerationEnv } from "./actions";
 
@@ -48,33 +58,125 @@ export async function screenStatus(
   const plainText = stripHtml(input.contentHtml);
   if (!plainText) return { blocked: false, markedSensitive: false };
 
-  // 1. Fast Llama Guard filter + Vectorize similarity pre-screen in parallel.
-  //    The vector memory catches near-duplicate spam without a fresh LLM call.
+  // ── Tier 0: free deterministic signals + trust + KV cache ──────────────────
+  const signals = computeContentSignals(input.contentHtml);
+  const hash = contentHash(plainText);
+  const previousWarnings = await countWarnings(env.DB, input.authorId);
+  const trusted = isTrustedAuthor({
+    accountAgeDays: input.accountAgeDays,
+    statusesCount: input.statusesCount,
+    warnings: previousWarnings,
+  });
+
+  // Same author, identical content, already reviewed → reuse the verdict.
+  const cached = await getCachedContentVerdict(env, input.authorId, hash);
+  if (cached) {
+    if (cached.action === "blocked") {
+      await warnOrSuspend(env, input, previousWarnings, cached.reason ?? "Contenido bloqueado.", "high", "heuristic");
+      if (input.objectId) {
+        await deleteStatus(env, { objectId: input.objectId, reason: cached.reason ?? "Contenido bloqueado.", confidence: "high", source: "heuristic", model: "heuristic", details: { stage: "cached_verdict" } });
+      }
+      return { blocked: true, markedSensitive: false, reason: cached.reason };
+    }
+    if (cached.action === "sensitive") {
+      if (input.objectId) {
+        await markStatusSensitive(env, {
+          objectId: input.objectId,
+          spoilerText: input.spoilerText || "Contenido sensible",
+          reason: cached.reason ?? "Contenido marcado como sensible.",
+          confidence: "high",
+          source: "heuristic",
+          model: "heuristic",
+          details: { stage: "cached_verdict" },
+        });
+      }
+      return { blocked: false, markedSensitive: true };
+    }
+    await recordNoAction(env, {
+      targetType: "status",
+      targetId: input.objectId,
+      action: "no_action",
+      reason: cached.reason ?? "Contenido idéntico ya revisado.",
+      confidence: "high",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "cached_verdict", authorId: input.authorId },
+      relatedId: input.authorId,
+    });
+    return { blocked: false, markedSensitive: false };
+  }
+
+  // Clean content from a trusted author → allow with zero AI calls.
+  if (trusted && signals.flags.length === 0) {
+    await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
+    await recordNoAction(env, {
+      targetType: "status",
+      targetId: input.objectId,
+      action: "no_action",
+      reason: "Revisado por heurísticas (autor de confianza, sin señales).",
+      confidence: "high",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "trusted_allow", flags: signals.flags },
+      relatedId: input.authorId,
+    });
+    return { blocked: false, markedSensitive: false };
+  }
+
+  const details: {
+    stage: string;
+    authorId: string;
+    objectId: string | null;
+    flags: string[];
+    content: string;
+    guardCategories?: string[];
+    vectorMatch?: { id: string; kind: string; action: string; score: number } | null;
+  } = {
+    stage: input.objectId ? "scheduled_scan" : "content_gate",
+    authorId: input.authorId,
+    objectId: input.objectId,
+    flags: signals.flags,
+    content: plainText.slice(0, 300),
+  };
+
+  // ── AI budget gate: cap per-account AI spend per day ───────────────────────
+  // Suspicious authors still get a generous allowance; once spent, we fall back
+  // to heuristics only (nothing is blocked/actioned purely by the LLM anymore).
+  const hasBudget = await chargeAI(env, input.authorId, trusted);
+  if (!hasBudget) {
+    await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
+    await recordNoAction(env, {
+      targetType: "status",
+      targetId: input.objectId,
+      action: "no_action",
+      reason: "Presupuesto de IA diario agotado; permitido por heurísticas.",
+      confidence: "low",
+      source: "heuristic",
+      model: "heuristic",
+      details,
+      relatedId: input.authorId,
+    });
+    return { blocked: false, markedSensitive: false };
+  }
+
+  // ── Tier 1: cheap Llama Guard screen + Vectorize similarity in parallel ────
   const [screen, vector] = await Promise.all([
     env.AI ? runWithTimeout(screenContent(env.AI, plainText), 2500, null) : Promise.resolve(null),
     vectorPreScreen(env, plainText),
   ]);
 
-  const signals = computeContentSignals(input.contentHtml);
   if (vector.flagged) signals.flags.push("similar_confirmed_spam");
 
-  const details = {
-    stage: input.objectId ? "scheduled_scan" : "content_gate",
-    authorId: input.authorId,
-    objectId: input.objectId,
-    flags: signals.flags,
-    guardCategories: screen?.categories ?? [],
-    vectorMatch: vector.best
-      ? { id: vector.best.id, kind: vector.best.kind, action: vector.best.action, score: Number(vector.best.score.toFixed(4)) }
-      : null,
-    content: plainText.slice(0, 300),
-  };
+  details.guardCategories = screen?.categories ?? [];
+  details.vectorMatch = vector.best
+    ? { id: vector.best.id, kind: vector.best.kind, action: vector.best.action, score: Number(vector.best.score.toFixed(4)) }
+    : null;
 
   // 2. Auto-action: this content is a near-duplicate of previously confirmed
   //    abuse — reuse the stored decision instead of re-asking the model.
   if (vector.autoAction && vector.best) {
-    const previousWarnings = await countWarnings(env.DB, input.authorId);
     const reason = `Contenido casi idéntico a abuso confirmado previamente (similitud ${vector.best.score.toFixed(2)}): ${vector.best.reason ?? "spam conocido"}`.slice(0, 500);
+    await cacheContentVerdict(env, input.authorId, hash, { action: "blocked", reason });
 
     if (vector.autoAction === "suspend") {
       await suspendAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
@@ -85,11 +187,7 @@ export async function screenStatus(
     }
 
     if (vector.autoAction === "delete") {
-      if (previousWarnings >= 1) {
-        await suspendAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
-      } else {
-        await warnAccount(env, { actorId: input.authorId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
-      }
+      await warnOrSuspend(env, input, previousWarnings, reason, "high", "ai");
       if (input.objectId) {
         await deleteStatus(env, { objectId: input.objectId, reason, confidence: "high", source: "ai", model: GUARDIAN_MODEL, details });
       }
@@ -101,15 +199,17 @@ export async function screenStatus(
 
   // 3. Guard fast screen: nothing flagged and no vector signal → allow.
   if (!screen || screen.safe) {
-    if (!vector.flagged) return { blocked: false, markedSensitive: false };
+    if (!vector.flagged) {
+      await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
+      return { blocked: false, markedSensitive: false };
+    }
     // Only a moderate vector signal — let the reasoning model decide.
   }
 
   const guardCodes = new Set(screen ? screen.categories.map((c) => c.split(":")[0].trim().toUpperCase()) : []);
   const severe = [...guardCodes].some((c) => SEVERE_GUARD_CODES.has(c));
 
-  const previousWarnings = await countWarnings(env.DB, input.authorId);
-
+  // ── Tier 2: expensive reasoning model — only for actually-flagged content ──
   const verdict = await runWithTimeout(
     evaluateContent(env, {
       content: plainText.slice(0, 1200),
@@ -133,11 +233,8 @@ export async function screenStatus(
   if (action === "delete") {
     const reason = verdict?.reason ?? "Contenido clasificado como grave por el filtro de seguridad.";
     const confidence = verdict?.confidence ?? "high";
-    if (previousWarnings >= 1) {
-      await suspendAccount(env, { actorId: input.authorId, reason, confidence, source: "ai", model: GUARDIAN_MODEL, details });
-    } else {
-      await warnAccount(env, { actorId: input.authorId, reason, confidence, source: "ai", model: GUARDIAN_MODEL, details });
-    }
+    await cacheContentVerdict(env, input.authorId, hash, { action: "blocked", reason });
+    await warnOrSuspend(env, input, previousWarnings, reason, confidence, "ai");
     if (input.objectId) {
       await deleteStatus(env, { objectId: input.objectId, reason, confidence, source: "ai", model: GUARDIAN_MODEL, details });
     }
@@ -145,11 +242,13 @@ export async function screenStatus(
   }
 
   if (action === "mark_sensitive") {
+    const reason = verdict?.reason ?? "Contenido marcado como sensible.";
+    await cacheContentVerdict(env, input.authorId, hash, { action: "sensitive", reason });
     if (input.objectId) {
       await markStatusSensitive(env, {
         objectId: input.objectId,
         spoilerText: input.spoilerText || "Contenido sensible",
-        reason: verdict?.reason ?? "Contenido marcado como sensible.",
+        reason,
         confidence: verdict?.confidence ?? "medium",
         source: "ai",
         model: GUARDIAN_MODEL,
@@ -160,7 +259,7 @@ export async function screenStatus(
         targetType: "status",
         targetId: null,
         action: "marked_sensitive",
-        reason: verdict?.reason ?? "Contenido marcado como sensible.",
+        reason,
         confidence: verdict?.confidence ?? "medium",
         source: "ai",
         model: GUARDIAN_MODEL,
@@ -172,6 +271,7 @@ export async function screenStatus(
   }
 
   // allow / escalate / reasoning unavailable but not severe → proceed.
+  await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
   await recordNoAction(env, {
     targetType: "status",
     targetId: input.objectId,
@@ -185,4 +285,20 @@ export async function screenStatus(
   });
 
   return { blocked: false, markedSensitive: false };
+}
+
+/** Warn on first offence, suspend on repeat — shared by the blocking paths. */
+async function warnOrSuspend(
+  env: ModerationEnv,
+  input: ScreenStatusInput,
+  previousWarnings: number,
+  reason: string,
+  confidence: "low" | "medium" | "high",
+  source: "ai" | "heuristic"
+): Promise<void> {
+  if (previousWarnings >= 1) {
+    await suspendAccount(env, { actorId: input.authorId, reason, confidence, source, model: "heuristic", details: { stage: "pipeline" } });
+  } else {
+    await warnAccount(env, { actorId: input.authorId, reason, confidence, source, model: "heuristic", details: { stage: "pipeline" } });
+  }
 }

@@ -14,6 +14,7 @@ import { contentHash, computeAccountSignals } from "./heuristics";
 import { screenStatus } from "./pipeline";
 import { warnAccount, suspendAccount, blockDomain, recordNoAction, type ModerationEnv } from "./actions";
 import { recordModeration } from "./log";
+import { isTrustedAuthor, chargeAI } from "./budget";
 
 export interface GuardianCycleEnv extends ModerationEnv {
   KV?: KVNamespace;
@@ -132,6 +133,27 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
         actor.statusesCount >= 30;
 
       if (!hasReviewFlag) continue;
+
+      // Respect the per-account AI budget — a burst of new accounts must not
+      // drain the whole daily neuron allowance on 70B account reviews.
+      const trusted = isTrustedAuthor({
+        accountAgeDays: ageDays,
+        statusesCount: actor.statusesCount,
+        warnings: 0,
+      });
+      if (!(await chargeAI(env, id, trusted))) {
+        await recordNoAction(env, {
+          targetType: "account",
+          targetId: id,
+          action: "no_action",
+          reason: "Presupuesto de IA diario agotado; revisión de cuenta omitida.",
+          confidence: "low",
+          source: "heuristic",
+          model: "heuristic",
+          details: { stage: "account_scan", signals: signals.flags },
+        });
+        continue;
+      }
 
       const verdict = await evaluateAccount(env, {
         username: actor.username,
