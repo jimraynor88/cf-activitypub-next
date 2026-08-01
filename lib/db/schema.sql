@@ -551,6 +551,31 @@ CREATE INDEX IF NOT EXISTS idx_reports_actor ON reports(actor_id);
 CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_id);
 
 -- ─────────────────────────────────────────
+-- Moderation log (AI Guardian audit trail)
+-- One row per automated moderation decision/action so every action the AI
+-- takes on the instance can be audited later.
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS moderation_log (
+  id          TEXT PRIMARY KEY,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  source      TEXT NOT NULL,                 -- 'ai' | 'heuristic' | 'system' | 'user'
+  target_type TEXT NOT NULL,                 -- 'account' | 'status' | 'report' | 'domain' | 'instance'
+  target_id   TEXT,                          -- actor id / object id / report id / domain / null
+  action      TEXT NOT NULL,                 -- approved|rejected|warned|deleted|suspended|unsuspended|dismissed|resolved|marked_sensitive|blocked_domain|no_action
+  reason      TEXT,
+  confidence  TEXT,                          -- 'low' | 'medium' | 'high' (null for heuristics)
+  model       TEXT,                          -- Workers AI model id, or 'heuristic', or 'system'
+  details     TEXT,                          -- JSON with the full context used for the decision
+  email_sent  INTEGER NOT NULL DEFAULT 0,    -- 1 if a notification email was sent
+  email_to    TEXT,                          -- recipient of that email
+  related_id  TEXT                           -- e.g. the report id / reporter id / status ids
+);
+
+CREATE INDEX IF NOT EXISTS idx_moderation_log_created ON moderation_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_moderation_log_target  ON moderation_log(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_moderation_log_action  ON moderation_log(action);
+
+-- ─────────────────────────────────────────
 -- Featured tags
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS featured_tags (

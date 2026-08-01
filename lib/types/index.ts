@@ -139,6 +139,10 @@ export interface LocalActor {
   email: string | null;
   passwordHash: string | null;
   emailVerified: boolean;
+  // moderation — populated when the query selects these columns
+  role?: string;
+  suspended?: boolean;
+  reserved?: boolean;
   // federation — stored for remote actors; computed for local
   inbox?: string;
   outbox?: string;

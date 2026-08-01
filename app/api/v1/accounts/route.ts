@@ -6,6 +6,9 @@ import { actorIRI } from "@/lib/activitypub/utils";
 import { hashPassword, generateSecureToken } from "@/lib/auth";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import { sendVerificationEmail } from "@/lib/email";
+import { evaluateRegistration } from "@/lib/moderation/ai";
+import { rejectAccount, approveAccount, GUARDIAN_MODEL } from "@/lib/moderation/actions";
+import { runWithTimeout } from "@/lib/moderation/util";
 
 // POST /api/v1/accounts — Register a new account
 export async function POST(request: NextRequest): Promise<Response> {
@@ -28,7 +31,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Rate limit: 5 registration attempts per IP per 60s window
   const remoteIp = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  const { allowed } = await checkRateLimit(env.KV, `register:${remoteIp}`, 5, 60);
+  const { allowed, remaining } = await checkRateLimit(env.KV, `register:${remoteIp}`, 5, 60);
   if (!allowed) {
     return json({ error: "Too many registration attempts. Please try again later." }, 429);
   }
@@ -99,6 +102,48 @@ export async function POST(request: NextRequest): Promise<Response> {
     autoDeleteAfter: null,
   });
 
+  // ── AI Guardian: screen the new account profile ──────────────────────────
+  // A clearly abusive registration (spam username/bio) is rejected immediately.
+  // The account was just created, so this only affects the fresh row. When the
+  // AI is unavailable the registration proceeds and the scheduled moderation
+  // cycle reviews it later.
+  if (env.AI) {
+    const review = await runWithTimeout(
+      evaluateRegistration(env, {
+        username: username.toLowerCase(),
+        displayName: username,
+        summary: "",
+        source: webRegistration ? "web" : "api",
+        ipSuspicious: remaining <= 2,
+      }),
+      4000,
+      null
+    );
+
+    if (review?.action === "reject") {
+      await rejectAccount(env, {
+        actorId,
+        reason: review.reason,
+        confidence: review.confidence,
+        source: "ai",
+        model: GUARDIAN_MODEL,
+        details: { stage: "registration", username: username.toLowerCase(), source: webRegistration ? "web" : "api" },
+      });
+      return json({ error: "Registration not approved: your account does not meet the community guidelines." }, 422);
+    }
+
+    if (review?.action === "approve" && review.confidence === "high") {
+      await approveAccount(env, {
+        actorId,
+        reason: review.reason,
+        confidence: review.confidence,
+        source: "ai",
+        model: GUARDIAN_MODEL,
+        details: { stage: "registration", username: username.toLowerCase() },
+      });
+    }
+  }
+
   if (webRegistration) {
     // Send verification email; do not issue a token yet.
     const token = generateSecureToken();
@@ -123,7 +168,6 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     return json({ pending_verification: true }, 200);
   }
-
   // API registration: auto-create access token (Mastodon clients expect it on registration)
   const { client_id } = body;
   const app = client_id ? await getOAuthAppByClientId(env.DB, client_id) : null;

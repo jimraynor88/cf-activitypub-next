@@ -31,6 +31,7 @@ import { buildReplyMentions, mentionKey, type ThreadNode } from "@/lib/activityp
 import { PUBLIC_ADDRESS } from "@/lib/activitypub/vocab";
 import { broadcastPublicStatus, broadcastHomeStatus } from "@/lib/streaming/broadcast";
 import { notify } from "@/lib/notify";
+import { screenStatus } from "@/lib/moderation/pipeline";
 import type { APActor, APAttachment, APTag, LocalActor, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {
@@ -127,9 +128,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
   const inReplyToIdRaw = body.in_reply_to_id as string | undefined;
   const inReplyToId = inReplyToIdRaw ? decodeStatusId(inReplyToIdRaw, domain) : undefined;
-  const sensitive = body.sensitive === true || body.sensitive === "true";
-  const spoilerText = (body.spoiler_text as string | undefined) ?? "";
+  let sensitive = body.sensitive === true || body.sensitive === "true";
+  let spoilerText = (body.spoiler_text as string | undefined) ?? "";
   const language = body.language as string | undefined;
+  const mediaIds = (body.media_ids as string[] | undefined) ?? [];
 
   // Process content: linkify mentions, hashtags, URLs, custom emoji → HTML
   const localEmojis = await getAllCustomEmojis(env.DB);
@@ -193,6 +195,36 @@ export async function POST(request: NextRequest): Promise<Response> {
       if (key) seenMentionKeys.add(key);
     }
     allTags.push(tag);
+  }
+
+  // ── AI Guardian: pre-publish content gate ─────────────────────────────────
+  // Fast Llama Guard screen on every status with text; flagged content is
+  // evaluated by the reasoning model. Clearly harmful posts are blocked before
+  // they are published or delivered; borderline adult content is auto-marked
+  // sensitive. When the AI is unavailable the post proceeds and the scheduled
+  // moderation cycle reviews it later.
+  if (env.AI && (content ?? "").trim()) {
+    const accountAgeMs = Date.now() - new Date(actor.createdAt).getTime();
+    const gate = await screenStatus(env, {
+      contentHtml: htmlContent,
+      spoilerText,
+      mediaCount: mediaIds.length,
+      isReply: Boolean(inReplyToId),
+      visibility,
+      authorId: actor.id,
+      authorUsername: actor.username,
+      accountAgeDays: Number.isFinite(accountAgeMs) ? Math.max(0, accountAgeMs / 86400000) : 0,
+      statusesCount: actor.statusesCount,
+      objectId: null,
+    });
+
+    if (gate.blocked) {
+      return json({ error: "This content was blocked because it violates the community guidelines." }, 422);
+    }
+    if (gate.markedSensitive) {
+      sensitive = true;
+      spoilerText = spoilerText || "Contenido sensible";
+    }
   }
 
   // Address the conversation participants in to/cc (Mastodon TagManager logic:
@@ -261,7 +293,6 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   // Link any pending media attachments
-  const mediaIds = (body.media_ids as string[] | undefined) ?? [];
   const linkedAttachments = [];
   for (const mediaId of mediaIds.slice(0, 4)) {
     const pendingRaw = await env.KV.get(`pending_media:${mediaId}`);

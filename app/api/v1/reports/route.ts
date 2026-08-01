@@ -7,6 +7,15 @@ import { generateId } from "@/lib/activitypub/utils";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 import { evaluateReport } from "@/lib/moderation/ai";
 import { sendReportOutcomeEmail } from "@/lib/email";
+import {
+  suspendAccount,
+  warnAccount,
+  deleteStatus,
+  resolveReport,
+  dismissReport,
+  recordNoAction,
+  GUARDIAN_MODEL,
+} from "@/lib/moderation/actions";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
@@ -110,10 +119,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     forward
   );
 
-  // AI moderation: evaluate the report and take action automatically
+  // AI moderation: evaluate the report and take action automatically.
+  // Every decision is recorded in moderation_log (see lib/moderation).
   if (env.AI) {
     try {
       const statusContents: string[] = [];
+      const reviewedStatuses: string[] = [];
       let invalidStatuses = false;
       let mismatchedOwnership = false;
 
@@ -127,13 +138,14 @@ export async function POST(request: NextRequest): Promise<Response> {
         if (obj.actorId !== target.id) {
           mismatchedOwnership = true;
         }
+        reviewedStatuses.push(decoded);
         if (obj?.content) {
           const stripped = obj.content.replace(/<[^>]+>/g, "").trim();
           if (stripped) statusContents.push(stripped);
         }
       }
 
-      const verdict = await evaluateReport(env as { AI: Ai; DB: D1Database }, {
+      const verdict = await evaluateReport(env, {
         category,
         comment,
         statusContent: statusContents.join("\n---\n").slice(0, 2000),
@@ -143,44 +155,129 @@ export async function POST(request: NextRequest): Promise<Response> {
         mismatchedOwnership,
       });
 
-      if (verdict && verdict.confidence !== "low") {
-        let actionNote = `[AI] Decisión: ${verdict.action}. Razón: ${verdict.reason} (confianza: ${verdict.confidence})`;
+      if (!verdict || verdict.confidence === "low") {
+        // Leave open for the scheduled moderation cycle / keep an audit trail.
+        await recordNoAction(env, {
+          targetType: "report",
+          targetId: id,
+          action: "no_action",
+          reason: verdict?.reason ?? "Reporte no evaluado (IA no disponible o confianza baja).",
+          confidence: verdict?.confidence,
+          source: "ai",
+          model: GUARDIAN_MODEL,
+          details: { stage: "report", reporterId: actor.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+          relatedId: actor.id,
+        });
+        return json({
+          id,
+          action_taken: false,
+          action_taken_at: null,
+          category,
+          comment,
+          forwarded: forward,
+          created_at: new Date().toISOString(),
+          status_ids: statusIds.length > 0 ? statusIds : null,
+          rule_ids: ruleIds.length > 0 ? ruleIds : null,
+          target_account: serializeAccount(target, domain),
+        });
+      }
 
-        if (verdict.action === "suspend") {
-          await env.DB.prepare("UPDATE actors SET suspended = 1 WHERE id = ?").bind(target.id).run();
-          actionNote += " — Cuenta suspendida.";
+      const details = { stage: "report", reporterId: actor.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership, statusContent: statusContents.join("\n---\n").slice(0, 1000) };
+      let actionNote = `[AI] Decisión: ${verdict.action}. Razón: ${verdict.reason} (confianza: ${verdict.confidence})`;
+
+      if (verdict.action === "suspend") {
+        await suspendAccount(env, {
+          actorId: target.id,
+          reason: verdict.reason,
+          confidence: verdict.confidence,
+          source: "ai",
+          model: GUARDIAN_MODEL,
+          details,
+          relatedId: id,
+        });
+        actionNote += " — Cuenta suspendida.";
+      } else if (verdict.action === "delete") {
+        for (const oid of reviewedStatuses) {
+          await deleteStatus(env, {
+            objectId: oid,
+            reason: verdict.reason,
+            confidence: verdict.confidence,
+            source: "ai",
+            model: GUARDIAN_MODEL,
+            details,
+            relatedId: id,
+          });
         }
+        actionNote += " — Publicación(es) eliminada(s).";
+      } else if (verdict.action === "warn") {
+        await warnAccount(env, {
+          actorId: target.id,
+          reason: verdict.reason,
+          confidence: verdict.confidence,
+          source: "ai",
+          model: GUARDIAN_MODEL,
+          details,
+          relatedId: id,
+        });
+        actionNote += " — Advertencia emitida.";
+      } else {
+        // dismiss — the report is fraudulent/unfounded
+        await dismissReport(env, {
+          reportId: id,
+          reason: verdict.reason,
+          confidence: verdict.confidence,
+          source: "ai",
+          model: GUARDIAN_MODEL,
+          details,
+          relatedId: actor.id,
+        });
+        actionNote += " — Reporte descartado.";
+      }
 
-        if (verdict.action === "delete") {
-          for (const sid of statusIds) {
-            const decoded = decodeStatusId(sid, domain);
-            await env.DB.prepare("UPDATE objects SET content = NULL, sensitive = 1 WHERE id = ?").bind(decoded).run();
-          }
-          actionNote += " — Publicación(es) eliminada(s).";
-        }
+      // Mark the report resolved (unless already dismissed/removed).
+      if (verdict.action !== "dismiss") {
+        await resolveReport(env, {
+          reportId: id,
+          note: actionNote,
+          reason: verdict.reason,
+          confidence: verdict.confidence,
+          source: "ai",
+          model: GUARDIAN_MODEL,
+          details,
+          relatedId: actor.id,
+        });
+      }
 
-        await env.DB.prepare(
-          "UPDATE reports SET action_taken = 1, comment = comment || '\n' || ? WHERE id = ?"
-        ).bind(actionNote, id).run();
-
-        if (actor.email && env.EMAIL) {
-          try {
-            await sendReportOutcomeEmail(env.EMAIL, {
-              to: actor.email,
-              from: env.FROM_EMAIL,
-              reporterUsername: actor.username,
-              targetUsername: target.username,
-              action: verdict.action,
-              reason: verdict.reason,
-              instanceTitle: env.INSTANCE_TITLE,
-            });
-          } catch {
-            // email error — don't fail the report
-          }
+      // Notify the reporter about the outcome.
+      if (actor.email && env.EMAIL) {
+        try {
+          await sendReportOutcomeEmail(env.EMAIL, {
+            to: actor.email,
+            from: env.FROM_EMAIL,
+            reporterUsername: actor.username,
+            targetUsername: target.username,
+            action: verdict.action,
+            reason: verdict.reason,
+            instanceTitle: env.INSTANCE_TITLE,
+          });
+        } catch {
+          // email error — don't fail the report
         }
       }
-    } catch {
-      // AI error — leave report open for manual review
+    } catch (e) {
+      console.error("[reports] AI moderation error:", e);
+      // AI error — leave report open for the scheduled moderation cycle.
+      await recordNoAction(env, {
+        targetType: "report",
+        targetId: id,
+        action: "no_action",
+        reason: "Error interno al evaluar el reporte.",
+        confidence: undefined,
+        source: "system",
+        model: "system",
+        details: { stage: "report", reporterId: actor.id, targetId: target.id, category, reviewedStatuses: [] },
+        relatedId: actor.id,
+      });
     }
   }
 

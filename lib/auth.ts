@@ -20,7 +20,13 @@ export async function getAuthenticatedActor(
   if (tokenRow.expiresAt && new Date(tokenRow.expiresAt) < new Date()) return null;
 
   if (!tokenRow.actorId) return null;
-  return getActorById(db, tokenRow.actorId);
+  const actor = await getActorById(db, tokenRow.actorId);
+  if (!actor) return null;
+
+  // Suspended accounts cannot authenticate (Guardian / admin suspension).
+  if (actor.suspended) return null;
+
+  return actor;
 }
 
 export function extractBearerToken(request: Request): string | null {

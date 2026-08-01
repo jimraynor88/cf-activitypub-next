@@ -2,10 +2,15 @@ import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
 import { rowToActor } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
+import { requireAdmin } from "@/lib/admin-auth";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
   const domain = new URL(request.url).hostname;
+
+  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "40"), 80);
   const page = parseInt(request.nextUrl.searchParams.get("page") ?? "1");

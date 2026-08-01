@@ -27,6 +27,7 @@ import { enqueueDeliveries } from "../lib/activitypub/queue";
 import { broadcastDelete, broadcastHomeDelete } from "../lib/streaming/broadcast";
 import { encodeStatusId } from "../lib/mastodon/statusId";
 import { getActorById } from "../lib/db";
+import { runModerationCycle } from "../lib/moderation/cycle";
 import type { APActor } from "../lib/types";
 
 interface Env {
@@ -418,6 +419,11 @@ async function executeScheduled(env: Env): Promise<void> {
       .bind(actor.id, cutoff)
       .run();
   }
+
+  // AI Guardian patrol — reviews recent posts and suspicious accounts, blocks
+  // spam domains. Runs after the routine tasks; each run is idempotent via KV
+  // markers so overlapping cron invocations stay cheap.
+  await runModerationCycle(env as unknown as Parameters<typeof runModerationCycle>[0]);
 }
 
 const worker = {

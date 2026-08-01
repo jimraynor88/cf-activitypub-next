@@ -109,7 +109,14 @@ export async function sendReportOutcomeEmail(
 ): Promise<void> {
   const { to, from, reporterUsername, targetUsername, action, reason, instanceTitle } = opts;
 
-  const actionLabels: Record<string, string> = {
+  const actionLabelsEn: Record<string, string> = {
+    dismiss: "No action was taken",
+    warn: "A warning was issued",
+    delete: "The post was deleted",
+    suspend: "The account was suspended",
+  };
+
+  const actionLabelsEs: Record<string, string> = {
     dismiss: "No se ha tomado ninguna acción",
     warn: "Se ha emitido una advertencia",
     delete: "Se ha eliminado la publicación",
@@ -119,16 +126,109 @@ export async function sendReportOutcomeEmail(
   await emailBinding.send({
     from,
     to,
-    subject: `[${instanceTitle}] Reporte procesado`,
+    subject: `[${instanceTitle}] Reporte procesado / Report processed`,
     text: [
+      `English:`,
+      ``,
+      `Hi ${reporterUsername},`,
+      `The report you filed against @${targetUsername} has been processed.`,
+      `Action taken: ${actionLabelsEn[action] ?? action}`,
+      `Reason: ${reason}`,
+      `Thank you for helping keep ${instanceTitle} safe.`,
+      ``,
+      `Español:`,
+      ``,
       `Hola ${reporterUsername},`,
-      ``,
       `El reporte que enviaste contra @${targetUsername} ha sido procesado.`,
-      ``,
-      `Acción tomada: ${actionLabels[action] ?? action}`,
+      `Acción tomada: ${actionLabelsEs[action] ?? action}`,
       `Motivo: ${reason}`,
-      ``,
       `Gracias por ayudar a mantener ${instanceTitle} seguro.`,
+      ``,
+      `— ${instanceTitle}`,
+    ].join("\n"),
+  });
+}
+
+/**
+ * Notification email sent to an account owner when the Guardian takes a
+ * moderation action on their account or content (warning, deletion, suspension).
+ * Used only when the account has an email on file.
+ */
+export async function sendModerationNoticeEmail(
+  emailBinding: SendEmail,
+  opts: {
+    to: string;
+    from: string;
+    username: string;
+    action: "warned" | "deleted" | "suspended" | "rejected";
+    reason: string;
+    instanceTitle: string;
+    instanceUrl: string;
+  }
+): Promise<void> {
+  const { to, from, username, action, reason, instanceTitle, instanceUrl } = opts;
+
+  const subjects: Record<string, string> = {
+    warned: `[${instanceTitle}] Aviso de moderación / Moderation notice`,
+    deleted: `[${instanceTitle}] Publicación eliminada / Post deleted`,
+    suspended: `[${instanceTitle}] Cuenta suspendida / Account suspended`,
+    rejected: `[${instanceTitle}] Registro rechazado / Registration rejected`,
+  };
+
+  const en: Record<string, string[]> = {
+    warned: [
+      `Hello @${username},`,
+      `A moderation warning has been issued on your ${instanceTitle} account.`,
+    ],
+    deleted: [
+      `Hello @${username},`,
+      `One of your posts on ${instanceTitle} has been removed for violating the community guidelines.`,
+    ],
+    suspended: [
+      `Hello @${username},`,
+      `Your account on ${instanceTitle} has been suspended for violating the community guidelines.`,
+    ],
+    rejected: [
+      `Hello,`,
+      `Your registration request for ${instanceTitle} has not been approved.`,
+    ],
+  };
+
+  const es: Record<string, string[]> = {
+    warned: [
+      `Hola @${username},`,
+      `Se ha emitido un aviso de moderación sobre tu cuenta en ${instanceTitle}.`,
+    ],
+    deleted: [
+      `Hola @${username},`,
+      `Una de tus publicaciones en ${instanceTitle} ha sido eliminada por infringir las normas de la comunidad.`,
+    ],
+    suspended: [
+      `Hola @${username},`,
+      `Tu cuenta en ${instanceTitle} ha sido suspendida por infringir las normas de la comunidad.`,
+    ],
+    rejected: [
+      `Hola,`,
+      `Tu solicitud de registro en ${instanceTitle} no ha sido aprobada.`,
+    ],
+  };
+
+  await emailBinding.send({
+    from,
+    to,
+    subject: subjects[action],
+    text: [
+      `English:`,
+      ``,
+      ...(en[action] ?? []),
+      `Reason: ${reason}`,
+      `If you believe this is a mistake, you can contact the administrators at ${instanceUrl}.`,
+      ``,
+      `Español:`,
+      ``,
+      ...(es[action] ?? []),
+      `Motivo: ${reason}`,
+      `Si crees que se trata de un error, puedes contactar con la administración en ${instanceUrl}.`,
       ``,
       `— ${instanceTitle}`,
     ].join("\n"),

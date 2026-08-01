@@ -1,11 +1,84 @@
-interface ModerationResult {
-  action: "dismiss" | "warn" | "delete" | "suspend";
+/**
+ * AI decision engine — the "Guardian".
+ *
+ * Wraps Workers AI LLM calls behind small typed functions used by the
+ * moderation pipeline. All functions return a structured verdict (or null when
+ * the model is unavailable / output is invalid), so callers never crash.
+ *
+ * The prompts are defined in ./prompts.ts and always ask for strict JSON.
+ */
+
+import { GUARDIAN_SYSTEM_PROMPT, buildReportPrompt, buildRegistrationPrompt, buildContentPrompt, buildAccountPrompt } from "./prompts";
+
+export interface Verdict {
+  action: string;
   reason: string;
   confidence: "low" | "medium" | "high";
 }
 
+export type ReportVerdict = Verdict & { action: "dismiss" | "warn" | "delete" | "suspend" };
+export type RegistrationVerdict = Verdict & { action: "approve" | "reject" };
+export type ContentVerdict = Verdict & { action: "allow" | "mark_sensitive" | "delete" | "escalate" };
+export type AccountVerdict = Verdict & { action: "monitor" | "warn" | "suspend" };
+
+const MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<Ai["run"]>[0];
+
+/** Model id used for audit logging. */
+export const GUARDIAN_MODEL = String(MODEL).replace(/^@/, "");
+
+interface AiEnv {
+  AI?: Ai;
+}
+
+async function ask(
+  env: AiEnv,
+  userPrompt: string,
+  allowedActions: string[],
+  maxTokens = 256
+): Promise<Verdict | null> {
+  if (!env.AI) return null;
+
+  try {
+    const result = (await env.AI.run(MODEL, {
+      messages: [
+        { role: "system", content: GUARDIAN_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.1,
+    } as Parameters<Ai["run"]>[1])) as { response?: string };
+
+    const text = (result.response ?? "").trim();
+    if (!text) return null;
+
+    const parsed = JSON.parse(text) as Partial<Verdict>;
+    if (
+      typeof parsed.action !== "string" ||
+      !allowedActions.includes(parsed.action) ||
+      typeof parsed.reason !== "string"
+    ) {
+      return null;
+    }
+
+    const confidence = (["low", "medium", "high"] as const).includes(
+      parsed.confidence as Verdict["confidence"]
+    )
+      ? (parsed.confidence as Verdict["confidence"])
+      : "medium";
+
+    return {
+      action: parsed.action,
+      reason: parsed.reason.slice(0, 500),
+      confidence,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Evaluate a user report. */
 export async function evaluateReport(
-  env: { AI: Ai; DB: D1Database },
+  env: AiEnv,
   report: {
     category: string;
     comment: string;
@@ -15,59 +88,69 @@ export async function evaluateReport(
     invalidStatuses: boolean;
     mismatchedOwnership: boolean;
   }
-): Promise<ModerationResult | null> {
-  if (!env.AI) return null;
+): Promise<ReportVerdict | null> {
+  const v = await ask(env, buildReportPrompt(report), ["dismiss", "warn", "delete", "suspend"]);
+  return v as ReportVerdict | null;
+}
 
-  const categoryLabels: Record<string, string> = {
-    spam: "spam / contenido no deseado / publicidad engañosa",
-    violation: "violación de normas (acoso, incitación al odio, contenido ilegal, violencia)",
-    other: "otro motivo",
-  };
-
-  const systemPrompt =
-    "Eres un moderador de una red social federada. Debes evaluar si el reporte es auténtico y determinar la acción apropiada.\n\n" +
-    "Responde ÚNICAMENTE con un objeto JSON, sin texto adicional:\n" +
-    '{"action": "dismiss|warn|delete|suspend", "reason": "explicación breve y específica en español", "confidence": "low|medium|high"}\n\n' +
-    "Acciones:\n" +
-    "- dismiss: el reporte es falso, sin mérito, el contenido es aceptable, o el reporte parece fraudulento (venganza, sabotaje). No tomar acción.\n" +
-    "- warn: infracción menor o dudosa. Emitir advertencia.\n" +
-    "- delete: contenido inapropiado (spam leve, insultos, etc.) pero la cuenta no es reincidente. Eliminar solo el post.\n" +
-    "- suspend: contenido grave (spam masivo, acoso, ilegal, odio, bots, suplantación). Suspender la cuenta.\n\n" +
-    "Sé estricto con spam y acoso. Si hay duda razonable, prefiere warn sobre suspend.\n" +
-    "Si el reporte parece falso o malicioso (el contenido no coincide con la categoría, o el denunciante parece estar abusando del sistema), usa dismiss.";
-
-  const userPrompt = `## Reporte
-- Categoría: ${categoryLabels[report.category] ?? report.category}
-- Comentario del denunciante: ${report.comment || "(sin comentario)"}
-- Contenido reportado: "${report.statusContent || "(sin contenido textual)"}"
-- Usuario reportado: @${report.targetUsername}
-- Denunciante: @${report.reporterUsername}
-- IDs de estado inválidos: ${report.invalidStatuses ? "Sí" : "No"}
-- Estados que no pertenecen al usuario reportado: ${report.mismatchedOwnership ? "Sí" : "No"}
-
-Evalúa la autenticidad de este reporte y determina la acción apropiada. Si el reporte parece falso o abusivo, indica dismiss.`;
-
-  try {
-    const result = await env.AI.run(
-      "@cf/meta/llama-3.3-70b-instruct-fp8-fast" as Parameters<Ai["run"]>[0],
-      {
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: 256,
-        temperature: 0.1,
-      } as Parameters<Ai["run"]>[1],
-    ) as { response: string };
-
-    const text = result.response?.trim();
-    if (!text) return null;
-
-    const parsed = JSON.parse(text) as ModerationResult;
-    if (!["dismiss", "warn", "delete", "suspend"].includes(parsed.action)) return null;
-
-    return parsed;
-  } catch {
-    return null;
+/** Review a brand-new local account profile. */
+export async function evaluateRegistration(
+  env: AiEnv,
+  profile: {
+    username: string;
+    displayName: string;
+    summary: string;
+    source: "web" | "api";
+    ipSuspicious: boolean;
   }
+): Promise<RegistrationVerdict | null> {
+  const v = await ask(env, buildRegistrationPrompt(profile), ["approve", "reject"]);
+  return v as RegistrationVerdict | null;
+}
+
+/** Screen individual status content. */
+export async function evaluateContent(
+  env: AiEnv,
+  status: {
+    content: string;
+    contentWarning: string;
+    mediaCount: number;
+    isReply: boolean;
+    visibility: string;
+    authorUsername: string;
+    accountAgeDays: number;
+    statusesCount: number;
+    previousWarnings: number;
+    flags: string[];
+  }
+): Promise<ContentVerdict | null> {
+  const v = await ask(env, buildContentPrompt(status), ["allow", "mark_sensitive", "delete", "escalate"], 320);
+  return v as ContentVerdict | null;
+}
+
+/** Evaluate long-term account behavior. */
+export async function evaluateAccount(
+  env: AiEnv,
+  account: {
+    username: string;
+    isLocal: boolean;
+    domain: string;
+    statusesCount: number;
+    followersCount: number;
+    followingCount: number;
+    isBot: boolean;
+    ageDays: number;
+    postsLastHour: number;
+    postsLastDay: number;
+    linkRatio: number;
+    followsLastHour: number;
+    reportsReceived: number;
+    previousWarnings: number;
+    isSuspended: boolean;
+    isVerified: boolean;
+    flags: string[];
+  }
+): Promise<AccountVerdict | null> {
+  const v = await ask(env, buildAccountPrompt(account), ["monitor", "warn", "suspend"], 320);
+  return v as AccountVerdict | null;
 }

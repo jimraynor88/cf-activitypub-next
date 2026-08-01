@@ -1,7 +1,13 @@
+import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
+import { requireAdmin } from "@/lib/admin-auth";
 
-export async function GET(): Promise<Response> {
+export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
+
+  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+    return json({ error: "Unauthorized" }, 401);
+  }
 
   const rows = await env.DB
     .prepare("SELECT domain FROM domain_blocks GROUP BY domain")

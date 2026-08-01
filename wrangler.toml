@@ -22,6 +22,7 @@ LIBRETRANSLATE_URL = ""
 #   wrangler secret put TURNSTILE_SECRET
 #   wrangler secret put CALLS_TURN_KEY_ID
 #   wrangler secret put CALLS_API_TOKEN
+#   wrangler secret put ADMIN_TOKEN  (optional — if set, admin endpoints require it)
 
 [[routes]]
 pattern = "cf-ap.example.com"
