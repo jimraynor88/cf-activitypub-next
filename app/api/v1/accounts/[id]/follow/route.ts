@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getActorById, getFollow, createFollow, updateActor } from "@/lib/db";
+import { getActorById, getFollow, createFollow } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { buildFollow, generateId } from "@/lib/activitypub/utils";
 import { deliverToInbox } from "@/lib/activitypub/federation";
@@ -65,8 +65,8 @@ export async function POST(
   if (target.isLocal) {
     // Local follow — auto-accept if not locked
     if (!target.manuallyApprovesFollowers) {
-      await updateActor(env.DB, actor.id, { followingCount: actor.followingCount + 1 });
-      await updateActor(env.DB, target.id, { followersCount: target.followersCount + 1 });
+      await env.DB.prepare("UPDATE actors SET following_count = COALESCE(following_count, 0) + 1 WHERE id = ?").bind(actor.id).run();
+      await env.DB.prepare("UPDATE actors SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = ?").bind(target.id).run();
       await notify(env, {
         id: generateId(),
         type: "follow",
@@ -97,7 +97,7 @@ export async function POST(
     }
     // Optimistically increment the local actor's following count (for non-locked remote accounts)
     if (!target.manuallyApprovesFollowers) {
-      await updateActor(env.DB, actor.id, { followingCount: actor.followingCount + 1 });
+      await env.DB.prepare("UPDATE actors SET following_count = COALESCE(following_count, 0) + 1 WHERE id = ?").bind(actor.id).run();
     }
   }
 

@@ -51,9 +51,13 @@ export async function GET(
     .map((s) => {
       const attachments = (attachmentMap.get(s.id) ?? []).map(toAPAttachment);
       let tags: APTag[] | undefined;
+      let to: string[] | undefined;
+      let cc: string[] | undefined;
       try {
         const raw = JSON.parse(s.raw);
         if (Array.isArray(raw.tag)) tags = raw.tag as APTag[];
+        if (Array.isArray(raw.to)) to = raw.to as string[];
+        if (Array.isArray(raw.cc)) cc = raw.cc as string[];
       } catch { /* ignore parse errors */ }
       const note = buildNote(baseUrl, s.id, {
         actorUsername: username,
@@ -65,6 +69,8 @@ export async function GET(
         summary: s.contentWarning ?? undefined,
         language: s.language ?? undefined,
         tags,
+        to,
+        cc,
       });
       if (attachments.length > 0) {
         note.attachment = attachments;

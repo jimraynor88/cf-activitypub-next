@@ -117,6 +117,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       db: env.DB,
       kv: env.KV,
       baseUrl,
+      signingActorId,
       signingKey,
       timelineStream: env.TIMELINE_STREAM,
       vapidPublicKey: env.VAPID_PUBLIC_KEY,

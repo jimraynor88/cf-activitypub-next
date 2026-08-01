@@ -37,7 +37,7 @@ export async function POST(
     if (inbox) {
       const like = buildLike(baseUrl, actor.id, obj.id, generateId());
       const undo = buildUndo(baseUrl, actor.id, like, generateId());
-      await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(undo), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(undo), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   }
 

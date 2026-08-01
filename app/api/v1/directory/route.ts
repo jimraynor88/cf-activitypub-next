@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
-import { getActorById } from "@/lib/db";
+import { getActorById, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -28,7 +28,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   const accounts = await Promise.all(
     rows.results.map(async (r) => {
       const a = await getActorById(env.DB, r.id);
-      return a ? serializeAccount(a, domain) : null;
+      if (!a) return null;
+      const lastStatusAt = await getLastStatusAt(env.DB, a.id);
+      return serializeAccount(a, domain, { lastStatusAt });
     })
   );
 

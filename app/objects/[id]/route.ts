@@ -50,9 +50,13 @@ export async function GET(
   const apAttachments = rawAttachments.map(toAPAttachment);
 
   let tags: APTag[] | undefined;
+  let to: string[] | undefined;
+  let cc: string[] | undefined;
   try {
     const raw = JSON.parse(obj.raw);
     if (Array.isArray(raw.tag)) tags = raw.tag as APTag[];
+    if (Array.isArray(raw.to)) to = raw.to as string[];
+    if (Array.isArray(raw.cc)) cc = raw.cc as string[];
   } catch { /* ignore parse errors */ }
 
   const note = buildNote(baseUrl, id, {
@@ -66,6 +70,8 @@ export async function GET(
     language: obj.language ?? undefined,
     attachments: apAttachments.length > 0 ? apAttachments : undefined,
     tags,
+    to,
+    cc,
   });
 
   return activityJson(note);

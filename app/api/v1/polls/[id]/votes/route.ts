@@ -26,8 +26,22 @@ export async function POST(
     return json({ error: "Already voted" }, 422);
   }
 
-  const body = (await request.json()) as { choices?: number[] };
-  const choices = (body.choices ?? []).filter((c) => typeof c === "number" && Number.isInteger(c) && c >= 0);
+  const contentType = request.headers.get("Content-Type") ?? "";
+  let rawChoices: unknown;
+  if (contentType.includes("application/json")) {
+    const body = (await request.json()) as { choices?: unknown };
+    rawChoices = body.choices;
+  } else {
+    const form = await request.formData();
+    const choices = form.getAll("choices[]");
+    rawChoices = choices.length > 0
+      ? choices.map((c) => Number(String(c)))
+      : (() => {
+          const single = form.get("choices");
+          return single != null ? [Number(String(single))] : undefined;
+        })();
+  }
+  const choices = (Array.isArray(rawChoices) ? rawChoices : []).filter((c): c is number => typeof c === "number" && Number.isInteger(c) && c >= 0);
 
   if (choices.length === 0) return json({ error: "No choices provided" }, 422);
 
@@ -36,7 +50,7 @@ export async function POST(
     return json({ error: "This poll does not allow multiple choices" }, 422);
   }
   const validChoices = choices.filter((c) => c < options.length);
-  if (validChoices.length === 0) return json({ error: "Invalid choices" }, 422);
+  if (validChoices.length !== choices.length) return json({ error: "Invalid choices" }, 422);
 
   await createPollVotes(env.DB, id, actor.id, validChoices);
 

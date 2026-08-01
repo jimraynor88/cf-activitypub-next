@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getActorById, getFollow, updateFollowState, updateActor } from "@/lib/db";
+import { getActorById, getFollow, updateFollowState } from "@/lib/db";
 import { buildAccept, buildFollow, generateId } from "@/lib/activitypub/utils";
 import { deliverToInbox, fetchRemoteObject } from "@/lib/activitypub/federation";
 import type { APActor } from "@/lib/types";
@@ -30,12 +30,8 @@ export async function POST(
 
   await updateFollowState(env.DB, follow.id, "accepted");
 
-  await updateActor(env.DB, actor.id, {
-    followersCount: (actor.followersCount ?? 0) + 1,
-  });
-  await updateActor(env.DB, requester.id, {
-    followingCount: (requester.followingCount ?? 0) + 1,
-  });
+  await env.DB.prepare("UPDATE actors SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = ?").bind(actor.id).run();
+  await env.DB.prepare("UPDATE actors SET following_count = COALESCE(following_count, 0) + 1 WHERE id = ?").bind(requester.id).run();
 
   if (!actor.privateKeyPem) {
     return json({ id: requester.id, following: false, followed_by: true, requested: false }, 200);

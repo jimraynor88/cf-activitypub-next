@@ -67,6 +67,11 @@ CREATE INDEX IF NOT EXISTS idx_objects_published   ON objects(published DESC);
 CREATE INDEX IF NOT EXISTS idx_objects_visibility  ON objects(visibility);
 CREATE INDEX IF NOT EXISTS idx_objects_reply       ON objects(in_reply_to_id);
 
+-- Composite indexes for the hot timeline queries (applied on fresh installs).
+CREATE INDEX IF NOT EXISTS idx_objects_vis_published     ON objects(visibility, published DESC);
+CREATE INDEX IF NOT EXISTS idx_objects_actor_vis_pub     ON objects(actor_id, visibility, published DESC);
+CREATE INDEX IF NOT EXISTS idx_objects_reply_published   ON objects(in_reply_to_id, published ASC);
+
 -- ─────────────────────────────────────────
 -- Attachments
 -- ─────────────────────────────────────────

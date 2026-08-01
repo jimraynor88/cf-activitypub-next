@@ -37,7 +37,7 @@ export async function POST(
     if (inbox) {
       const announce = buildAnnounce(baseUrl, actor.id, obj.id, generateId(), `${baseUrl}/users/${actor.username}/followers`);
       const undo = buildUndo(baseUrl, actor.id, announce, generateId());
-      await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(undo), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(undo), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   }
 

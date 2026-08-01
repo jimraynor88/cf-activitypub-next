@@ -129,7 +129,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       env.DELIVERY_QUEUE,
       [inboxUrl],
       JSON.stringify(callOffer),
-      caller.id
+      caller.id,
+      `${caller.id}#main-key`,
+      caller.privateKeyPem
     ).catch(() => {});
   }
 

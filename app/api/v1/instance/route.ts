@@ -15,7 +15,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const statusCount = postRow?.count ?? 0;
   const title = env.INSTANCE_TITLE ?? domain;
   const description = env.INSTANCE_DESCRIPTION ?? "An ActivityPub server";
-  const version = env.INSTANCE_VERSION ?? "0.1.0";
+  const appVersion = env.INSTANCE_VERSION ?? "0.1.0";
 
   return json({
     uri: domain,
@@ -23,8 +23,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     description,
     short_description: description,
     email: `admin@${domain}`,
-    version: `${version} (compatible; Mastodon 4.3.0)`,
-    urls: { streaming_api: `wss://${domain}` },
+    version: `4.3.0 (compatible; ${appVersion})`,
+    urls: { streaming_api: `wss://${domain}/api/v1/streaming` },
     stats: { user_count: userCount, status_count: statusCount, domain_count: 1 },
     thumbnail: `https://${domain}/logo.svg`,
     languages: ["en"],

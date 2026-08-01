@@ -232,7 +232,24 @@ function rowToAttachment(r: Row): LocalAttachment {
 // Actors
 // ─────────────────────────────────────────
 
+/**
+ * Last public post date of an actor (YYYY-MM-DD form, like Mastodon's
+ * `last_status_at`), or null when the actor has no public statuses.
+ */
+export async function getLastStatusAt(db: D1Database, actorId: string): Promise<string | null> {
+  const row = await db
+    .prepare("SELECT MAX(published) AS p FROM objects WHERE actor_id = ? AND visibility IN ('public', 'unlisted') AND type = 'Note'")
+    .bind(actorId)
+    .first<{ p: string | null }>();
+  if (!row?.p) return null;
+  const iso = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(row.p)
+    ? `${row.p.replace(" ", "T")}Z`
+    : row.p;
+  return iso.slice(0, 10);
+}
+
 export async function getActorById(db: D1Database, id: string): Promise<LocalActor | null> {
+
   const row = await db.prepare("SELECT * FROM actors WHERE id = ?").bind(id).first<Row>();
   return row ? rowToActor(row) : null;
 }
@@ -931,6 +948,41 @@ export async function getObjectById(db: D1Database, id: string): Promise<LocalOb
   return row ? rowToObject(row) : null;
 }
 
+/**
+ * Resolve the account id of the status this object replies to (the parent's
+ * author), or null when it is not a reply / the parent is unknown.
+ */
+export async function getReplyToAccountId(db: D1Database, obj: { inReplyToId: string | null; local: boolean }): Promise<string | null> {
+  if (!obj.inReplyToId) return null;
+  const parent = await db.prepare("SELECT actor_id FROM objects WHERE id = ?").bind(obj.inReplyToId).first<{ actor_id: string }>();
+  return parent?.actor_id ?? null;
+}
+
+/**
+ * Batch variant of getReplyToAccountId. Maps object id → parent author account
+ * id (null when not a reply or parent unknown).
+ */
+export async function getReplyToAccountIdMap(
+  db: D1Database,
+  objects: { id: string; inReplyToId: string | null }[]
+): Promise<Map<string, string | null>> {
+  const result = new Map<string, string | null>();
+  const parentIds = [...new Set(objects.map((o) => o.inReplyToId).filter((v): v is string => !!v))];
+  if (parentIds.length === 0) {
+    for (const o of objects) result.set(o.id, null);
+    return result;
+  }
+  const parentActors = new Map<string, string>();
+  for (const pid of parentIds) {
+    const parent = await db.prepare("SELECT actor_id FROM objects WHERE id = ?").bind(pid).first<{ actor_id: string }>();
+    if (parent) parentActors.set(pid, parent.actor_id);
+  }
+  for (const o of objects) {
+    result.set(o.id, o.inReplyToId ? (parentActors.get(o.inReplyToId) ?? null) : null);
+  }
+  return result;
+}
+
 export async function createObject(db: D1Database, obj: Omit<LocalObject, "updatedAt">): Promise<void> {
   await db
     .prepare(
@@ -968,20 +1020,28 @@ export async function getPublicTimeline(
   limit = 20,
   maxId?: string,
   local = false,
-  sinceId?: string
+  sinceId?: string,
+  remote = false,
+  onlyMedia = false,
+  minId?: string
 ): Promise<LocalObject[]> {
   // local=true  → only statuses from this instance
   // local=false → all public statuses (federated timeline)
-  const localFilter = local ? "AND o.is_local = 1" : "";
-  if (sinceId) {
+  // remote=true → only statuses from remote instances
+  // only_media=true → only statuses with media attachments
+  let localFilter = local ? "AND o.is_local = 1" : "";
+  if (remote) localFilter = "AND o.is_local = 0";
+  const mediaFilter = onlyMedia ? "AND EXISTS (SELECT 1 FROM attachments a WHERE a.object_id = o.id)" : "";
+  if (sinceId || minId) {
+    const pivot = sinceId ?? minId!;
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
-         WHERE o.visibility = 'public' ${localFilter}
+         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
            AND o.published > (SELECT published FROM objects WHERE id = ?)
          ORDER BY o.published DESC LIMIT ?`
       )
-      .bind(sinceId, limit)
+      .bind(pivot, limit)
       .all<Row>();
     return rows.results.map(rowToObject);
   }
@@ -989,7 +1049,7 @@ export async function getPublicTimeline(
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
-         WHERE o.visibility = 'public' ${localFilter}
+         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
            AND o.published < (SELECT published FROM objects WHERE id = ?)
          ORDER BY o.published DESC LIMIT ?`
       )
@@ -1000,7 +1060,7 @@ export async function getPublicTimeline(
   const rows = await db
     .prepare(
       `SELECT o.* FROM objects o
-       WHERE o.visibility = 'public' ${localFilter}
+       WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
        ORDER BY o.published DESC LIMIT ?`
     )
     .bind(limit)
@@ -1012,7 +1072,8 @@ export async function getHomeTimeline(
   db: D1Database,
   actorId: string,
   limit = 20,
-  maxId?: string
+  maxId?: string,
+  minId?: string
 ): Promise<LocalObject[]> {
   // Own posts → all visibilities (except direct).
   // Posts from followed accounts → public, unlisted, followers-only.
@@ -1028,6 +1089,18 @@ export async function getHomeTimeline(
       )
     )
   `;
+  if (minId) {
+    const rows = await db
+      .prepare(
+        `SELECT o.* FROM objects o
+         WHERE ${baseWhere}
+           AND o.published > (SELECT published FROM objects WHERE id = ?)
+         ORDER BY o.published DESC LIMIT ?`
+      )
+      .bind(actorId, actorId, minId, limit)
+      .all<Row>();
+    return rows.results.map(rowToObject);
+  }
   if (maxId) {
     const rows = await db
       .prepare(
@@ -1217,11 +1290,12 @@ export async function updateFollowState(
   await db.prepare("UPDATE follows SET state = ? WHERE id = ?").bind(state, id).run();
 }
 
-export async function deleteFollow(db: D1Database, actorId: string, targetId: string): Promise<void> {
-  await db
+export async function deleteFollow(db: D1Database, actorId: string, targetId: string): Promise<boolean> {
+  const res = await db
     .prepare("DELETE FROM follows WHERE actor_id = ? AND target_id = ?")
     .bind(actorId, targetId)
     .run();
+  return (res.meta?.changes ?? 0) > 0;
 }
 
 export async function getFollowers(
@@ -1818,19 +1892,23 @@ export async function createPollVotes(
   choices: number[]
 ): Promise<void> {
   for (const choice of choices) {
-    await db
+    const res = await db
       .prepare("INSERT OR IGNORE INTO poll_votes (id, poll_id, actor_id, option_idx) VALUES (?,?,?,?)")
       .bind(crypto.randomUUID(), pollId, actorId, choice)
       .run();
-    await db
-      .prepare("UPDATE poll_options SET votes_count = votes_count + 1 WHERE poll_id = ? AND position = ?")
-      .bind(pollId, choice)
-      .run();
+    // Only increment counters when the vote row was actually inserted, so a
+    // duplicate vote (INSERT OR IGNORE) can't double-count.
+    if ((res.meta?.changes ?? 0) > 0) {
+      await db
+        .prepare("UPDATE poll_options SET votes_count = votes_count + 1 WHERE poll_id = ? AND position = ?")
+        .bind(pollId, choice)
+        .run();
+      await db
+        .prepare("UPDATE polls SET votes_count = votes_count + 1, voters_count = voters_count + 1 WHERE id = ?")
+        .bind(pollId)
+        .run();
+    }
   }
-  await db
-    .prepare("UPDATE polls SET votes_count = votes_count + ?, voters_count = voters_count + 1 WHERE id = ?")
-    .bind(choices.length, pollId)
-    .run();
 }
 
 // ─────────────────────────────────────────

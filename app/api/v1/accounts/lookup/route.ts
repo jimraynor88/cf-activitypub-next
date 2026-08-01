@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorByUsername, getActorFields } from "@/lib/db";
+import { getActorByUsername, getActorFields, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 // GET /api/v1/accounts/lookup?acct=username[@domain]
@@ -20,5 +20,6 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!actor) return notFound("Account not found");
 
   const fields = await getActorFields(env.DB, actor.id);
-  return json(serializeAccount(actor, domain, { fields }));
+  const lastStatusAt = await getLastStatusAt(env.DB, actor.id);
+  return json(serializeAccount(actor, domain, { fields, lastStatusAt }));
 }

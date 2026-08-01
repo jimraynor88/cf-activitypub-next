@@ -10,6 +10,7 @@ import {
   createPoll,
   getPollByObjectId,
   getPollOptions,
+  getAttachmentsByObjectId,
   getAllCustomEmojis,
   createScheduledStatus,
 } from "@/lib/db";
@@ -82,6 +83,27 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!actor) return unauthorized();
   if (!actor.privateKeyPem) return json({ error: "Account misconfigured" }, 500);
 
+  // Idempotency-Key: prevent duplicate status submissions within 1 hour.
+  const idempotencyKey = request.headers.get("Idempotency-Key");
+  if (idempotencyKey) {
+    const existingId = await env.KV.get(`idempotency:${actor.id}:${idempotencyKey}`);
+    if (existingId) {
+      const existing = await getObjectById(env.DB, existingId);
+      if (existing) {
+        const existingAuthor = await getActorById(env.DB, existing.actorId);
+        if (existingAuthor) {
+          const existingPoll = await getPollByObjectId(env.DB, existing.id);
+          const existingPollOpts = existingPoll ? await getPollOptions(env.DB, existingPoll.id) : [];
+          const attachments = await getAttachmentsByObjectId(env.DB, existing.id);
+          return json(serializeStatus(existing, existingAuthor, domain, {
+            attachments,
+            poll: existingPoll ? serializePoll(existingPoll, existingPollOpts, false, []) : null,
+          }));
+        }
+      }
+    }
+  }
+
   let body: Record<string, unknown>;
   const contentType = request.headers.get("Content-Type") ?? "";
   if (contentType.includes("application/json")) {
@@ -97,6 +119,12 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!content && !hasPoll) return json({ error: "status content or poll is required" }, 422);
 
   const visibility = (body.visibility as string) ?? "public";
+  if (!["public", "unlisted", "private", "direct"].includes(visibility)) {
+    return json({ error: "Validation failed: Visibility can be one of public, unlisted, private, direct" }, 422);
+  }
+  if (pollRaw && pollRaw.expires_in != null && (!Number.isFinite(Number(pollRaw.expires_in)) || Number(pollRaw.expires_in) < 300)) {
+    return json({ error: "Validation failed: expires_in must be at least 300 seconds" }, 422);
+  }
   const inReplyToIdRaw = body.in_reply_to_id as string | undefined;
   const inReplyToId = inReplyToIdRaw ? decodeStatusId(inReplyToIdRaw, domain) : undefined;
   const sensitive = body.sensitive === true || body.sensitive === "true";
@@ -130,6 +158,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Mirror that behaviour by prepending their @handles to the content (and, for
   // accounts that can't be resolved, adding bare Mention tags).
   const parent = inReplyToId ? await getObjectById(env.DB, inReplyToId) : null;
+  const replyToAccountId = parent?.actorId ?? null;
   const parentNode: ThreadNode | null = parent
     ? parent
     : inReplyToId?.startsWith("https://")
@@ -225,6 +254,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     local: true,
     raw: JSON.stringify(note),
   });
+
+  // Store idempotency mapping so a retried submission returns the same status.
+  if (idempotencyKey) {
+    await env.KV.put(`idempotency:${actor.id}:${idempotencyKey}`, note.id, { expirationTtl: 3600 });
+  }
 
   // Link any pending media attachments
   const mediaIds = (body.media_ids as string[] | undefined) ?? [];
@@ -361,7 +395,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (visibility === "direct") {
     // Direct replies are delivered only to the addressed accounts
     if (mentionInboxes.length > 0) {
-      await enqueueDeliveries(env.DELIVERY_QUEUE, mentionInboxes, JSON.stringify(createActivity), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, mentionInboxes, JSON.stringify(createActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   } else {
     // Get IDs of actors who follow the current user (actor_id = follower, target_id = followed)
@@ -375,7 +409,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     inboxes.push(...mentionInboxes);
     if (inboxes.length > 0) {
       // Use queue for reliable delivery with automatic retries
-      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(createActivity), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(createActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   }
 
@@ -383,7 +417,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     { id: note.id, type: "Note", actorId: actor.id, content: htmlContent, contentWarning: sensitive ? spoilerText : null, sensitive, visibility: visibility as "public", inReplyToId: inReplyToId ?? null, language: language ?? null, url: note.id, repliesCount: 0, reblogsCount: 0, favouritesCount: 0, published, updatedAt: published, local: true, raw: JSON.stringify(note) },
     actor,
     domain,
-    { attachments: linkedAttachments, poll: serializedPoll }
+    { attachments: linkedAttachments, poll: serializedPoll, inReplyToAccountId: replyToAccountId ?? null }
   );
 
   // Broadcast to streaming clients — collect tasks and await all together

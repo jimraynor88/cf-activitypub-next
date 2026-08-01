@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
-import { getHomeTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis } from "@/lib/db";
+import { getHomeTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
@@ -17,15 +17,18 @@ export async function GET(request: NextRequest): Promise<Response> {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 40);
   const maxIdRaw = searchParams.get("max_id") ?? undefined;
   const maxId = maxIdRaw ? decodeStatusId(maxIdRaw, domain) : undefined;
+  const minIdRaw = searchParams.get("min_id") ?? undefined;
+  const minId = minIdRaw ? decodeStatusId(minIdRaw, domain) : undefined;
 
-  const objects = await getHomeTimeline(env.DB, actor.id, limit, maxId);
+  const objects = await getHomeTimeline(env.DB, actor.id, limit, maxId, minId);
 
-  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis] = await Promise.all([
+  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis, replyToMap] = await Promise.all([
     getAttachmentsByObjectIds(env.DB, objects.map((o) => o.id)),
     getPollsByObjectIds(env.DB, objects.map((o) => o.id)),
     getLikedObjectIds(env.DB, actor.id, objects.map((o) => o.id)),
     getAnnouncedObjectIds(env.DB, actor.id, objects.map((o) => o.id)),
     getAllCustomEmojis(env.DB),
+    getReplyToAccountIdMap(env.DB, objects),
   ]);
 
   const statuses = await Promise.all(
@@ -52,6 +55,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         favourited: likedIds.has(obj.id),
         reblogged: announcedIds.has(obj.id),
         emojis: allEmojis,
+        inReplyToAccountId: replyToMap.get(obj.id) ?? null,
       });
     })
   );

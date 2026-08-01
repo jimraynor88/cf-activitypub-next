@@ -3,19 +3,10 @@ import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeAttachment } from "@/lib/mastodon/serializers";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-): Promise<Response> {
-  const { env } = getCloudflareContext();
-  const { id } = await params;
-  const att = await env.DB
-    .prepare("SELECT * FROM attachments WHERE id = ?")
-    .first<Record<string, unknown>>(id);
-  if (!att) return notFound();
-  return json(serializeAttachment({
+function fromRow(att: Record<string, unknown>) {
+  return {
     id: att.id as string,
-    objectId: att.object_id as string,
+    objectId: (att.object_id as string | null) ?? "",
     type: att.type as string,
     url: att.url as string,
     remoteUrl: (att.remote_url as string | null) ?? null,
@@ -26,7 +17,41 @@ export async function GET(
     fileSize: (att.file_size as number | null) ?? null,
     mimeType: (att.mime_type as string | null) ?? null,
     createdAt: att.created_at as string,
-  }));
+  };
+}
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<Response> {
+  const { env } = getCloudflareContext();
+  const { id } = await params;
+  const att = await env.DB
+    .prepare("SELECT * FROM attachments WHERE id = ?")
+    .first<Record<string, unknown>>(id);
+  if (att) return json(serializeAttachment(fromRow(att)));
+  // Attachment uploaded but not yet attached to a status — check pending KV.
+  const pendingRaw = await env.KV.get(`pending_media:${id}`);
+  if (pendingRaw) {
+    try {
+      const pending = JSON.parse(pendingRaw) as Record<string, unknown>;
+      return json(serializeAttachment({
+        id: pending.id as string,
+        objectId: "",
+        type: pending.type as string,
+        url: pending.url as string,
+        remoteUrl: null,
+        description: (pending.description as string | null) ?? null,
+        blurhash: null,
+        width: null,
+        height: null,
+        fileSize: (pending.fileSize as number | null) ?? null,
+        mimeType: (pending.mimeType as string | null) ?? null,
+        createdAt: pending.createdAt as string,
+      }));
+    } catch { /* fall through to 404 */ }
+  }
+  return notFound();
 }
 
 export async function DELETE(
@@ -38,6 +63,7 @@ export async function DELETE(
   const me = await getAuthenticatedActor(_request, env.DB);
   if (!me) return unauthorized();
   await env.DB.prepare("DELETE FROM attachments WHERE id = ?").bind(id).run();
+  await env.KV.delete(`pending_media:${id}`);
   return json({});
 }
 
@@ -49,29 +75,55 @@ export async function PUT(
   const { id } = await params;
   const me = await getAuthenticatedActor(_request, env.DB);
   if (!me) return unauthorized();
-  const body = await _request.json() as Record<string, unknown>;
-  if (typeof body.description === "string") {
-    await env.DB
-      .prepare("UPDATE attachments SET description = ? WHERE id = ?")
-      .bind(body.description, id)
-      .run();
+
+  let description: string | null = null;
+  const contentType = _request.headers.get("Content-Type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await _request.formData();
+    description = (form.get("description") as string | null) ?? null;
+  } else {
+    const body = await _request.json() as Record<string, unknown>;
+    if (typeof body.description === "string") description = body.description;
   }
+
   const att = await env.DB
     .prepare("SELECT * FROM attachments WHERE id = ?")
     .first<Record<string, unknown>>(id);
-  if (!att) return notFound();
-  return json(serializeAttachment({
-    id: att.id as string,
-    objectId: att.object_id as string,
-    type: att.type as string,
-    url: att.url as string,
-    remoteUrl: (att.remote_url as string | null) ?? null,
-    description: (att.description as string | null) ?? null,
-    blurhash: (att.blurhash as string | null) ?? null,
-    width: (att.width as number | null) ?? null,
-    height: (att.height as number | null) ?? null,
-    fileSize: (att.file_size as number | null) ?? null,
-    mimeType: (att.mime_type as string | null) ?? null,
-    createdAt: att.created_at as string,
-  }));
+  if (att) {
+    if (description !== null) {
+      await env.DB
+        .prepare("UPDATE attachments SET description = ? WHERE id = ?")
+        .bind(description, id)
+        .run();
+    }
+    const refreshed = await env.DB
+      .prepare("SELECT * FROM attachments WHERE id = ?")
+      .first<Record<string, unknown>>(id);
+    return json(serializeAttachment(fromRow(refreshed!)));
+  }
+
+  // Not attached yet — update the pending KV entry.
+  const pendingRaw = await env.KV.get(`pending_media:${id}`);
+  if (!pendingRaw) return notFound();
+  try {
+    const pending = JSON.parse(pendingRaw) as Record<string, unknown>;
+    if (description !== null) pending.description = description;
+    await env.KV.put(`pending_media:${id}`, JSON.stringify(pending), { expirationTtl: 3600 });
+    return json(serializeAttachment({
+      id: pending.id as string,
+      objectId: "",
+      type: pending.type as string,
+      url: pending.url as string,
+      remoteUrl: null,
+      description: (pending.description as string | null) ?? null,
+      blurhash: null,
+      width: null,
+      height: null,
+      fileSize: (pending.fileSize as number | null) ?? null,
+      mimeType: (pending.mimeType as string | null) ?? null,
+      createdAt: pending.createdAt as string,
+    }));
+  } catch {
+    return notFound();
+  }
 }

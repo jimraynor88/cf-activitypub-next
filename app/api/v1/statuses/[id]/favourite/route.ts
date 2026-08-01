@@ -64,7 +64,7 @@ export async function POST(
       const authorActor = await fetchRemoteObject(author.id) as APActor | null;
       const inbox = authorActor?.endpoints?.sharedInbox ?? authorActor?.inbox;
       if (inbox) {
-        await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(likeActivity), actor.id);
+        await enqueueDeliveries(env.DELIVERY_QUEUE, [inbox], JSON.stringify(likeActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
       }
     }
   }

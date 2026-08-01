@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
-import { getActorById, getAllCustomEmojis } from "@/lib/db";
+import { getActorById, getAllCustomEmojis, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -23,7 +23,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   const results = await Promise.all(
     rows.results.map(async (r) => {
       const actor = await getActorById(env.DB, r.id as string);
-      return actor ? serializeAccount(actor, domain, { emojis }) : null;
+      if (!actor) return null;
+      const lastStatusAt = await getLastStatusAt(env.DB, actor.id);
+      return serializeAccount(actor, domain, { emojis, lastStatusAt });
     })
   );
   return json(results.filter(Boolean));

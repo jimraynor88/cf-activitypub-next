@@ -122,6 +122,7 @@ export async function POST(
         username: recipient.username,
         privateKeyPem: recipient.privateKeyPem,
       },
+      signingActorId,
       signingKey: {
         id: recipient.id,
         privateKeyPem: recipient.privateKeyPem,

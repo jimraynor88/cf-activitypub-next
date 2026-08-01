@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getActorById, getActorFields, setActorFields } from "@/lib/db";
+import { getActorById, getActorFields, setActorFields, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 import { buildActor, buildUpdateActor, generateId } from "@/lib/activitypub/utils";
 import { collectFollowerInboxes } from "@/lib/activitypub/federation";
@@ -17,6 +17,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!actor) return unauthorized();
 
   const fields = await getActorFields(env.DB, actor.id);
+  const lastStatusAt = await getLastStatusAt(env.DB, actor.id);
 
   let role = "user";
   try {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (row?.role) role = row.role;
   } catch {} // column may not exist until migration runs
 
-  return json(serializeAccount(actor, domain, { isCurrentUser: true, fields, role }));
+  return json(serializeAccount(actor, domain, { isCurrentUser: true, fields, role, lastStatusAt }));
 }
 
 // PATCH /api/v1/accounts/update_credentials
@@ -188,7 +189,7 @@ export async function PATCH(request: NextRequest): Promise<Response> {
       (await getActorById(env.DB, fid)) as unknown as APActor | null;
     const inboxes = await collectFollowerInboxes(followerIds, fetchActor);
     if (inboxes.length > 0) {
-      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(updateActivity), updated.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(updateActivity), updated.id, `${updated.id}#main-key`, updated.privateKeyPem);
     }
   }
 

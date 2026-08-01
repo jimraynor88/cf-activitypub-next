@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json } from "@/lib/cf";
-import { getPublicTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis } from "@/lib/db";
+import { getPublicTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
@@ -17,16 +17,21 @@ export async function GET(request: NextRequest): Promise<Response> {
   const sinceIdRaw = searchParams.get("since_id") ?? undefined;
   const sinceId = sinceIdRaw ? decodeStatusId(sinceIdRaw, domain) : undefined;
   const local = searchParams.get("local") === "true";
+  const remote = searchParams.get("remote") === "true";
+  const onlyMedia = searchParams.get("only_media") === "true";
+  const minIdRaw = searchParams.get("min_id") ?? undefined;
+  const minId = minIdRaw ? decodeStatusId(minIdRaw, domain) : undefined;
 
   const authActor = await getAuthenticatedActor(request, env.DB);
-  const objects = await getPublicTimeline(env.DB, limit, maxId, local, sinceId);
+  const objects = await getPublicTimeline(env.DB, limit, maxId, local, sinceId, remote, onlyMedia, minId);
 
-  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis] = await Promise.all([
+  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis, replyToMap] = await Promise.all([
     getAttachmentsByObjectIds(env.DB, objects.map((o) => o.id)),
     getPollsByObjectIds(env.DB, objects.map((o) => o.id)),
     authActor ? getLikedObjectIds(env.DB, authActor.id, objects.map((o) => o.id)) : Promise.resolve(new Set<string>()),
     authActor ? getAnnouncedObjectIds(env.DB, authActor.id, objects.map((o) => o.id)) : Promise.resolve(new Set<string>()),
     getAllCustomEmojis(env.DB),
+    getReplyToAccountIdMap(env.DB, objects),
   ]);
 
   const statuses = await Promise.all(
@@ -54,6 +59,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         favourited: likedIds.has(obj.id),
         reblogged: announcedIds.has(obj.id),
         emojis: allEmojis,
+        inReplyToAccountId: replyToMap.get(obj.id) ?? null,
       });
     })
   );

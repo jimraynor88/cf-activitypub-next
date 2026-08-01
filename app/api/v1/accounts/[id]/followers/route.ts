@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorById, getFollowers } from "@/lib/db";
+import { getActorById, getFollowers, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 // GET /api/v1/accounts/:id/followers
@@ -20,5 +20,11 @@ export async function GET(
   const page = parseInt(request.nextUrl.searchParams.get("page") ?? "0");
   const followers = await getFollowers(env.DB, actor.id, Math.min(limit, 80), page * limit);
 
-  return json(followers.map((f) => serializeAccount(f, domain)));
+  const result = await Promise.all(
+    followers.map(async (f) => {
+      const lastStatusAt = await getLastStatusAt(env.DB, f.id);
+      return serializeAccount(f, domain, { lastStatusAt });
+    })
+  );
+  return json(result);
 }

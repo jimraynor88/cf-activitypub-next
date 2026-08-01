@@ -153,7 +153,9 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
         env.DELIVERY_QUEUE,
         [peerActor.inbox],
         JSON.stringify(apActivity),
-        actor.id
+        actor.id,
+        `${actor.id}#main-key`,
+        actor.privateKeyPem
       ).catch(() => {});
     }
   }
@@ -193,7 +195,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams): Pro
         env.DELIVERY_QUEUE,
         [peerActor.inbox],
         JSON.stringify(apActivity),
-        actor.id
+        actor.id,
+        `${actor.id}#main-key`,
+        actor.privateKeyPem
       ).catch(() => {});
     }
   }

@@ -32,6 +32,21 @@ import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub
 const DEFAULT_AVATAR = "/default-avatar.png";
 const DEFAULT_HEADER = "/default-header.png";
 
+/**
+ * Normalize any stored timestamp to RFC 3339 (ISO 8601 with Z).
+ * SQLite's `datetime('now')` produces "YYYY-MM-DD HH:MM:SS" which JS `new Date()`
+ * parses inconsistently across engines — Mastodon clients require ISO.
+ */
+function toIso(s: string | null | undefined): string | null {
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return `${s.replace(" ", "T")}Z`;
+  try {
+    return new Date(s).toISOString();
+  } catch {
+    return null;
+  }
+}
+
 function serializeEmoji(e: LocalCustomEmoji): { shortcode: string; url: string; static_url: string; visible_in_picker: boolean; category?: string } {
   return {
     shortcode: e.shortcode,
@@ -45,7 +60,7 @@ function serializeEmoji(e: LocalCustomEmoji): { shortcode: string; url: string; 
 export function serializeAccount(
   actor: LocalActor,
   localDomain: string,
-  opts: { isCurrentUser?: boolean; fields?: ActorField[]; emojis?: LocalCustomEmoji[]; supportsCalls?: boolean; role?: string } = {}
+  opts: { isCurrentUser?: boolean; fields?: ActorField[]; emojis?: LocalCustomEmoji[]; supportsCalls?: boolean; role?: string; lastStatusAt?: string | null } = {}
 ): MastodonAccount {
   const isLocal = actor.isLocal;
   const acct = isLocal
@@ -63,18 +78,18 @@ export function serializeAccount(
     discoverable: actor.discoverable,
     indexable: actor.discoverable,
     noindex: !actor.discoverable,
-    created_at: actor.createdAt ?? new Date().toISOString(),
+    created_at: toIso(actor.createdAt) ?? new Date().toISOString(),
     note: sanitizeFediverseHtml(actor.summary ?? "") ?? "",
     url: isLocal ? `https://${localDomain}/users/${actor.username}` : actor.id,
     uri: actor.id,
-    avatar: actor.avatarUrl ?? DEFAULT_AVATAR,
-    avatar_static: actor.avatarUrl ?? DEFAULT_AVATAR,
-    header: actor.headerUrl ?? DEFAULT_HEADER,
-    header_static: actor.headerUrl ?? DEFAULT_HEADER,
+    avatar: actor.avatarUrl ?? `https://${localDomain}${DEFAULT_AVATAR}`,
+    avatar_static: actor.avatarUrl ?? `https://${localDomain}${DEFAULT_AVATAR}`,
+    header: actor.headerUrl ?? `https://${localDomain}${DEFAULT_HEADER}`,
+    header_static: actor.headerUrl ?? `https://${localDomain}${DEFAULT_HEADER}`,
     followers_count: actor.followersCount,
     following_count: actor.followingCount,
     statuses_count: actor.statusesCount,
-    last_status_at: null,
+    last_status_at: opts.lastStatusAt ?? null,
     hide_collections: null,
     emojis: (opts.emojis ?? []).map(serializeEmoji),
     roles: opts.role ? [{ id: opts.role === "admin" ? "1" : opts.role === "moderator" ? "2" : "3", name: opts.role.charAt(0).toUpperCase() + opts.role.slice(1), color: "" }] : [],
@@ -115,7 +130,7 @@ export function serializeStatus(
   obj: LocalObject,
   author: LocalActor,
   localDomain: string,
-  opts: { favourited?: boolean; reblogged?: boolean; reblogOf?: MastodonStatus; attachments?: LocalAttachment[]; poll?: MastodonPoll | null; emojis?: LocalCustomEmoji[]; pinned?: boolean } = {}
+  opts: { favourited?: boolean; reblogged?: boolean; reblogOf?: MastodonStatus; attachments?: LocalAttachment[]; poll?: MastodonPoll | null; emojis?: LocalCustomEmoji[]; pinned?: boolean; inReplyToAccountId?: string | null } = {}
 ): MastodonStatus {
   const visibilityMap: Record<string, MastodonStatus["visibility"]> = {
     public: "public",
@@ -126,14 +141,14 @@ export function serializeStatus(
 
   return {
     id: encodeStatusId(obj.id, obj.local),
-    created_at: obj.published,
+    created_at: toIso(obj.published) ?? new Date().toISOString(),
     in_reply_to_id: obj.inReplyToId
       ? encodeStatusId(
           obj.inReplyToId,
           obj.inReplyToId.startsWith(`https://${localDomain}/objects/`)
         )
       : null,
-    in_reply_to_account_id: null,
+    in_reply_to_account_id: opts.inReplyToAccountId ?? null,
     sensitive: obj.sensitive,
     spoiler_text: sanitizeFediversePlain(obj.contentWarning ?? "") ?? "",
     visibility: visibilityMap[obj.visibility] ?? "public",
@@ -143,14 +158,14 @@ export function serializeStatus(
     replies_count: obj.repliesCount,
     reblogs_count: obj.reblogsCount,
     favourites_count: obj.favouritesCount,
-    edited_at: obj.updatedAt && obj.updatedAt !== obj.published ? obj.updatedAt : null,
+    edited_at: obj.updatedAt && obj.updatedAt !== obj.published ? toIso(obj.updatedAt) : null,
     content: sanitizeFediverseHtml(obj.content ?? "") ?? "",
     reblog: opts.reblogOf ?? null,
     application: obj.local ? { name: "CF ActivityPub", website: `https://${localDomain}` } : null,
     account: serializeAccount(author, localDomain),
     media_attachments: (opts.attachments ?? []).map(serializeAttachment),
     mentions: extractMentionsFromRaw(obj.raw, localDomain),
-    tags: extractHashtags(obj.content ?? ""),
+    tags: extractHashtags(obj.content ?? "", obj.raw, localDomain),
     emojis: (opts.emojis ?? []).map(serializeEmoji),
     card: null,
     poll: opts.poll ?? null,
@@ -180,7 +195,7 @@ export function serializePoll(
   const expired = now > new Date(poll.expiresAt);
   return {
     id: poll.id,
-    expires_at: poll.expiresAt,
+    expires_at: toIso(poll.expiresAt) ?? poll.expiresAt,
     expired,
     multiple: poll.multiple,
     votes_count: poll.votesCount,
@@ -209,7 +224,7 @@ export function serializeNotification(
   const result: MastodonNotification = {
     id: notif.id,
     type: notif.type,
-    created_at: notif.createdAt,
+    created_at: toIso(notif.createdAt) ?? new Date().toISOString(),
     account: serializeAccount(account, localDomain),
   };
   if (status && statusAuthor) {
@@ -233,14 +248,14 @@ export function serializeInstanceV2(
   return {
     uri: domain,
     title,
-    version: `${version} (compatible; Mastodon 4.3.0)`,
+    version: `4.3.0 (compatible; ${version})`,
     source_url: "https://github.com/manalejandro/cf-activitypub-next",
     description,
     usage: { users: { active_month: userCount } },
     thumbnail: { url: `https://${domain}/logo.svg` },
     languages: ["en"],
     configuration: {
-      urls: { streaming: `wss://${domain}` },
+      urls: { streaming: `wss://${domain}/api/v1/streaming` },
       accounts: { max_featured_tags: 10 },
       statuses: {
         max_characters: 500,
@@ -321,11 +336,36 @@ function extractMentionsFromRaw(raw: string, localDomain: string): MastodonMenti
   }
 }
 
-function extractHashtags(content: string): { name: string; url: string }[] {
-  const matches = content.match(/#([a-zA-Z0-9_]+)/g) ?? [];
-  return matches.map((tag) => ({
-    name: tag.slice(1).toLowerCase(),
-    url: "",
+/**
+ * Hashtag extraction. Prefers the structured `tag` array stored in the AP raw
+ * JSON (handles non-ASCII names like #café) and falls back to a regex over the
+ * rendered HTML. URLs point at the local tag page, like Mastodon.
+ */
+function extractHashtags(content: string, raw?: string, localDomain?: string): { name: string; url: string }[] {
+  const urlOf = (name: string) => (localDomain ? `https://${localDomain}/tags/${encodeURIComponent(name)}` : "");
+
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      const tags = parsed.tag as APTag[] | undefined;
+      if (Array.isArray(tags)) {
+        const hits = tags
+          .filter((t: APTag) => t.type === "Hashtag" && t.name)
+          .map((t: APTag) => ({ name: t.name!.replace(/^#/, "").toLowerCase(), href: t.href }));
+        if (hits.length > 0) {
+          return [...new Map(hits.map((h) => [h.name, h])).values()].map((h) => ({
+            name: h.name,
+            url: h.href ?? urlOf(h.name),
+          }));
+        }
+      }
+    } catch { /* fall through to regex */ }
+  }
+
+  const matches = content.match(/#([^\s<,.:;!?]+)/g) ?? [];
+  return [...new Set(matches.map((tag) => tag.slice(1).toLowerCase()))].map((name) => ({
+    name,
+    url: urlOf(name),
   }));
 }
 

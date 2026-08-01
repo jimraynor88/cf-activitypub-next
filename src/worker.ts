@@ -22,7 +22,7 @@ import type { MessageBatch, ScheduledEvent, DurableObjectNamespace } from "@clou
 import type { APDeliveryMessage } from "../lib/activitypub/queue";
 import { signRequest } from "../lib/activitypub/security";
 import { buildDelete, buildNote, generateId } from "../lib/activitypub/utils";
-import { collectFollowerInboxes } from "../lib/activitypub/federation";
+import { collectFollowerInboxes, validateOutboundUrl } from "../lib/activitypub/federation";
 import { enqueueDeliveries } from "../lib/activitypub/queue";
 import { broadcastDelete, broadcastHomeDelete } from "../lib/streaming/broadcast";
 import { encodeStatusId } from "../lib/mastodon/statusId";
@@ -209,6 +209,14 @@ async function deliverOne(
   actorId: string,
   env: Env
 ): Promise<{ ok: boolean; permanent: boolean }> {
+  // SSRF guard: inbox URLs originate from remote actor documents / user input.
+  // Never POST to non-HTTPS, private, or local addresses.
+  const validation = validateOutboundUrl(inboxUrl);
+  if (!validation.valid) {
+    console.warn(`[worker] Blocked delivery to ${inboxUrl}: ${validation.reason}`);
+    return { ok: false, permanent: true };
+  }
+
   // Look up the local actor's private key
   const row = await env.DB.prepare(
     "SELECT private_key_pem FROM actors WHERE id = ? AND is_local = 1"
@@ -370,7 +378,7 @@ async function executeScheduled(env: Env): Promise<void> {
         if (inboxes.length > 0) {
           for (const obj of objects.results) {
             const deleteActivity = buildDelete(baseUrl, localActor.id, obj.id, generateId());
-            await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(deleteActivity), localActor.id);
+            await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(deleteActivity), localActor.id, `${localActor.id}#main-key`, localActor.privateKeyPem);
           }
         }
       }

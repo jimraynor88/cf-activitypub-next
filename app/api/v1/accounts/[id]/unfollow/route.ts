@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getActorById, getFollow, deleteFollow, updateActor } from "@/lib/db";
+import { getActorById, getFollow, deleteFollow } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { buildUndo, buildFollow, generateId } from "@/lib/activitypub/utils";
 import { deliverToInbox } from "@/lib/activitypub/federation";
@@ -29,8 +29,8 @@ export async function POST(
   await deleteFollow(env.DB, actor.id, target.id);
 
   if (follow.state === "accepted") {
-    await updateActor(env.DB, actor.id, { followingCount: Math.max(0, actor.followingCount - 1) });
-    await updateActor(env.DB, target.id, { followersCount: Math.max(0, target.followersCount - 1) });
+    await env.DB.prepare("UPDATE actors SET following_count = MAX(COALESCE(following_count, 0) - 1, 0) WHERE id = ?").bind(actor.id).run();
+    await env.DB.prepare("UPDATE actors SET followers_count = MAX(COALESCE(followers_count, 0) - 1, 0) WHERE id = ?").bind(target.id).run();
   }
 
   if (!target.isLocal && actor.privateKeyPem && follow.activityId) {

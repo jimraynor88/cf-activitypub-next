@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getActorFields } from "@/lib/db";
+import { getActorFields, getLastStatusAt } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
 
 export async function GET(request: NextRequest): Promise<Response> {
@@ -12,7 +12,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!actor) return unauthorized();
 
   const fields = await getActorFields(env.DB, actor.id);
-  const acct = serializeAccount(actor, domain, { isCurrentUser: true, fields });
+  const lastStatusAt = await getLastStatusAt(env.DB, actor.id);
+  const acct = serializeAccount(actor, domain, { isCurrentUser: true, fields, lastStatusAt });
 
   return json({
     id: acct.id,

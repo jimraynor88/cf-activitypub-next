@@ -85,7 +85,7 @@ export async function POST(
       }
 
       if (inboxes.length > 0) {
-        await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(announceActivity), actor.id);
+        await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(announceActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
       }
     }
   }

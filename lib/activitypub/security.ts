@@ -107,16 +107,26 @@ export async function verifySignature(
     ),
   };
 
-  // Verify Digest header if body was provided and digest is in the signed headers
-  if (body != null && headerList.includes("digest")) {
+  // A request with a body MUST carry a matching Digest header so the payload is
+  // bound to the signature (mirrors Mastodon's compare_body_with_digest). Without
+  // this, a valid signature could be replayed with a swapped body.
+  if (body != null) {
     const digestHeader = headerMap["digest"];
     if (!digestHeader) return false;
     const expectedDigest = `SHA-256=${await sha256Base64(body)}`;
     if (digestHeader !== expectedDigest) return false;
   }
 
+  // Every header named in the signed-headers list must be present in the request.
+  // Mastodon rejects signatures that reference missing headers rather than
+  // substituting an empty value.
+  for (const h of headerList) {
+    if (h.startsWith("(")) continue;
+    if (headerMap[h] == null) return false;
+  }
+
   const signingString = headerList
-    .map((h) => `${h}: ${headerMap[h] ?? ""}`)
+    .map((h) => `${h}: ${headerMap[h]}`)
     .join("\n");
 
   try {

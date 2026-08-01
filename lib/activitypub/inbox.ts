@@ -40,7 +40,7 @@ import { deliverToInbox, fetchRemoteObject } from "./federation";
 import { broadcastNotificationEvent, broadcastPublicStatus, broadcastHomeStatus, broadcastCallEvent } from "@/lib/streaming/broadcast";
 import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
-import { serializeStatus } from "@/lib/mastodon/serializers";
+import { serializeStatus, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,7 +52,13 @@ interface InboxContext {
   baseUrl: string;
   /** KV namespace — used to persist call sessions for cross-instance WebRTC signaling. */
   kv?: KVNamespace | null;
+  /** The local actor the activity was delivered to (null for shared inbox). */
   recipient?: { id: string; username: string; privateKeyPem: string } | null;
+  /**
+   * The actor that signed the HTTP request (derived from the Signature keyId).
+   * Used to reject cross-actor spoofing — see processInboxActivity.
+   */
+  signingActorId?: string | null;
   /** A local actor key to use when making signed HTTP GET requests to remote servers. */
   signingKey?: { id: string; privateKeyPem: string } | null;
   /** DO namespace for streaming — used to push notification events to connected clients. */
@@ -66,10 +72,31 @@ interface InboxContext {
 /** Helper: broadcast streaming event + deliver Web Push for a new notification. */
 async function broadcastAndPush(ctx: InboxContext, notif: LocalNotification): Promise<void> {
   if (ctx.timelineStream) {
-    void broadcastNotificationEvent(ctx.timelineStream, notif.targetAccountId).catch(() => {});
+    const payload = await serializeFullNotification(ctx, notif);
+    void broadcastNotificationEvent(ctx.timelineStream, notif.targetAccountId, payload).catch(() => {});
   }
   if (ctx.vapidPublicKey && ctx.vapidPrivateKey && ctx.vapidEmail) {
     void deliverPushSafe(ctx.db, ctx.vapidPublicKey, ctx.vapidPrivateKey, ctx.vapidEmail, notif);
+  }
+}
+
+/**
+ * Serialize a notification to its Mastodon REST shape so streaming clients
+ * receive the full payload instead of "{}".
+ */
+async function serializeFullNotification(ctx: InboxContext, notif: LocalNotification): Promise<string> {
+  try {
+    const [fromActor, target, object] = await Promise.all([
+      getActorById(ctx.db, notif.accountId),
+      getActorById(ctx.db, notif.targetAccountId),
+      notif.objectId ? getObjectById(ctx.db, notif.objectId) : Promise.resolve(null),
+    ]);
+    if (!fromActor) return "{}";
+    const localDomain = target?.isLocal && target.domain ? target.domain : new URL(ctx.baseUrl).hostname;
+    const objectAuthor = object ? await getActorById(ctx.db, object.actorId) : null;
+    return JSON.stringify(serializeNotification(notif, fromActor, localDomain, object ?? undefined, objectAuthor ?? undefined));
+  } catch {
+    return "{}";
   }
 }
 
@@ -78,6 +105,22 @@ export async function processInboxActivity(
   ctx: InboxContext
 ): Promise<void> {
   const type = (activity.type ?? "").toLowerCase();
+
+  // Anti-spoofing: the HTTP-signature signer must own the activity's `actor`.
+  // Mastodon (ProcessActivityService#different_actor?) only processes activities
+  // whose `actor` differs from the signer when they carry a verifiable embedded
+  // (Linked-Data) signature. We don't support embedded signatures, so any
+  // cross-actor activity is dropped here.
+  const activityActorId = typeof activity.actor === "string"
+    ? activity.actor
+    : (activity.actor as { id?: string } | undefined)?.id;
+  if (
+    ctx.signingActorId &&
+    activityActorId &&
+    !signerOwnsActor(ctx.signingActorId, activityActorId)
+  ) {
+    return;
+  }
 
   try {
     switch (type) {
@@ -372,13 +415,23 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
 }
 
 async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<void> {
-  if (!ctx.recipient) return;
   const actorId = typeof activity.actor === "string" ? activity.actor : activity.actor.id;
   const targetId = typeof activity.object === "string" ? activity.object : (activity.object as APActor)?.id;
 
-  if (!targetId || targetId !== ctx.recipient.id) return;
+  if (!targetId) return;
 
-  const recipient = await getActorById(ctx.db, ctx.recipient.id);
+  // Follows may arrive via the shared inbox (ctx.recipient is null). Resolve the
+  // local recipient from activity.object, mirroring Mastodon's behavior.
+  let recipientInfo = ctx.recipient;
+  if (!recipientInfo) {
+    const targetActor = await getActorById(ctx.db, targetId);
+    if (!targetActor?.isLocal || !targetActor.privateKeyPem) return;
+    recipientInfo = { id: targetActor.id, username: targetActor.username, privateKeyPem: targetActor.privateKeyPem };
+  }
+
+  if (targetId !== recipientInfo.id) return;
+
+  const recipient = await getActorById(ctx.db, recipientInfo.id);
   if (!recipient) return;
 
   // Ensure the remote follower actor is in the DB before writing FK rows
@@ -401,18 +454,20 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
     // Auto-accept: send Accept activity back to the remote server.
     // This is safe to resend even for an already-existing follow (idempotent on remote side).
     const acceptId = generateId();
-    const acceptActivity = buildAccept(ctx.baseUrl, ctx.recipient.id, activity, acceptId);
+    const acceptActivity = buildAccept(ctx.baseUrl, recipientInfo.id, activity, acceptId);
 
     // Only update counts and create notification for brand-new follows.
     if (!existing) {
-      await updateActor(ctx.db, ctx.recipient.id, {
-        followersCount: (recipient.followersCount ?? 0) + 1,
-      });
+      // Atomic increment — avoids lost updates under concurrent deliveries.
+      await ctx.db
+        .prepare("UPDATE actors SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = ?")
+        .bind(recipientInfo.id)
+        .run();
       const notif: LocalNotification = {
         id: generateId(),
         type: "follow",
         accountId: actorId,
-        targetAccountId: ctx.recipient.id,
+        targetAccountId: recipientInfo.id,
         objectId: null,
         read: false,
         createdAt: new Date().toISOString(),
@@ -430,8 +485,8 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
       await deliverToInbox(
         requesterInbox,
         acceptActivity,
-        `${ctx.recipient.id}#main-key`,
-        ctx.recipient.privateKeyPem
+        `${recipientInfo.id}#main-key`,
+        recipientInfo.privateKeyPem
       );
     }
   } else if (!existing) {
@@ -439,7 +494,7 @@ async function handleFollow(activity: APActivity, ctx: InboxContext): Promise<vo
       id: generateId(),
       type: "follow_request",
       accountId: actorId,
-      targetAccountId: ctx.recipient.id,
+      targetAccountId: recipientInfo.id,
       objectId: null,
       read: false,
       createdAt: new Date().toISOString(),
@@ -467,16 +522,15 @@ async function handleAccept(activity: APActivity, ctx: InboxContext): Promise<vo
     if (wasPending) {
       const follower = await getActorById(ctx.db, rows.actor_id);
       if (follower?.isLocal) {
-        await updateActor(ctx.db, rows.actor_id, {
-          followingCount: (follower.followingCount ?? 0) + 1,
-        });
+        await ctx.db
+          .prepare("UPDATE actors SET following_count = COALESCE(following_count, 0) + 1 WHERE id = ?")
+          .bind(rows.actor_id)
+          .run();
       }
-      const followed = await getActorById(ctx.db, rows.target_id);
-      if (followed) {
-        await updateActor(ctx.db, rows.target_id, {
-          followersCount: (followed.followersCount ?? 0) + 1,
-        });
-      }
+      await ctx.db
+        .prepare("UPDATE actors SET followers_count = COALESCE(followers_count, 0) + 1 WHERE id = ?")
+        .bind(rows.target_id)
+        .run();
     }
   }
 }
@@ -506,12 +560,14 @@ async function handleUndo(activity: APActivity, ctx: InboxContext): Promise<void
   if (innerType === "follow") {
     const targetId = typeof obj.object === "string" ? obj.object : (obj.object as APActor)?.id;
     if (targetId) {
-      await deleteFollow(ctx.db, actorId, targetId);
-      const target = await getActorById(ctx.db, targetId);
-      if (target) {
-        await updateActor(ctx.db, targetId, {
-          followersCount: Math.max(0, (target.followersCount ?? 0) - 1),
-        });
+      const deleted = await deleteFollow(ctx.db, actorId, targetId);
+      // Only decrement when a follow row was actually removed, so a malicious
+      // or duplicate Undo(Follow) can't drive the counter below reality.
+      if (deleted) {
+        await ctx.db
+          .prepare("UPDATE actors SET followers_count = MAX(COALESCE(followers_count, 0) - 1, 0) WHERE id = ?")
+          .bind(targetId)
+          .run();
       }
     }
   } else if (innerType === "like") {
@@ -869,6 +925,22 @@ async function ensureActorCached(db: import("@cloudflare/workers-types").D1Datab
 function toUtcIso(dateStr: string | undefined | null): string {
   if (!dateStr) return new Date().toISOString();
   try { return new Date(dateStr).toISOString(); } catch { return new Date().toISOString(); }
+}
+
+/**
+ * Whether the HTTP-signature signer is allowed to act as the activity's actor.
+ * Exact-IRI match wins; otherwise the hostnames must match. Some servers sign
+ * with a dedicated key URL on the same domain, so a hostname-level comparison
+ * is required to avoid breaking legit federation while still blocking any
+ * cross-domain spoofing.
+ */
+function signerOwnsActor(signingActorId: string, actorId: string): boolean {
+  if (signingActorId === actorId) return true;
+  try {
+    return new URL(signingActorId).hostname === new URL(actorId).hostname;
+  } catch {
+    return false;
+  }
 }
 
 function resolveVisibility(to: unknown = [], cc: unknown = []): "public" | "unlisted" | "followers" | "direct" {

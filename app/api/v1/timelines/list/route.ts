@@ -21,37 +21,38 @@ export async function GET(request: NextRequest): Promise<Response> {
     .bind(listId, limit)
     .all<Record<string, unknown>>();
   if (rows.results.length === 0) return json([]);
-  const { getActorById, getAttachmentsByObjectIds, getAllCustomEmojis } = await import("@/lib/db");
+  const { getActorById, getAttachmentsByObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } = await import("@/lib/db");
   const { serializeStatus } = await import("@/lib/mastodon/serializers");
   const objectIds = rows.results.map((r) => r.id as string);
-  const [attachmentMap, allEmojis] = await Promise.all([
+  const objs = rows.results.map((r) => ({
+    id: r.id as string,
+    type: r.type as string,
+    actorId: r.actor_id as string,
+    content: r.content as string | null,
+    contentWarning: r.content_warning as string | null,
+    sensitive: Boolean(r.sensitive),
+    visibility: r.visibility as "public" | "unlisted" | "followers" | "direct",
+    inReplyToId: r.in_reply_to_id as string | null,
+    language: r.language as string | null,
+    url: r.url as string,
+    repliesCount: Number(r.replies_count ?? 0),
+    reblogsCount: Number(r.reblogs_count ?? 0),
+    favouritesCount: Number(r.favourites_count ?? 0),
+    published: r.published as string,
+    updatedAt: r.updated_at as string,
+    local: Boolean(r.is_local),
+    raw: r.raw as string,
+  }));
+  const [attachmentMap, allEmojis, replyToMap] = await Promise.all([
     getAttachmentsByObjectIds(env.DB, objectIds),
     getAllCustomEmojis(env.DB),
+    getReplyToAccountIdMap(env.DB, objs),
   ]);
   const statuses = await Promise.all(
-    rows.results.map(async (r) => {
-      const author = await getActorById(env.DB, r.actor_id as string);
+    objs.map(async (obj) => {
+      const author = await getActorById(env.DB, obj.actorId);
       if (!author) return null;
-      const obj = {
-        id: r.id as string,
-        type: r.type as string,
-        actorId: r.actor_id as string,
-        content: r.content as string | null,
-        contentWarning: r.content_warning as string | null,
-        sensitive: Boolean(r.sensitive),
-        visibility: r.visibility as "public" | "unlisted" | "followers" | "direct",
-        inReplyToId: r.in_reply_to_id as string | null,
-        language: r.language as string | null,
-        url: r.url as string,
-        repliesCount: Number(r.replies_count ?? 0),
-        reblogsCount: Number(r.reblogs_count ?? 0),
-        favouritesCount: Number(r.favourites_count ?? 0),
-        published: r.published as string,
-        updatedAt: r.updated_at as string,
-        local: Boolean(r.is_local),
-        raw: r.raw as string,
-      };
-      return serializeStatus(obj, author, domain, { attachments: attachmentMap.get(obj.id) ?? [], emojis: allEmojis });
+      return serializeStatus(obj, author, domain, { attachments: attachmentMap.get(obj.id) ?? [], emojis: allEmojis, inReplyToAccountId: replyToMap.get(obj.id) ?? null });
     })
   );
   return json(statuses.filter(Boolean));

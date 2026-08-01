@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorById, getActorStatuses, getActorStatuses_withReplies, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getFollow, rowToObject } from "@/lib/db";
+import { getActorById, getActorStatuses, getActorStatuses_withReplies, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getFollow, rowToObject, getReplyToAccountIdMap } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
@@ -60,12 +60,13 @@ export async function GET(
     allObjects = rowObjs.results.map(rowToObject);
   }
 
-  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis] = await Promise.all([
+  const [attachmentMap, pollMap, likedIds, announcedIds, allEmojis, replyToMap] = await Promise.all([
     getAttachmentsByObjectIds(env.DB, allObjects.map((o) => o.id)),
     getPollsByObjectIds(env.DB, allObjects.map((o) => o.id)),
     me ? getLikedObjectIds(env.DB, me.id, allObjects.map((o) => o.id)) : Promise.resolve(new Set<string>()),
     me ? getAnnouncedObjectIds(env.DB, me.id, allObjects.map((o) => o.id)) : Promise.resolve(new Set<string>()),
     getAllCustomEmojis(env.DB),
+    getReplyToAccountIdMap(env.DB, allObjects),
   ]);
 
   const statuses = allObjects.map((obj) => {
@@ -78,6 +79,7 @@ export async function GET(
       reblogged: announcedIds.has(obj.id),
       emojis: allEmojis,
       pinned: pinnedOnly || pinnedSet.has(obj.id),
+      inReplyToAccountId: replyToMap.get(obj.id) ?? null,
     });
   });
 

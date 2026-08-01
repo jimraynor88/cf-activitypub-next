@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound, unauthorized } from "@/lib/cf";
-import { getObjectById, getActorById, deleteObject, updateObject, updateActor, getLikedObjectIds, getAnnouncedObjectIds, getAttachmentsByObjectId, getPollByObjectId, getPollOptions, getAllCustomEmojis, getFollow, canViewStatus } from "@/lib/db";
+import { getObjectById, getActorById, deleteObject, updateObject, updateActor, getLikedObjectIds, getAnnouncedObjectIds, getAttachmentsByObjectId, getPollByObjectId, getPollOptions, getAllCustomEmojis, getFollow, canViewStatus, getReplyToAccountId } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId, encodeStatusId } from "@/lib/mastodon/statusId";
@@ -9,7 +9,7 @@ import { collectFollowerInboxes } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";
 import { broadcastDelete, broadcastHomeDelete, broadcastStatusUpdate, broadcastHomeStatusUpdate } from "@/lib/streaming/broadcast";
-import type { APActor, APAttachment, LocalAttachment } from "@/lib/types";
+import type { APActor, APAttachment, APTag, LocalAttachment } from "@/lib/types";
 
 function toAPAttachment(att: LocalAttachment): APAttachment {
   const mimeType = att.mimeType ?? "application/octet-stream";
@@ -59,12 +59,14 @@ export async function GET(
   ]);
   const pollOpts = pollDb ? await getPollOptions(env.DB, pollDb.id) : [];
   const poll = pollDb ? serializePoll(pollDb, pollOpts, false, []) : null;
+  const inReplyToAccountId = await getReplyToAccountId(env.DB, obj);
   return json(serializeStatus(obj, author, domain, {
     attachments,
     poll,
     favourited: likedIds.has(obj.id),
     reblogged: announcedIds.has(obj.id),
     emojis: allEmojis,
+    inReplyToAccountId,
   }));
 }
 
@@ -106,6 +108,19 @@ export async function PUT(
   const { html: htmlContent, tags: contentTags } = processStatusContent(content, baseUrl);
   const updatedAt = new Date().toISOString();
 
+  // Preserve the original mentions and cc (reply participants) so edits don't
+  // drop them; hashtags are regenerated from the new content.
+  let originalMentions: APTag[] = [];
+  let originalTo: string[] | undefined;
+  let originalCc: string[] | undefined;
+  try {
+    const raw = JSON.parse(obj.raw);
+    if (Array.isArray(raw.tag)) originalMentions = (raw.tag as APTag[]).filter((t) => t.type === "Mention");
+    if (Array.isArray(raw.to)) originalTo = raw.to as string[];
+    if (Array.isArray(raw.cc)) originalCc = raw.cc as string[];
+  } catch { /* ignore */ }
+  const tags = [...originalMentions, ...(contentTags ?? []).filter((t) => t.type !== "Mention")];
+
   // Rebuild the Note with the same ID and original published date but new content
   const noteLocalId = obj.id.replace(`${baseUrl}/objects/`, "");
   const note = buildNote(baseUrl, noteLocalId, {
@@ -117,7 +132,9 @@ export async function PUT(
     sensitive,
     summary: sensitive ? spoilerText : undefined,
     language,
-    tags: contentTags,
+    tags,
+    to: originalTo,
+    cc: originalCc,
   });
   note.attachment = (await getAttachmentsByObjectId(env.DB, obj.id)).map(toAPAttachment);
   note.updated = updatedAt;
@@ -144,7 +161,7 @@ export async function PUT(
     };
     const inboxes = await collectFollowerInboxes(followerIds, fetchActor);
     if (inboxes.length > 0) {
-      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(updateActivity), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(updateActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   }
 
@@ -209,7 +226,7 @@ export async function DELETE(
     };
     const inboxes = await collectFollowerInboxes(followerIds, fetchActor);
     if (inboxes.length > 0) {
-      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(deleteActivity), actor.id);
+      await enqueueDeliveries(env.DELIVERY_QUEUE, inboxes, JSON.stringify(deleteActivity), actor.id, `${actor.id}#main-key`, actor.privateKeyPem);
     }
   }
 
