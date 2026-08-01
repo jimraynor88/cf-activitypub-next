@@ -51,7 +51,8 @@ export async function GET(
          COUNT(*) AS uses
        FROM objects o,
             json_each(json_extract(o.raw, '$.tag')) t
-       WHERE LOWER(REPLACE(json_extract(t.value, '$.name'), '#', '')) = LOWER(?)
+       WHERE json_type(o.raw, '$.tag') = 'array'
+         AND LOWER(REPLACE(json_extract(t.value, '$.name'), '#', '')) = LOWER(?)
          AND json_extract(t.value, '$.type') = 'Hashtag'
          AND o.visibility IN ('public', 'unlisted')
          AND o.published >= datetime('now', '-7 days')
