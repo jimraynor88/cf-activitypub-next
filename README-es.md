@@ -136,6 +136,17 @@ wrangler d1 create cf-activitypub
 wrangler kv namespace create CF_ACTIVITYPUB_KV
 wrangler r2 bucket create cf-activitypub-media
 wrangler queues create cf-activitypub-delivery
+wrangler queues create cf-activitypub-delivery-dlq
+```
+
+La cola de entrega (`cf-activitypub-delivery`) distribuye las actividades ActivityPub a los
+inboxes remotos. Su consumidor reintenta los fallos transitorios (`max_retries = 5`);
+los mensajes que siguen fallando tras todos los reintentos se mueven a la cola de
+mensajes muertos `cf-activitypub-delivery-dlq` en lugar de descartarse en silencio. Inspecciona
+o reenvía esos mensajes con:
+
+```bash
+wrangler queues info cf-activitypub-delivery-dlq
 ```
 
 Copia los IDs generados en `wrangler.toml`:

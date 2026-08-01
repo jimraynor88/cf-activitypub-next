@@ -136,6 +136,16 @@ wrangler d1 create cf-activitypub
 wrangler kv namespace create CF_ACTIVITYPUB_KV
 wrangler r2 bucket create cf-activitypub-media
 wrangler queues create cf-activitypub-delivery
+wrangler queues create cf-activitypub-delivery-dlq
+```
+
+The delivery queue (`cf-activitypub-delivery`) fans out ActivityPub activities to remote inboxes.
+Its consumer retries transient failures (`max_retries = 5`); messages that still fail
+after all retries are moved to the dead-letter queue `cf-activitypub-delivery-dlq` instead of
+being silently dropped. Inspect or replay them with:
+
+```bash
+wrangler queues info cf-activitypub-delivery-dlq
 ```
 
 Copy the generated IDs into `wrangler.toml`:

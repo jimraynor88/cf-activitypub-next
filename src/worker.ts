@@ -465,31 +465,46 @@ const worker = {
     batch: MessageBatch<APDeliveryMessage>,
     env: Env
   ): Promise<void> {
-    for (const message of batch.messages) {
-      const { type, inboxUrl, activityJson, actorId } = message.body;
+    // Deliver in-flight requests concurrently so a batch never takes longer
+    // than the consumer visibility timeout (see wrangler.toml). A serial loop
+    // of up to 20 inboxes x 15s each could exceed it and trigger spurious
+    // redeliveries that exhaust max_retries and drop messages.
+    const CONCURRENCY = 10;
+    const messages = [...batch.messages];
+    let cursor = 0;
 
-      if (type !== "delivery") {
-        // Unknown message type — ack to discard
-        message.ack();
-        continue;
-      }
+    const process = async (): Promise<void> => {
+      while (cursor < messages.length) {
+        const message = messages[cursor++];
+        const { type, inboxUrl, activityJson, actorId } = message.body;
 
-      try {
-        const { ok, permanent } = await deliverOne(
-          inboxUrl,
-          activityJson,
-          actorId,
-          env
-        );
-        if (ok || permanent) {
+        if (type !== "delivery") {
+          // Unknown message type — ack to discard
           message.ack();
-        } else {
+          continue;
+        }
+
+        try {
+          const { ok, permanent } = await deliverOne(
+            inboxUrl,
+            activityJson,
+            actorId,
+            env
+          );
+          if (ok || permanent) {
+            message.ack();
+          } else {
+            message.retry();
+          }
+        } catch {
           message.retry();
         }
-      } catch {
-        message.retry();
       }
-    }
+    };
+
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, messages.length) }, () => process())
+    );
   },
 
   // Scheduled handler: auto-delete old statuses for users who have enabled it
