@@ -690,60 +690,106 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
   }
 }
 
+// Persist a remote note-like object (used for boosted posts). Prefers the
+// content embedded in the incoming activity and only falls back to a network
+// fetch when the embedded object is missing or has no usable content.
+async function persistRemoteNote(
+  ctx: InboxContext,
+  note: APNote,
+  fallbackActorId: string
+): Promise<void> {
+  const noteActorId = typeof note.attributedTo === "string"
+    ? note.attributedTo
+    : (note.attributedTo as APActor | undefined)?.id;
+  if (noteActorId) await ensureActorCached(ctx.db, noteActorId);
+  const { content, contentWarning } = sanitizeRemoteNoteContent(
+    note.content,
+    note.summary,
+    note.sensitive ?? false
+  );
+
+  const existing = await getObjectById(ctx.db, note.id);
+  if (existing) {
+    // Object already present but may have empty content (e.g. saved earlier
+    // before the embedded content was used). Fill it in from the activity.
+    if (!existing.content && content) {
+      await updateObject(ctx.db, note.id, {
+        content,
+        contentWarning,
+        sensitive: note.sensitive ?? false,
+        raw: JSON.stringify(note),
+      });
+    }
+    await saveObjectAttachments(ctx.db, note.id, note.attachment);
+    return;
+  }
+
+  await createObject(ctx.db, {
+    id: note.id,
+    type: note.type ?? "Note",
+    actorId: noteActorId ?? fallbackActorId,
+    content,
+    contentWarning,
+    sensitive: note.sensitive ?? false,
+    visibility: resolveVisibility(note.to, note.cc),
+    inReplyToId: note.inReplyTo ?? null,
+    language: note.contentMap ? Object.keys(note.contentMap)[0] : null,
+    url: note.url ?? note.id,
+    repliesCount: 0,
+    reblogsCount: 0,
+    favouritesCount: 0,
+    published: toUtcIso(note.published),
+    local: false,
+    raw: JSON.stringify(note),
+  });
+  await saveObjectAttachments(ctx.db, note.id, note.attachment);
+}
+
 async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<void> {
   const actorId = typeof activity.actor === "string" ? activity.actor : activity.actor.id;
-  const objectId = typeof activity.object === "string" ? activity.object : (activity.object as APNote)?.id;
+  const rawObject = activity.object;
+  const objectId = typeof rawObject === "string" ? rawObject : (rawObject as APNote)?.id;
   if (!objectId) return;
 
   // Ensure actor is in DB (FK on announces.actor_id)
   const announcerActor = await ensureActorCached(ctx.db, actorId);
   if (!announcerActor) return;
 
-  // If the boosted post is not yet stored locally, fetch and save it so it
-  // appears in the federated timeline regardless of whether we follow the author.
+  const NOTE_LIKE_TYPES = ["Note", "Article", "Page", "Video", "Audio", "Image"];
+  const embedded = typeof rawObject === "object" && rawObject !== null ? rawObject as APNote : null;
+
+  // If the boosted post is not yet stored locally, save it so it appears in the
+  // federated timeline regardless of whether we follow the author. Mastodon
+  // always embeds the full note in the Announce, so prefer that content instead
+  // of a network fetch (which may fail or return a content-less Note on servers
+  // with authorized_fetch / Secure Mode).
   const knownObj = await getObjectById(ctx.db, objectId);
-  if (!knownObj && objectId.startsWith("https://")) {
+  const needsStore = !knownObj || !knownObj.content;
+  if (needsStore && objectId.startsWith("https://")) {
     try {
-      const signingKey = ctx.signingKey ?? (ctx.recipient ? { id: ctx.recipient.id, privateKeyPem: ctx.recipient.privateKeyPem } : null);
-      let fetched = await fetchRemoteObject(
-        objectId,
-        signingKey ? `${signingKey.id}#main-key` : undefined,
-        signingKey?.privateKeyPem
-      ) as APNote | null;
-      // Retry without auth if signed fetch failed (some servers don't require it)
-      if (!fetched) {
-        fetched = await fetchRemoteObject(objectId) as APNote | null;
+      let toStore: APNote | null = null;
+      const embeddedHasContent = embedded
+        && NOTE_LIKE_TYPES.includes(embedded.type)
+        && ((embedded as APNote).content || (embedded as APNote).attachment?.length);
+      if (embeddedHasContent) {
+        toStore = embedded;
+      } else {
+        const signingKey = ctx.signingKey ?? (ctx.recipient ? { id: ctx.recipient.id, privateKeyPem: ctx.recipient.privateKeyPem } : null);
+        let fetched = await fetchRemoteObject(
+          objectId,
+          signingKey ? `${signingKey.id}#main-key` : undefined,
+          signingKey?.privateKeyPem
+        ) as APNote | null;
+        // Retry without auth if signed fetch failed (some servers don't require it)
+        if (!fetched) {
+          fetched = await fetchRemoteObject(objectId) as APNote | null;
+        }
+        if (fetched && NOTE_LIKE_TYPES.includes((fetched as APNote).type as string)) {
+          toStore = fetched;
+        }
       }
-      const NOTE_LIKE_TYPES = ["Note", "Article", "Page", "Video", "Audio", "Image"];
-      if (fetched && NOTE_LIKE_TYPES.includes((fetched as APNote).type as string)) {
-        const noteActorId = typeof fetched.attributedTo === "string"
-          ? fetched.attributedTo
-          : (fetched.attributedTo as APActor | undefined)?.id;
-        if (noteActorId) await ensureActorCached(ctx.db, noteActorId);
-        const { content, contentWarning } = sanitizeRemoteNoteContent(
-          fetched.content,
-          fetched.summary,
-          fetched.sensitive ?? false
-        );
-        await createObject(ctx.db, {
-          id: fetched.id,
-          type: (fetched as APNote).type ?? "Note",
-          actorId: noteActorId ?? actorId,
-          content,
-          contentWarning,
-          sensitive: fetched.sensitive ?? false,
-          visibility: resolveVisibility(fetched.to, fetched.cc),
-          inReplyToId: fetched.inReplyTo ?? null,
-          language: fetched.contentMap ? Object.keys(fetched.contentMap)[0] : null,
-          url: fetched.url ?? fetched.id,
-          repliesCount: 0,
-          reblogsCount: 0,
-          favouritesCount: 0,
-          published: toUtcIso(fetched.published),
-          local: false,
-          raw: JSON.stringify(fetched),
-        });
-        await saveObjectAttachments(ctx.db, fetched.id, (fetched as APNote).attachment);
+      if (toStore) {
+        await persistRemoteNote(ctx, toStore, actorId);
       }
     } catch {
       // ignore

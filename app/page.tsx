@@ -127,14 +127,34 @@ const features = [
     desc: "All federated activities are cryptographically signed and verified using RFC 9421.",
   },
   {
-    icon: "🗄️",
-    title: "Cloudflare D1 + KV",
-    desc: "Persistent data on Cloudflare D1 (SQLite), with KV for caching and R2 for media.",
+    icon: "🔁",
+    title: "Real-time streaming",
+    desc: "Home and public timelines stream live to clients via Durable Objects WebSockets.",
   },
   {
-    icon: "📦",
-    title: "Zero dependencies",
-    desc: "Pure TypeScript, Web Crypto API, no Node.js runtime required. Deploy with one command.",
+    icon: "🔔",
+    title: "Web Push notifications",
+    desc: "Native push to mobile and desktop via VAPID with AES-128-GCM encrypted payloads.",
+  },
+  {
+    icon: "🤖",
+    title: "AI moderation (Guardian)",
+    desc: "An autonomous moderator screens posts, accounts, and reports — with a full audit trail.",
+  },
+  {
+    icon: "🎨",
+    title: "AI alt-text",
+    desc: "Media uploads without a description get automatic image alt-text via Workers AI (LLaVA).",
+  },
+  {
+    icon: "📞",
+    title: "WebRTC calling",
+    desc: "Voice and video calls between users — same instance or across the fediverse.",
+  },
+  {
+    icon: "🗄️",
+    title: "D1 + KV + R2",
+    desc: "Persistent data on Cloudflare D1 (SQLite), KV for cache and sessions, R2 for media.",
   },
 ];
 
