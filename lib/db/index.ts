@@ -241,7 +241,7 @@ function rowToAttachment(r: Row): LocalAttachment {
  */
 export async function getLastStatusAt(db: D1Database, actorId: string): Promise<string | null> {
   const row = await db
-    .prepare("SELECT MAX(published) AS p FROM objects WHERE actor_id = ? AND visibility IN ('public', 'unlisted') AND type = 'Note'")
+    .prepare("SELECT MAX(published) AS p FROM objects WHERE actor_id = ? AND visibility IN ('public', 'unlisted') AND type IN ('Note','Article','Page','Video','Audio','Image','Document','Event','Question','Place')")
     .bind(actorId)
     .first<{ p: string | null }>();
   if (!row?.p) return null;

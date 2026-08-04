@@ -7,6 +7,26 @@ export interface APObject {
   [key: string]: unknown;
 }
 
+/** Type-specific metadata extracted from a remote ActivityStreams object. */
+export interface APObjectMeta {
+  /** Object title as a plain string (Article/Page/Note/Event name). */
+  name?: string | null;
+  /** Unix epoch millis for time-scoped objects (Event start). */
+  startTime?: string | null;
+  /** Unix epoch millis for time-scoped objects (Event end). */
+  endTime?: string | null;
+  /** Playback duration in seconds (Audio/Video/Page). */
+  duration?: number | null;
+  /** Human-readable location name (Place/Event). */
+  location?: string | null;
+  /** WGS84 latitude of the Place/Event. */
+  latitude?: number | null;
+  /** WGS84 longitude of the Place/Event. */
+  longitude?: number | null;
+  /** Author-facing display URL (resolved from obj.url or AP object id). */
+  url?: string | null;
+}
+
 export interface APActor extends APObject {
   type: "Person" | "Service" | "Group" | "Organization" | "Application";
   preferredUsername: string;
@@ -44,22 +64,37 @@ export interface APImage extends APObject {
   name?: string;
 }
 
+/**
+ * A federated content object — any of the renderable ActivityStreams types.
+ * Kept under the `APNote` name for compatibility with existing federation code,
+ * but `type` may be any content-bearing object type (Note, Article, Page,
+ * Video, Audio, Image, Event, Question, Place, Document, …).
+ */
 export interface APNote extends APObject {
-  type: "Note";
-  attributedTo: string;
-  content: string;
+  type: string;
+  attributedTo?: string | APObject;
+  content?: string;
   contentMap?: Record<string, string>;
-  published: string;
+  published?: string;
   updated?: string;
-  to: string[];
+  to?: string[];
   cc?: string[];
   inReplyTo?: string;
   url?: string;
   sensitive?: boolean;
   summary?: string;
+  name?: string;
+  startTime?: string;
+  endTime?: string;
+  duration?: string | number;
+  location?: string | APObject;
+  latitude?: number;
+  longitude?: number;
   attachment?: APAttachment[];
   tag?: APTag[];
   replies?: APCollection;
+  oneOf?: APObject[];
+  anyOf?: APObject[];
 }
 
 export interface APAttachment extends APObject {
@@ -364,6 +399,15 @@ export interface MastodonStatus {
   muted: boolean;
   bookmarked: boolean;
   pinned?: boolean;
+  /**
+   * The underlying ActivityStreams object type (e.g. "Note", "Article",
+   * "Event", "Video", "Audio", "Image", "Place", "Page", "Question").
+   * Always present for locally-sourced statuses; used by the UI to render
+   * type-specific blocks. Null/absent for legacy non-Note shapes.
+   */
+  ap_type?: string | null;
+  /** Type-specific metadata (title, time range, place, duration, links). */
+  ap_meta?: APObjectMeta | null;
 }
 
 export interface MastodonPoll {

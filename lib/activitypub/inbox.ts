@@ -42,6 +42,7 @@ import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
 import { serializeStatus, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
+import { isContentObjectType } from "./vocab";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DONamespace = { idFromName(name: string): any; get(id: any): { fetch(input: string | URL, init?: RequestInit): Promise<Response> } };
@@ -179,7 +180,11 @@ export async function processInboxActivity(
 
 async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<void> {
   const obj = activity.object as APNote | undefined;
-  if (!obj || typeof obj !== "object" || obj.type !== "Note") return;
+  if (!obj || typeof obj !== "object") return;
+
+  const objType = (obj.type ?? "").split("/").pop() ?? "";
+  // Ingest any content-bearing object type, not just Notes.
+  if (!isContentObjectType(objType)) return;
 
   const actorId = typeof activity.actor === "string" ? activity.actor : activity.actor.id;
 
@@ -254,7 +259,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
 
   await createObject(ctx.db, {
     id: obj.id,
-    type: "Note",
+    type: objType,
     actorId,
     content,
     contentWarning,
@@ -262,7 +267,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     visibility: resolveVisibility(obj.to, obj.cc),
     inReplyToId: obj.inReplyTo ?? null,
     language: obj.contentMap ? Object.keys(obj.contentMap)[0] : null,
-    url: obj.url ?? obj.id,
+    url: resolveObjectUrl(obj.url, obj.id),
     repliesCount: 0,
     reblogsCount: 0,
     favouritesCount: 0,
@@ -383,11 +388,11 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
       const allEmojis = await getAllCustomEmojis(ctx.db);
       const serializedStatus = serializeStatus(
         {
-          id: obj.id, type: "Note", actorId, content,
+          id: obj.id, type: objType, actorId, content,
           contentWarning, sensitive: obj.sensitive ?? false, visibility: statusVisibility,
           inReplyToId: obj.inReplyTo ?? null,
           language: obj.contentMap ? Object.keys(obj.contentMap)[0] : null,
-          url: obj.url ?? obj.id, repliesCount: 0, reblogsCount: 0, favouritesCount: 0,
+          url: resolveObjectUrl(obj.url, obj.id), repliesCount: 0, reblogsCount: 0, favouritesCount: 0,
           published, updatedAt: published, local: false, raw: JSON.stringify(obj),
         },
         author,
@@ -617,8 +622,7 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
         fetched = await fetchRemoteObject(objectId) as APNote | null;
       }
       if (fetched?.id) {
-        const NOTE_LIKE_TYPES = ["Note", "Article", "Page", "Video", "Audio", "Image", "Question"];
-        if (NOTE_LIKE_TYPES.includes((fetched.type ?? "Note") as string)) {
+        if (isContentObjectType((fetched.type ?? "Note") as string)) {
           const noteActorId = typeof fetched.attributedTo === "string"
             ? fetched.attributedTo
             : (fetched.attributedTo as APActor | undefined)?.id;
@@ -638,7 +642,7 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
             visibility: resolveVisibility(fetched.to, fetched.cc),
             inReplyToId: fetched.inReplyTo ?? null,
             language: fetched.contentMap ? Object.keys(fetched.contentMap)[0] : null,
-            url: fetched.url ?? fetched.id,
+            url: resolveObjectUrl(fetched.url, fetched.id),
             repliesCount: 0,
             reblogsCount: 0,
             favouritesCount: 0,
@@ -734,7 +738,7 @@ async function persistRemoteNote(
     visibility: resolveVisibility(note.to, note.cc),
     inReplyToId: note.inReplyTo ?? null,
     language: note.contentMap ? Object.keys(note.contentMap)[0] : null,
-    url: note.url ?? note.id,
+    url: resolveObjectUrl(note.url, note.id),
     repliesCount: 0,
     reblogsCount: 0,
     favouritesCount: 0,
@@ -755,7 +759,6 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
   const announcerActor = await ensureActorCached(ctx.db, actorId);
   if (!announcerActor) return;
 
-  const NOTE_LIKE_TYPES = ["Note", "Article", "Page", "Video", "Audio", "Image"];
   const embedded = typeof rawObject === "object" && rawObject !== null ? rawObject as APNote : null;
 
   // If the boosted post is not yet stored locally, save it so it appears in the
@@ -769,7 +772,7 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
     try {
       let toStore: APNote | null = null;
       const embeddedHasContent = embedded
-        && NOTE_LIKE_TYPES.includes(embedded.type)
+        && isContentObjectType((embedded.type ?? "").split("/").pop() ?? "")
         && ((embedded as APNote).content || (embedded as APNote).attachment?.length);
       if (embeddedHasContent) {
         toStore = embedded;
@@ -784,7 +787,7 @@ async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<
         if (!fetched) {
           fetched = await fetchRemoteObject(objectId) as APNote | null;
         }
-        if (fetched && NOTE_LIKE_TYPES.includes((fetched as APNote).type as string)) {
+        if (fetched && isContentObjectType((fetched as APNote).type as string)) {
           toStore = fetched;
         }
       }
@@ -853,12 +856,12 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
 
   const actorId = typeof activity.actor === "string" ? activity.actor : (activity.actor as APActor).id;
 
-  // Handle note/status edits (Mastodon 3.5.0+)
-  if (obj.type === "Note") {
+  // Handle object/status edits (Mastodon 3.5.0+)
+  if (obj.type === "Note" || isContentObjectType((obj.type ?? "").split("/").pop() ?? "")) {
     const note = obj as APNote;
     const existing = await getObjectById(ctx.db, note.id);
     if (!existing) {
-      // If we don't have the note yet, try to store it as a new remote object
+      // If we don't have the object yet, try to store it as a new remote object
       if (note.attributedTo && note.content) {
         const noteActorId = typeof note.attributedTo === "string"
           ? note.attributedTo
@@ -869,7 +872,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
         );
         await createObject(ctx.db, {
           id: note.id,
-          type: "Note",
+          type: note.type,
           actorId: noteActorId ?? actorId,
           content,
           contentWarning,
@@ -877,7 +880,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
           visibility: resolveVisibility(note.to, note.cc),
           inReplyToId: note.inReplyTo ?? null,
           language: note.contentMap ? Object.keys(note.contentMap)[0] : null,
-          url: note.url ?? note.id,
+          url: resolveObjectUrl(note.url, note.id),
           repliesCount: 0,
           reblogsCount: 0,
           favouritesCount: 0,
@@ -971,6 +974,29 @@ async function ensureActorCached(db: import("@cloudflare/workers-types").D1Datab
 function toUtcIso(dateStr: string | undefined | null): string {
   if (!dateStr) return new Date().toISOString();
   try { return new Date(dateStr).toISOString(); } catch { return new Date().toISOString(); }
+}
+
+/**
+ * Normalize an object's presentation URL. AS allows `url` to be a string or a
+ * Link/array; pick the first usable string so it can be stored in the DB column.
+ */
+function resolveObjectUrl(url: unknown, fallback: string): string {
+  if (typeof url === "string") return url;
+  if (Array.isArray(url)) {
+    for (const u of url) {
+      if (typeof u === "string") return u;
+      if (u && typeof u === "object") {
+        const href = (u as Record<string, unknown>).href;
+        if (typeof href === "string") return href;
+      }
+    }
+    return fallback;
+  }
+  if (url && typeof url === "object") {
+    const href = (url as Record<string, unknown>).href;
+    if (typeof href === "string") return href;
+  }
+  return fallback;
 }
 
 /**

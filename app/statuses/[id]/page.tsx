@@ -9,6 +9,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { InteractionList } from "@/components/InteractionList";
+import { APTypeBlock, TypeBadge, type APMeta } from "@/components/APTypeBlock";
 import { renderEmojiInHtml } from "@/lib/emoji";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -77,6 +78,8 @@ interface Status {
   poll: Poll | null;
   emojis?: EmojiData[];
   mentions?: Mention[];
+  ap_type?: string | null;
+  ap_meta?: APMeta | null;
 }
 
 interface Me {
@@ -474,6 +477,7 @@ function StatusCard({
             ⚠️ {status.spoiler_text}
           </div>
         )}
+        <TypeBadge apType={status.ap_type} />
         <div
           className="status-content"
           style={{ fontSize: isFocal ? "1.05rem" : "0.95rem", lineHeight: 1.6 }}
@@ -485,6 +489,7 @@ function StatusCard({
             {new Date(status.created_at).toLocaleString()}
           </div>
         )}
+        <APTypeBlock apType={status.ap_type} apMeta={status.ap_meta} mediaAttachments={status.media_attachments ?? []} />
         <MediaGrid attachments={status.media_attachments ?? []} />
         {status.edited_at && (
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ editado</div>

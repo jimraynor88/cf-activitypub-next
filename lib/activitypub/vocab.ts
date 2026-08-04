@@ -1,35 +1,10 @@
-// ActivityPub vocabulary constants
+// ActivityPub vocabulary constants — full ActivityStreams 2.0 vocabulary.
 
 export const AS_CONTEXT = "https://www.w3.org/ns/activitystreams";
 export const SECURITY_CONTEXT = "https://w3id.org/security/v1";
 export const PUBLIC_ADDRESS = "https://www.w3.org/ns/activitystreams#Public";
 
-/** Full Mastodon-compatible context — required for PropertyValue fields,
- *  toot: extensions (discoverable, indexable, etc.) and schema.org terms. */
-export const DEFAULT_CONTEXT = [
-  AS_CONTEXT,
-  SECURITY_CONTEXT,
-  {
-    manuallyApprovesFollowers: "as:manuallyApprovesFollowers",
-    toot: "http://joinmastodon.org/ns#",
-    featured:     { "@id": "toot:featured",     "@type": "@id" },
-    featuredTags: { "@id": "toot:featuredTags", "@type": "@id" },
-    alsoKnownAs:  { "@id": "as:alsoKnownAs",   "@type": "@id" },
-    movedTo:      { "@id": "as:movedTo",        "@type": "@id" },
-    schema:        "http://schema.org#",
-    PropertyValue: "schema:PropertyValue",
-    value:         "schema:value",
-    discoverable:  "toot:discoverable",
-    indexable:     "toot:indexable",
-    suspended:     "toot:suspended",
-    memorial:      "toot:memorial",
-    Hashtag:       "as:Hashtag",
-    Emoji:         "toot:Emoji",
-    focalPoint:    { "@container": "@list", "@id": "toot:focalPoint" },
-  },
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-] as any[];
-
+/** The 28 Activity activity types (idioms + extended) defined by AS 2.0. */
 export const ACTIVITY_TYPES = [
   "Accept",
   "Add",
@@ -61,6 +36,7 @@ export const ACTIVITY_TYPES = [
   "View",
 ] as const;
 
+/** The 5 Actor types defined by AS 2.0 (extended by Akkoma/Misskey with "User"). */
 export const ACTOR_TYPES = [
   "Application",
   "Group",
@@ -69,7 +45,45 @@ export const ACTOR_TYPES = [
   "Service",
 ] as const;
 
+/** All Object types defined in the AS 2.0 core + extended vocabulary. */
 export const OBJECT_TYPES = [
+  // core
+  "Object",
+  "Relation",
+  // extended objects
+  "Article",
+  "Audio",
+  "Collection",
+  "CollectionPage",
+  "Document",
+  "Event",
+  "Image",
+  "OrderedCollection",
+  "OrderedCollectionPage",
+  "Place",
+  "Profile",
+  "Relationship",
+  "Tombstone",
+  "Video",
+  // primitives / actors
+  "Note",
+  "Page",
+  "Question",
+  "Application",
+  "Group",
+  "Organization",
+  "Person",
+  "Service",
+  // links
+  "Mention",
+] as const;
+
+/**
+ * Object types that carry user-rendered content and are surfaced on timelines
+ * as a first-class "status", mirroring how Mastodon federates Article/Page/Video
+ * etc. as rich posts. Everything here is stored as a LocalObject row.
+ */
+export const CONTENT_OBJECT_TYPES = [
   "Article",
   "Audio",
   "Document",
@@ -78,8 +92,62 @@ export const OBJECT_TYPES = [
   "Note",
   "Page",
   "Place",
-  "Profile",
-  "Relationship",
-  "Tombstone",
+  "Question",
   "Video",
 ] as const;
+
+export type ContentObjectType = (typeof CONTENT_OBJECT_TYPES)[number];
+
+/** Object types that embed a media payload as their primary presentation. */
+export const MEDIA_OBJECT_TYPES = ["Audio", "Image", "Video"] as const;
+
+/** Object types with a scheduled time dimension (Event). */
+export const TIME_OBJECT_TYPES = ["Event"] as const;
+
+const ACTIVITY_SET = new Set<string>(ACTIVITY_TYPES);
+const ACTOR_SET = new Set<string>(ACTOR_TYPES);
+const OBJECT_SET = new Set<string>(OBJECT_TYPES);
+const CONTENT_SET = new Set<string>(CONTENT_OBJECT_TYPES);
+
+export function isActivityType(type: string): boolean {
+  return ACTIVITY_SET.has(type);
+}
+
+export function isActorType(type: string): boolean {
+  return ACTOR_SET.has(type);
+}
+
+export function isObjectType(type: string): boolean {
+  return OBJECT_SET.has(type);
+}
+
+/** Whether a remote object type should be ingested and rendered as a status. */
+export function isContentObjectType(type: string): boolean {
+  return CONTENT_SET.has(type);
+}
+
+/** Full Mastodon-compatible context — required for PropertyValue fields,
+ *  toot: extensions (discoverable, indexable, etc.) and schema.org terms. */
+export const DEFAULT_CONTEXT = [
+  AS_CONTEXT,
+  SECURITY_CONTEXT,
+  {
+    manuallyApprovesFollowers: "as:manuallyApprovesFollowers",
+    toot: "http://joinmastodon.org/ns#",
+    featured:     { "@id": "toot:featured",     "@type": "@id" },
+    featuredTags: { "@id": "toot:featuredTags", "@type": "@id" },
+    alsoKnownAs:  { "@id": "as:alsoKnownAs",   "@type": "@id" },
+    movedTo:      { "@id": "as:movedTo",        "@type": "@id" },
+    schema:        "http://schema.org#",
+    PropertyValue: "schema:PropertyValue",
+    value:         "schema:value",
+    discoverable:  "toot:discoverable",
+    indexable:     "toot:indexable",
+    suspended:     "toot:suspended",
+    memorial:      "toot:memorial",
+    Hashtag:       "as:Hashtag",
+    Emoji:         "toot:Emoji",
+    focalPoint:    { "@container": "@list", "@id": "toot:focalPoint" },
+  },
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+] as any[];

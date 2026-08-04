@@ -21,9 +21,12 @@ import type {
   MastodonInstance,
   MastodonMention,
   APTag,
+  APObject,
+  APObjectMeta,
 } from "@/lib/types";
 import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub/sanitize";
+import { isContentObjectType } from "@/lib/activitypub/vocab";
 
 // ─────────────────────────────────────────
 // Account serializer
@@ -177,7 +180,107 @@ export function serializeStatus(
     muted: false,
     bookmarked: false,
     pinned: opts.pinned ?? false,
+    ...buildTypeMeta(obj),
   };
+}
+
+/**
+ * Resolve the ActivityStreams object type + metadata for a stored object.
+ * The DB `type` column holds the AP type for federated objects; locally-authored
+ * posts are stored as "Note" even when the wire type is "Question" (polls), so we
+ * fall back to the type embedded in the raw AP JSON.
+ */
+function resolveAPType(obj: LocalObject): string {
+  const dbType = obj.type || "Note";
+  if (dbType !== "Note") return dbType;
+  try {
+    const raw = JSON.parse(obj.raw) as APObject | undefined;
+    const rawType = typeof raw?.type === "string" ? raw.type : null;
+    if (rawType && rawType !== "Note") return rawType as string;
+  } catch {
+    /* malformed raw */
+  }
+  return "Note";
+}
+
+/** Extract type-specific metadata (title, time ranges, place, duration, links). */
+export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
+  let raw: APObject | null = null;
+  try {
+    raw = JSON.parse(obj.raw) as APObject;
+  } catch {
+    return null;
+  }
+  if (!raw || typeof raw !== "object") return null;
+
+  const name = typeof raw.name === "string" ? raw.name : null;
+  const startTime = typeof raw.startTime === "string" ? raw.startTime : null;
+  const endTime = typeof raw.endTime === "string" ? raw.endTime : null;
+
+  let duration: number | null = null;
+  if (Array.isArray(raw.duration)) {
+    const d = raw.duration.find((x) => typeof x === "number");
+    if (typeof d === "number") duration = d;
+  } else if (typeof raw.duration === "number") {
+    duration = raw.duration;
+  } else if (typeof raw.duration === "string") {
+    const trimmed = raw.duration.replace(/^(\d+)s$/, "$1");
+    const n = Number(trimmed);
+    if (Number.isFinite(n) && n > 0) duration = n;
+  }
+
+  let latitude: number | null = null;
+  let longitude: number | null = null;
+  if (Array.isArray(raw.latitude)) {
+    const lat = raw.latitude[0];
+    if (typeof lat === "number") latitude = lat;
+  } else if (typeof raw.latitude === "number") {
+    latitude = raw.latitude;
+  }
+  if (Array.isArray(raw.longitude)) {
+    const lng = raw.longitude[0];
+    if (typeof lng === "number") longitude = lng;
+  } else if (typeof raw.longitude === "number") {
+    longitude = raw.longitude;
+  }
+
+  // `location` may be a Place object (with its own name/latitude/longitude)
+  const locationObj = typeof raw.location === "object" && raw.location !== null ? raw.location as Record<string, unknown> : null;
+  const locationName = locationObj && typeof locationObj.name === "string" ? locationObj.name : typeof raw.location === "string" ? raw.location : null;
+  if (locationObj) {
+    if (Array.isArray(locationObj.latitude)) {
+      const lat = (locationObj.latitude as unknown[])[0];
+      if (typeof lat === "number") latitude = lat;
+    } else if (typeof locationObj.latitude === "number") {
+      latitude = locationObj.latitude as number;
+    }
+    if (Array.isArray(locationObj.longitude)) {
+      const lng = (locationObj.longitude as unknown[])[0];
+      if (typeof lng === "number") longitude = lng;
+    } else if (typeof locationObj.longitude === "number") {
+      longitude = locationObj.longitude as number;
+    }
+  }
+
+  const meta: APObjectMeta = {
+    name: name ?? null,
+    startTime: startTime ?? null,
+    endTime: endTime ?? null,
+    duration,
+    location: locationName,
+    latitude,
+    longitude,
+    url: (typeof raw.url === "string" ? raw.url : null) ?? null,
+  };
+  const hasData = Object.values(meta).some((v) => v != null);
+  return hasData ? meta : null;
+}
+
+/** Build the { ap_type, ap_meta } payload for a serialized status. */
+function buildTypeMeta(obj: LocalObject): { ap_type: string | null; ap_meta: APObjectMeta | null } {
+  const type = resolveAPType(obj);
+  if (!isContentObjectType(type)) return { ap_type: null, ap_meta: null };
+  return { ap_type: type, ap_meta: extractAPMeta(obj) };
 }
 
 // ─────────────────────────────────────────

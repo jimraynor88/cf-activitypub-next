@@ -9,6 +9,7 @@ import { InteractionList } from "./InteractionList";
 import { renderEmojiInHtml } from "@/lib/emoji";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { APTypeBlock, TypeBadge, type APMeta } from "./APTypeBlock";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,6 +71,8 @@ export interface Status {
   visibility?: string;
   poll: Poll | null;
   emojis?: EmojiData[];
+  ap_type?: string | null;
+  ap_meta?: APMeta | null;
 }
 
 export interface Me {
@@ -557,6 +560,7 @@ export function StatusCard({
             {formatTime(status.created_at)}
           </Link>
         </div>
+        <TypeBadge apType={status.ap_type} />
         {status.spoiler_text && (
           <div
             style={{
@@ -595,6 +599,7 @@ export function StatusCard({
             {new Date(status.created_at).toLocaleString()}
           </div>
         )}
+        {showContent && <APTypeBlock apType={status.ap_type} apMeta={status.ap_meta} mediaAttachments={status.media_attachments ?? []} />}
         {showContent && <MediaGrid attachments={status.media_attachments ?? []} />}
         {showContent && status.poll && <PollView poll={status.poll} />}
         {status.edited_at && (
