@@ -95,7 +95,20 @@ export function processStatusContent(
     );
   }
 
-  // 3. Hashtags: #tag
+  // 3. URLs (plain http/https links) — processed before hashtags so that any
+  // `#fragment` (or URL with a trailing #) inside a link is reserved as part of
+  // the URL and never misparsed as a #hashtag.
+  const urlPattern = /\bhttps?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+  for (const m of text.matchAll(urlPattern)) {
+    const [url] = m;
+    add(
+      m.index!,
+      m.index! + url.length,
+      `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(url)}</a>`
+    );
+  }
+
+  // 4. Hashtags: #tag (skipped when the range belongs to an already-reserved URL)
   const hashPattern = /#([a-zA-Z\u00C0-\u024F\u0400-\u04FF][a-zA-Z0-9\u00C0-\u024F\u0400-\u04FF_]*)/g;
   for (const m of text.matchAll(hashPattern)) {
     const [full, tag] = m;
@@ -105,17 +118,6 @@ export function processStatusContent(
       m.index! + full.length,
       `<a href="${href}" class="tag" rel="tag">#${escapeHtml(tag)}</a>`,
       { type: "Hashtag", href, name: `#${tag}` }
-    );
-  }
-
-  // 4. URLs (plain http/https links)
-  const urlPattern = /\bhttps?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-  for (const m of text.matchAll(urlPattern)) {
-    const [url] = m;
-    add(
-      m.index!,
-      m.index! + url.length,
-      `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(url)}</a>`
     );
   }
 
