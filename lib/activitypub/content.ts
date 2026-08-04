@@ -67,7 +67,9 @@ export function processStatusContent(
     }
   }
 
-  // 1. Remote mentions: @user@domain
+  // 1. Remote mentions: @user@domain.
+  // Display only the username (@user), keeping the full handle as the link
+  // target and as an accessible hover title.
   const remotePattern = /@([a-zA-Z0-9_.-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
   for (const m of text.matchAll(remotePattern)) {
     const [full, user, domain] = m;
@@ -75,7 +77,7 @@ export function processStatusContent(
     add(
       m.index!,
       m.index! + full.length,
-      `<a href="${href}" class="u-url mention" rel="nofollow noopener noreferrer">@<span>${escapeHtml(user)}@${escapeHtml(domain)}</span></a>`,
+      `<a href="${href}" class="u-url mention" rel="nofollow noopener noreferrer" title="@${escapeHtml(user)}@${escapeHtml(domain)}">@<span>${escapeHtml(user)}</span></a>`,
       { type: "Mention", href, name: `@${user}@${domain}` }
     );
   }

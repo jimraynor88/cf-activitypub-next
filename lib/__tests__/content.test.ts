@@ -25,4 +25,17 @@ describe("processStatusContent URL vs hashtag handling", () => {
     expect(html).toContain('href="https://example.com/a#section"');
     expect(html).not.toContain('/tags/section');
   });
+
+  it("renders remote mentions as @user display with a full link", () => {
+    const { html, tags } = processStatusContent("hola @alice@example.com!");
+
+    // Display text shows only the username, not the domain.
+    expect(html).toContain(">@<span>alice</span></a>");
+    expect(html).not.toContain(">@<span>alice@example.com</span></a>");
+
+    // The link target and the AP Mention tag keep the full handle/address.
+    expect(html).toContain('href="https://example.com/@alice"');
+    expect(html).toContain('title="@alice@example.com"');
+    expect(tags).toContainEqual({ type: "Mention", href: "https://example.com/@alice", name: "@alice@example.com" });
+  });
 });
