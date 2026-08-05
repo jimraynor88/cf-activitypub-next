@@ -343,8 +343,15 @@ async function publishDueScheduled(env: Env): Promise<{ published: number; faile
 }
 
 async function executeScheduled(env: Env): Promise<void> {
-  const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000 - new Date().getMilliseconds();
-  await new Promise(resolve => setTimeout(resolve, msUntilNextMinute));
+  // Cloudflare cron triggers keep the phase they had at deploy time: a
+  // `* * * * *` cron created at 2:51:53 keeps firing at :53 every minute and
+  // never at :00. So align the actual work to the top of the next minute.
+  // If the trigger already lands within the first few seconds of the minute
+  // (on-time delivery), run immediately instead of adding a pointless ~60s wait.
+  const secondsIntoMinute = new Date().getSeconds() + new Date().getMilliseconds() / 1000;
+  if (secondsIntoMinute > 5) {
+    await new Promise((resolve) => setTimeout(resolve, Math.ceil((60 - secondsIntoMinute) * 1000)));
+  }
 
   await publishDueScheduled(env);
 
