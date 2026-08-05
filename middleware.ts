@@ -1,3 +1,8 @@
+// @opennextjs/cloudflare does not support Node.js middleware, and Next.js 16
+// forces any file named `proxy.ts` to run on the Node.js runtime. This file is
+// therefore named `middleware.ts` (the legacy convention), which compiles to
+// the Edge Runtime that Cloudflare Workers require. It only uses `next/server`,
+// so it is fully Edge-compatible.
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 

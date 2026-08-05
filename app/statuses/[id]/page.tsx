@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -367,6 +367,7 @@ function StatusCard({
   onEdit?: (s: Status) => void;
 }) {
   const token = getToken();
+  const [cwExpanded, setCwExpanded] = useState(false);
   const [interactionList, setInteractionList] = useState<{ type: "favourited_by" | "reblogged_by"; url: string } | null>(null);
   const renderedContent = useMemo(
     () => renderEmojiInHtml(status.content, status.emojis ?? []),
@@ -376,6 +377,7 @@ function StatusCard({
   const [translatedContent, setTranslatedContent] = useState<string | null>(null);
   const [showTranslation, setShowTranslation] = useState(false);
   const { t: i18n } = useLocale();
+  const showContent = !status.spoiler_text || cwExpanded;
 
   async function handleTranslate() {
     if (translatedContent) {
@@ -466,31 +468,45 @@ function StatusCard({
         {status.spoiler_text && (
           <div
             style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
               padding: "0.375rem 0.625rem",
               background: "var(--bg-elevated)",
               borderRadius: "var(--radius-sm)",
               fontSize: "0.875rem",
-              marginBottom: "0.5rem",
+              marginBottom: "0.4rem",
               color: "var(--text-secondary)",
+              gap: "0.5rem",
             }}
           >
-            ⚠️ {status.spoiler_text}
+            <span>⚠️ {status.spoiler_text}</span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem", whiteSpace: "nowrap", flexShrink: 0 }}
+              onClick={() => setCwExpanded((v) => !v)}
+            >
+              {cwExpanded ? "Ocultar" : "Mostrar"}
+            </button>
           </div>
         )}
         <TypeBadge apType={status.ap_type} />
-        <div
-          className="status-content"
-          style={{ fontSize: isFocal ? "1.05rem" : "0.95rem", lineHeight: 1.6 }}
-          dangerouslySetInnerHTML={{ __html: showTranslation && translatedContent ? translatedContent : renderedContent }}
-        />
-        {status.poll && <PollView poll={status.poll} />}
+        {showContent && (
+          <div
+            className="status-content"
+            style={{ fontSize: isFocal ? "1.05rem" : "0.95rem", lineHeight: 1.6 }}
+            dangerouslySetInnerHTML={{ __html: showTranslation && translatedContent ? translatedContent : renderedContent }}
+          />
+        )}
+        {showContent && status.poll && <PollView poll={status.poll} />}
         {isFocal && (
           <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
             {new Date(status.created_at).toLocaleString()}
           </div>
         )}
-        <APTypeBlock apType={status.ap_type} apMeta={status.ap_meta} mediaAttachments={status.media_attachments ?? []} />
-        <MediaGrid attachments={status.media_attachments ?? []} />
+        {showContent && <APTypeBlock apType={status.ap_type} apMeta={status.ap_meta} mediaAttachments={status.media_attachments ?? []} />}
+        {showContent && <MediaGrid attachments={status.media_attachments ?? []} />}
         {status.edited_at && (
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ editado</div>
         )}
@@ -1160,12 +1176,12 @@ export default function ThreadPage() {
           <>
             {/* Ancestors */}
             {ancestors.map((s) => (
-              <>
-                <StatusCard key={s.id} status={s} onFav={handleFav} onReblog={handleReblog} onReply={handleReply} me={me} onDelete={handleDelete} onEdit={openEdit} />
+              <Fragment key={s.id}>
+                <StatusCard status={s} onFav={handleFav} onReblog={handleReblog} onReply={handleReply} me={me} onDelete={handleDelete} onEdit={openEdit} />
                 {replyTarget?.id === s.id && (
                   <ReplyBox key={`reply-${s.id}`} replyTo={s} me={me} onCancel={() => setReplyTarget(null)} onPosted={handlePosted} />
                 )}
-              </>
+              </Fragment>
             ))}
 
             {/* Focal status (highlighted) */}
@@ -1193,12 +1209,12 @@ export default function ThreadPage() {
               </div>
             )}
             {descendants.map((s) => (
-              <>
-                <StatusCard key={s.id} status={s} onFav={handleFav} onReblog={handleReblog} onReply={handleReply} me={me} onDelete={handleDelete} onEdit={openEdit} />
+              <Fragment key={s.id}>
+                <StatusCard status={s} onFav={handleFav} onReblog={handleReblog} onReply={handleReply} me={me} onDelete={handleDelete} onEdit={openEdit} />
                 {replyTarget?.id === s.id && (
                   <ReplyBox key={`reply-${s.id}`} replyTo={s} me={me} onCancel={() => setReplyTarget(null)} onPosted={handlePosted} />
                 )}
-              </>
+              </Fragment>
             ))}
           </>
         )}

@@ -27,7 +27,6 @@ export default function TimelinesPage() {
 
   const token = getToken();
   const router = useRouter();
-  const viewRef = useRef<TimelineView>("local");
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
 
@@ -148,18 +147,14 @@ export default function TimelinesPage() {
     }
   }
 
-  // Mount: initial load
+  // Mount: initial account load (timeline is loaded by the [view] effect below)
   useEffect(() => {
-    Promise.resolve().then(() => {
-      void fetchTimeline("local");
-      void fetchMe();
-    });
+    Promise.resolve().then(() => void fetchMe());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // View change: reload timeline
+  // View change: (re)load timeline — also runs on mount as the single loader.
   useEffect(() => {
-    viewRef.current = view;
     Promise.resolve().then(() => void fetchTimeline(view));
   }, [view]);
 

@@ -166,6 +166,7 @@ export default function HomePage() {
     if (res.ok) {
       const data = await res.json() as Record<string, unknown>;
       if (data && data.scheduled_at) {
+        setPosting(false);
         router.push("/scheduled");
         return;
       }

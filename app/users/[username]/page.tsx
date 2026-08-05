@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
@@ -520,8 +520,9 @@ function AccountCard({ acct }: { acct: Account }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function ProfilePage({ params }: { params: Promise<{ username: string }> }) {
+export default function ProfilePage() {
   const router = useRouter();
+  const routeUsername = useParams<{ username: string }>()?.username ?? "";
   const [username, setUsername] = useState<string>("");
   const [account, setAccount] = useState<Account | null>(null);
   const [me, setMe] = useState<Me | null>(null);
@@ -617,13 +618,30 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
     setLoading(false);
   }
 
+  // Reset all user-specific state when navigating between profiles
+  // (render-phase reset — the recommended React pattern for "state that resets
+  // when a prop changes" — so no setState calls fire from an effect).
+  const [prevRoute, setPrevRoute] = useState(routeUsername);
+  if (prevRoute !== routeUsername) {
+    setPrevRoute(routeUsername);
+    setUsername(routeUsername);
+    setAccount(null);
+    setStatuses([]);
+    setReplies([]);
+    setPinnedStatuses([]);
+    setFollowers([]);
+    setFollowing([]);
+    setRelationship(null);
+    setNotFound(false);
+    setActiveTab("posts");
+    setLoading(true);
+  }
+
   useEffect(() => {
-    params.then(({ username: u }) => {
-      setUsername(u);
-      void load(u);
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!routeUsername) return;
+    Promise.resolve().then(() => void load(routeUsername));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeUsername]);
 
   async function loadMorePosts() {
     if (!account || loadingMorePosts || !hasMorePosts || statuses.length === 0) return;
@@ -927,11 +945,11 @@ export default function ProfilePage({ params }: { params: Promise<{ username: st
     setMuteBusy(true);
     const muting = relationship?.muting === true;
     const path = muting ? "unmute" : "mute";
-    await fetch(`/api/v1/accounts/${encodeURIComponent(account.id)}/${path}`, {
+    const res = await fetch(`/api/v1/accounts/${encodeURIComponent(account.id)}/${path}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
-    setRelationship((prev) => prev ? { ...prev, muting: !muting } : prev);
+    if (res.ok) setRelationship((prev) => prev ? { ...prev, muting: !muting } : prev);
     setMuteBusy(false);
   }
 

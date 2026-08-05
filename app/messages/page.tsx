@@ -9,6 +9,13 @@ import { useLocale } from "@/lib/i18n";
 import type { Status, Me } from "@/components/StatusCard";
 import { getToken } from "@/lib/client-api";
 
+/** Decode trusted HTML to a plain-text preview without re-parsing raw markup. */
+function htmlToText(html: string): string {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return (div.textContent ?? "").replace(/\s+/g, " ").trim();
+}
+
 interface Conversation {
   id: string;
   unread: boolean;
@@ -97,7 +104,7 @@ export default function MessagesPage() {
                     </div>
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "0.15rem" }}>
                       {conv.last_status?.content ? (
-                        <span dangerouslySetInnerHTML={{ __html: conv.last_status.content.replace(/<[^>]+>/g, "").slice(0, 120) }} />
+                        <span className="text-ellipsis">{htmlToText(conv.last_status.content).slice(0, 120)}</span>
                       ) : "(sin mensajes)"}
                     </div>
                   </div>

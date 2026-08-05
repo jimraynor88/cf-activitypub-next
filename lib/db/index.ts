@@ -1037,14 +1037,19 @@ export async function getPublicTimeline(
   const mediaFilter = onlyMedia ? "AND EXISTS (SELECT 1 FROM attachments a WHERE a.object_id = o.id)" : "";
   if (sinceId || minId) {
     const pivot = sinceId ?? minId!;
+    const pivotRow = await db
+      .prepare("SELECT published FROM objects WHERE id = ?")
+      .bind(pivot)
+      .first<{ published: string }>();
+    if (!pivotRow) return [];
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
          WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
-           AND o.published > (SELECT published FROM objects WHERE id = ?)
+           AND o.published > ?
          ORDER BY o.published DESC LIMIT ?`
       )
-      .bind(pivot, limit)
+      .bind(pivotRow.published, limit)
       .all<Row>();
     return rows.results.map(rowToObject);
   }
@@ -1093,14 +1098,19 @@ export async function getHomeTimeline(
     )
   `;
   if (minId) {
+    const pivotRow = await db
+      .prepare("SELECT published FROM objects WHERE id = ?")
+      .bind(minId)
+      .first<{ published: string }>();
+    if (!pivotRow) return [];
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
          WHERE ${baseWhere}
-           AND o.published > (SELECT published FROM objects WHERE id = ?)
+           AND o.published > ?
          ORDER BY o.published DESC LIMIT ?`
       )
-      .bind(actorId, actorId, minId, limit)
+      .bind(actorId, actorId, pivotRow.published, limit)
       .all<Row>();
     return rows.results.map(rowToObject);
   }
@@ -1127,11 +1137,35 @@ export async function getHashtagTimeline(
   db: D1Database,
   hashtag: string,
   limit = 20,
-  maxId?: string
+  maxId?: string,
+  sinceId?: string
 ): Promise<LocalObject[]> {
   // Search the raw AP JSON for Hashtag tag entries matching the given hashtag name.
   // LIKE is case-insensitive for ASCII in SQLite, so #test matches #Test etc.
   const likePattern = `%"name":"#${hashtag.toLowerCase()}"%`;
+  if (sinceId) {
+    // Newer-than cursor — used for live polling. Returns the newest posts newer
+    // than the reference post (exclusive), newest first to match timeline order.
+    // Look the pivot timestamp up explicitly: the naive `published > (SELECT …)`
+    // returns nothing for the *whole* timeline when the pivot object is missing
+    // (deleted/not-yet-cached) because `published > NULL` is never true.
+    const pivot = await db
+      .prepare("SELECT published FROM objects WHERE id = ?")
+      .bind(sinceId)
+      .first<{ published: string }>();
+    if (!pivot) return [];
+    const rows = await db
+      .prepare(
+        `SELECT o.* FROM objects o
+         WHERE o.visibility IN ('public', 'unlisted')
+           AND o.raw LIKE ?
+           AND o.published > ?
+         ORDER BY o.published DESC LIMIT ?`
+      )
+      .bind(likePattern, pivot.published, limit)
+      .all<Row>();
+    return rows.results.map(rowToObject);
+  }
   if (maxId) {
     const rows = await db
       .prepare(

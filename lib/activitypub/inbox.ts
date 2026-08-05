@@ -1001,18 +1001,18 @@ function resolveObjectUrl(url: unknown, fallback: string): string {
 
 /**
  * Whether the HTTP-signature signer is allowed to act as the activity's actor.
- * Exact-IRI match wins; otherwise the hostnames must match. Some servers sign
- * with a dedicated key URL on the same domain, so a hostname-level comparison
- * is required to avoid breaking legit federation while still blocking any
- * cross-domain spoofing.
+ *
+ * Requires an exact IRI match. Federation servers vouch for an activity by
+ * signing it with the private key of the activity's own actor, so the signature
+ * keyId owner MUST be that same actor. (For a standard keyId like
+ * `https://host/users/alice#main-key`, stripping the fragment yields the
+ * actor's canonical IRI.) We do not support embedded (Linked-Data) signatures,
+ * so any truly cross-actor activity — including actor spoofing from another
+ * account on the same domain — is rejected. A hostname-only comparison would
+ * let any user on a host post as any other user on that same host.
  */
 function signerOwnsActor(signingActorId: string, actorId: string): boolean {
-  if (signingActorId === actorId) return true;
-  try {
-    return new URL(signingActorId).hostname === new URL(actorId).hostname;
-  } catch {
-    return false;
-  }
+  return signingActorId === actorId;
 }
 
 function resolveVisibility(to: unknown = [], cc: unknown = []): "public" | "unlisted" | "followers" | "direct" {

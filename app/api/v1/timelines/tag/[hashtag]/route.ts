@@ -18,8 +18,10 @@ export async function GET(
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "20"), 40);
   const maxIdRaw = searchParams.get("max_id") ?? undefined;
   const maxId = maxIdRaw ? decodeStatusId(maxIdRaw, domain) : undefined;
+  const sinceIdRaw = searchParams.get("since_id") ?? undefined;
+  const sinceId = sinceIdRaw ? decodeStatusId(sinceIdRaw, domain) : undefined;
 
-  const objects = await getHashtagTimeline(env.DB, hashtag, limit, maxId);
+  const objects = await getHashtagTimeline(env.DB, hashtag, limit, maxId, sinceId);
 
   const authActor = await getAuthenticatedActor(request, env.DB);
 

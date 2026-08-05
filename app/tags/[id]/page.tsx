@@ -18,7 +18,7 @@ interface TagInfo {
 
 export default function TagPage() {
   const params = useParams();
-  const tagName = typeof params.id === "string" ? params.id : typeof params.hashtag === "string" ? params.hashtag : "";
+  const tagName = typeof params.id === "string" ? params.id : "";
 
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,8 +59,10 @@ export default function TagPage() {
   async function pollTimeline() {
     if (loading || statuses.length === 0) return;
     const topId = statuses[0]?.id;
+    // since_id returns only posts NEWER than the current newest one, so live
+    // polling actually picks up newly published statuses (max_id is the reverse).
     let url = `/api/v1/timelines/tag/${encodeURIComponent(tagName)}?limit=20`;
-    if (topId) url += `&max_id=${encodeURIComponent(topId)}`;
+    if (topId) url += `&since_id=${encodeURIComponent(topId)}`;
     const res = await fetch(url);
     if (res.ok) {
       const data = await res.json() as Status[];
