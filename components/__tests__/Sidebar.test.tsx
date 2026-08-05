@@ -69,8 +69,9 @@ beforeEach(() => {
 describe("Sidebar", () => {
   it("renders the logo and app name", () => {
     render(<Sidebar me={null} currentPath="/home" />);
-    expect(screen.getByText("CF ActivityPub")).toBeInTheDocument();
-    expect(screen.getByAltText("CF ActivityPub")).toBeInTheDocument();
+    // The logo appears in both the desktop sidebar and the mobile top bar.
+    expect(screen.getAllByText("CF ActivityPub").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByAltText("CF ActivityPub").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders all navigation items", () => {
@@ -114,7 +115,7 @@ describe("Sidebar", () => {
     expect(screen.getByText("ES")).toBeInTheDocument();
   });
 
-  it("renders mobile bottom nav with theme toggle", () => {
+  it("renders mobile top bar with theme toggle", () => {
     render(<Sidebar me={null} currentPath="/home" />);
     const mobileThemeBtn = screen.getAllByTitle("Light");
     expect(mobileThemeBtn.length).toBeGreaterThanOrEqual(2);

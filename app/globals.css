@@ -199,6 +199,8 @@ img.emojione { display: inline; vertical-align: middle; }
 }
 
 @media (max-width: 768px) {
+  /* Mobile top nav (fixed bar, 56px) rendered by the Sidebar — keep content below it */
+  body { padding-top: 56px; }
   .page-grid {
     grid-template-columns: 1fr;
   }
