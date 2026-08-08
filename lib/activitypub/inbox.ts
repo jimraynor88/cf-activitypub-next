@@ -27,6 +27,7 @@ import {
   getPollByObjectId,
   getPollOptions,
   getPollVotesByActor,
+  createPoll,
   createPollVotes,
   getAllCustomEmojis,
   getLocalInteractedActorIds,
@@ -275,6 +276,34 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     local: false,
     raw: JSON.stringify(obj),
   });
+
+  // ── Federated poll ingestion ──────────────────────────────────────────────
+  // Mastodon/poll servers send a Question with the choices in `oneOf` (single
+  // choice) or `anyOf` (multiple choice) and the deadline in `endTime`. Without
+  // creating the poll rows the status only shows the text and never the options.
+  if (objType === "Question") {
+    const single = Array.isArray(obj.oneOf) ? obj.oneOf : [];
+    const multi = Array.isArray(obj.anyOf) ? obj.anyOf : [];
+    const choices = single.length > 0 ? single : multi;
+    if (choices.length > 0) {
+      const expiresAt = obj.endTime
+        ? toUtcIso(obj.endTime)
+        : new Date(Date.now() + 24 * 36e5).toISOString();
+      try {
+        await createPoll(ctx.db, {
+          id: generateId(),
+          objectId: obj.id,
+          expiresAt,
+          multiple: multi.length > 0,
+          options: choices.map((opt, i) => ({
+            id: generateId(),
+            title: typeof opt?.name === "string" ? opt.name : `Opción ${i + 1}`,
+            position: i,
+          })),
+        });
+      } catch { /* ignore */ }
+    }
+  }
 
   const storedAttachments: LocalAttachment[] = [];
   if (Array.isArray(obj.attachment)) {
