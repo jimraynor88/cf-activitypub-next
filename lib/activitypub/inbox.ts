@@ -41,7 +41,7 @@ import { deliverToInbox, fetchRemoteObject } from "./federation";
 import { broadcastNotificationEvent, broadcastPublicStatus, broadcastHomeStatus, broadcastCallEvent } from "@/lib/streaming/broadcast";
 import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
-import { serializeStatus, serializeNotification } from "@/lib/mastodon/serializers";
+import { serializeStatus, serializePoll, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
 import { isContentObjectType } from "./vocab";
 
@@ -415,6 +415,13 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
       const domain = new URL(ctx.baseUrl).hostname;
       const published = toUtcIso(obj.published);
       const allEmojis = await getAllCustomEmojis(ctx.db);
+      let poll: import("@/lib/types").MastodonPoll | null = null;
+      if (objType === "Question") {
+        const pollDb = await getPollByObjectId(ctx.db, obj.id);
+        if (pollDb) {
+          poll = serializePoll(pollDb, await getPollOptions(ctx.db, pollDb.id), false, []);
+        }
+      }
       const serializedStatus = serializeStatus(
         {
           id: obj.id, type: objType, actorId, content,
@@ -426,7 +433,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
         },
         author,
         domain,
-        { attachments: storedAttachments, emojis: allEmojis }
+        { attachments: storedAttachments, emojis: allEmojis, poll }
       );
       const broadcastTasks: Promise<void>[] = [
         broadcastPublicStatus(ctx.timelineStream, serializedStatus, false),
