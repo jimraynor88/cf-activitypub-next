@@ -26,11 +26,17 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   const tagStats = new Map<string, { uses: number; actors: Set<string> }>();
   for (const r of rows.results) {
-    let parsed: { tag?: { type?: string; name?: string }[] };
+    let parsed: { tag?: unknown };
     try { parsed = JSON.parse(r.raw); } catch { continue; }
-    const tags = parsed.tag ?? [];
+    // `tag` may be stored as a single object (some implementations) or an array.
+    const tagField = parsed.tag;
+    const tags: { type?: string; name?: string }[] = Array.isArray(tagField)
+      ? tagField as { type?: string; name?: string }[]
+      : tagField
+      ? [tagField as { type?: string; name?: string }]
+      : [];
     for (const t of tags) {
-      if (t.type === "Hashtag" && t.name) {
+      if (t && t.type === "Hashtag" && t.name) {
         const name = t.name.replace(/^#/, "").toLowerCase();
         if (!name) continue;
         let stat = tagStats.get(name);
