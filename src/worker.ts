@@ -317,9 +317,12 @@ async function publishDueScheduled(env: Env): Promise<{ published: number; faile
         tags: [],
       });
 
+      // Set updated_at = published explicitly: the table's DEFAULT would store
+      // `datetime('now')` (space format) which is never === the ISO `published`,
+      // so a brand-new post would be misreported as "edited".
       await env.DB
-        .prepare("INSERT INTO objects (id, type, actor_id, content, content_warning, sensitive, visibility, in_reply_to_id, language, url, replies_count, reblogs_count, favourites_count, published, is_local, raw) VALUES (?, 'Note', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, 1, ?)")
-        .bind(note.id, s.actor_id, content, sensitive ? spoilerText : null, sensitive ? 1 : 0, visibility, null, language ?? null, note.url ?? note.id, published, JSON.stringify(note))
+        .prepare("INSERT INTO objects (id, type, actor_id, content, content_warning, sensitive, visibility, in_reply_to_id, language, url, replies_count, reblogs_count, favourites_count, published, updated_at, is_local, raw) VALUES (?, 'Note', ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, 1, ?)")
+        .bind(note.id, s.actor_id, content, sensitive ? spoilerText : null, sensitive ? 1 : 0, visibility, null, language ?? null, note.url ?? note.id, published, published, JSON.stringify(note))
         .run();
 
       await env.DB
