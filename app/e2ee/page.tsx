@@ -7,6 +7,7 @@ import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
 import { Sidebar } from "@/components/Sidebar";
+import { StatusCard, type Status, type Account, type Me } from "@/components/StatusCard";
 
 // /e2ee — vista del usuario autenticado sobre sus mensajes MLS y key packages.
 // Solo se muestran metadatos y envoltorios de cifrado: este servidor nunca
@@ -190,40 +191,6 @@ function envelopePreview(content: string | null, emptyLabel: string): string {
   return flat.length > head.length ? `${head}…` : head;
 }
 
-function Avatar({ sender, size = 40 }: { sender: Sender; size?: number }) {
-  const initial = (sender.displayName?.[0] ?? sender.username?.[0] ?? "?").toUpperCase();
-  if (sender.avatarUrl) {
-    return (
-      <Image
-        src={sender.avatarUrl}
-        alt={sender.displayName}
-        width={size}
-        height={size}
-        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
-      />
-    );
-  }
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        flexShrink: 0,
-        borderRadius: "50%",
-        background: "var(--accent-bg)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontSize: size * 0.45,
-        fontWeight: 700,
-        color: "var(--accent)",
-      }}
-    >
-      {initial}
-    </div>
-  );
-}
-
 function EnvelopePreview({ text }: { text: string }) {
   return (
     <div
@@ -254,6 +221,87 @@ function messageTitle(t: ReturnType<typeof useLocale>["t"], m: MlsMessage): stri
     case "KeyPackage": return t.e2ee_msg_keypackage;
     default: return m.type === "Delete" ? t.e2ee_msg_deleted : (m.objectType ?? t.e2ee_msg_generic);
   }
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+
+function toAccount(s: Sender): Account {
+  return { id: s.id, username: s.username, acct: s.acct, display_name: s.displayName, avatar: s.avatarUrl ?? "" };
+}
+
+function toMe(data: E2eeData): Me {
+  return { id: data.me.id, username: data.me.username, acct: data.me.acct, display_name: data.me.displayName, avatar: data.me.avatarUrl ?? "" };
+}
+
+function messageToStatus(m: MlsMessage, t: ReturnType<typeof useLocale>["t"]): Status {
+  const decrypted = demoDecrypt(m.content);
+  const title = escapeHtml(messageTitle(t, m));
+  const parts: string[] = [];
+  if (decrypted) {
+    parts.push(`<p style="margin:0 0 0.35rem"><strong>${title}</strong></p>`);
+    parts.push(`<p style="margin:0">${escapeHtml(decrypted.plaintext)}</p>`);
+  } else {
+    parts.push(`<p style="margin:0;color:var(--text-muted)">${title} · ${escapeHtml(t.e2ee_result_hint)}</p>`);
+  }
+  if (m.conversation) {
+    parts.push(`<p style="margin:0.35rem 0 0;font-size:0.8rem;color:var(--text-muted)">${escapeHtml(t.e2ee_conversation_label)} <code>${escapeHtml(m.conversation)}</code></p>`);
+  }
+  if (m.content) {
+    parts.push(
+      `<details style="margin-top:0.4rem"><summary style="cursor:pointer;font-size:0.75rem;color:var(--text-muted)">${escapeHtml(t.e2ee_show_envelope)}</summary>` +
+      `<pre style="font-size:0.7rem;overflow-x:auto;white-space:pre-wrap;background:var(--bg-elevated);padding:0.4rem 0.6rem;border-radius:var(--radius-sm)">${escapeHtml(envelopePreview(m.content, t.e2ee_envelope_empty))}</pre></details>`
+    );
+  }
+  return {
+    id: m.id,
+    content: parts.join(""),
+    created_at: m.published,
+    account: toAccount(m.sender),
+    favourites_count: 0,
+    reblogs_count: 0,
+    replies_count: 0,
+    favourited: false,
+    reblogged: false,
+    media_attachments: [],
+    sensitive: false,
+    spoiler_text: "",
+    poll: null,
+    ap_type: m.objectType ?? undefined,
+  };
+}
+
+function conversationToStatus(
+  c: { conversation: string; last: string },
+  messages: MlsMessage[],
+  me: Sender,
+  t: ReturnType<typeof useLocale>["t"]
+): Status {
+  const convMsgs = messages.filter((m) => m.conversation === c.conversation);
+  const lastDecrypted = convMsgs.length ? demoDecrypt(convMsgs[convMsgs.length - 1].content) : null;
+  const preview = lastDecrypted?.plaintext ?? t.e2ee_envelope_empty;
+  const content = [
+    `<p style="margin:0 0 0.35rem"><strong>${escapeHtml(c.conversation)}</strong></p>`,
+    `<p style="margin:0;font-size:0.8rem;color:var(--text-muted)">${convMsgs.length} ${escapeHtml(t.e2ee_stat_messages)}</p>`,
+    `<p style="margin:0.35rem 0 0;color:var(--text-secondary)">${escapeHtml(preview)}</p>`,
+  ].join("");
+  return {
+    id: `conversation:${c.conversation}`,
+    content,
+    created_at: c.last,
+    account: toAccount(me),
+    favourites_count: 0,
+    reblogs_count: 0,
+    replies_count: 0,
+    favourited: false,
+    reblogged: false,
+    media_attachments: [],
+    sensitive: false,
+    spoiler_text: "",
+    poll: null,
+    ap_type: "Conversation",
+  };
 }
 
 export default function E2EEPage() {
@@ -317,6 +365,30 @@ export default function E2EEPage() {
   const [sending, setSending] = useState(false);
   const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [resolvedIri, setResolvedIri] = useState<string | null>(null);
+
+  // ── Delete key packages / messages / conversations ─────────────────────
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteMsg, setDeleteMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handleDelete(target: "key-package" | "message" | "conversation", id: string) {
+    if (!data) return;
+    setDeleting(id);
+    setDeleteMsg(null);
+    try {
+      const res = await fetch(`/api/v1/e2ee?target=${target}&id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      setDeleteMsg({ ok: true, text: t.e2ee_delete_ok });
+      const d = await load();
+      if (d) setData(d);
+    } catch {
+      setDeleteMsg({ ok: false, text: t.e2ee_delete_err });
+    } finally {
+      setDeleting(null);
+    }
+  }
 
   async function handleResolve() {
     if (!recipient.trim() || !data) return;
@@ -392,7 +464,7 @@ export default function E2EEPage() {
     );
   }
 
-  const conversationsPreview = data.conversations.map((c) => c.conversation).join(" · ");
+  const meForCards = toMe(data);
 
   return (
     <PageLayout sidebar={<Sidebar me={{ username: data.me.username, display_name: data.me.displayName, acct: data.me.acct }} currentPath="/e2ee" />}>
@@ -525,8 +597,18 @@ export default function E2EEPage() {
                   <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
                     {kp.ciphersuite ?? "MLS"}
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                    {formatRelativeTime(kp.createdAt)}
+                  <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{formatRelativeTime(kp.createdAt)}</span>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
+                      onClick={() => void handleDelete("key-package", kp.objectId)}
+                      disabled={deleting === kp.objectId}
+                      title={t.e2ee_delete}
+                    >
+                      🗑️
+                    </button>
                   </span>
                 </div>
                 <EnvelopePreview text={envelopePreview(kp.content, t.e2ee_envelope_empty)} />
@@ -536,21 +618,50 @@ export default function E2EEPage() {
         )}
       </section>
 
+      {/* Conversaciones */}
+      <section>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.9rem 1rem", borderBottom: "1px solid var(--border)" }}>
+          <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>{t.e2ee_conversations_title}</h2>
+        </div>
+        {data.conversations.length === 0 ? (
+          <EmptyState icon="💬" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
+        ) : (
+          data.conversations.map((c) => (
+            <StatusCard
+              key={c.conversation}
+              status={conversationToStatus(c, data.messages, data.me, t)}
+              me={meForCards}
+              hideActions
+              forceDelete
+              onFav={() => {}}
+              onReblog={() => {}}
+              onReply={() => {}}
+              onDelete={() => void handleDelete("conversation", c.conversation)}
+            />
+          ))
+        )}
+      </section>
+
       {/* Mensajes */}
       <section>
         <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.9rem 1rem", borderBottom: "1px solid var(--border)" }}>
           <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>{t.e2ee_messages_title}</h2>
-          {data.conversations.length > 0 && (
-            <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-              · {conversationsPreview}
-            </span>
-          )}
         </div>
         {data.messages.length === 0 ? (
           <EmptyState icon="💬" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
         ) : (
           data.messages.map((m) => (
-            <MlsMessageRow key={`${m.recipientId}:${m.id}`} m={m} t={t} />
+            <StatusCard
+              key={`${m.recipientId}:${m.id}`}
+              status={messageToStatus(m, t)}
+              me={meForCards}
+              hideActions
+              forceDelete
+              onFav={() => {}}
+              onReblog={() => {}}
+              onReply={() => {}}
+              onDelete={() => void handleDelete("message", m.id)}
+            />
           ))
         )}
       </section>
@@ -597,79 +708,6 @@ function LoadingSkeleton() {
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function MlsMessageRow({ m, t }: { m: MlsMessage; t: ReturnType<typeof useLocale>["t"] }) {
-  const [showRaw, setShowRaw] = useState(false);
-  const decrypted = demoDecrypt(m.content);
-
-  return (
-    <div className="status-card flex gap-3" style={{ alignItems: "flex-start", padding: "1rem" }}>
-      <Avatar sender={m.sender} />
-      <div className="flex-1" style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-          <span style={{ fontWeight: 600, fontSize: "0.92rem" }}>{m.sender.displayName || m.sender.username}</span>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>@{m.sender.acct}</span>
-          <span className="badge badge-accent" style={{ flexShrink: 0 }} title="MLS (Messaging Layer Security)">
-            {t.e2ee_badge_encrypted}
-          </span>
-          <span
-            className="badge"
-            style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
-          >
-            {decrypted ? `${m.type} · ${decrypted.type}` : m.type}
-          </span>
-          <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {formatRelativeTime(m.published)}
-          </span>
-        </div>
-
-        <div style={{ marginTop: "0.25rem", fontSize: "0.88rem", color: "var(--text-secondary)" }}>
-          <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{messageTitle(t, m)}</span>
-          {m.objectType === "Welcome" && (
-            <span style={{ marginLeft: "0.5rem", color: "var(--text-muted)", fontSize: "0.82rem" }}>
-              {t.e2ee_msg_welcome_hint}
-            </span>
-          )}
-        </div>
-
-        {decrypted && (
-          <div
-            className="status-content"
-            style={{ marginTop: "0.5rem", fontSize: "0.95rem", lineHeight: 1.55, color: "var(--text)", overflowWrap: "break-word", wordBreak: "break-word", whiteSpace: "pre-wrap" }}
-          >
-            {decrypted.plaintext}
-          </div>
-        )}
-
-        {!decrypted && (
-          <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-            {t.e2ee_result_hint}
-          </div>
-        )}
-
-        {m.content && (
-          <>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ marginTop: "0.5rem", fontSize: "0.72rem", padding: "0.15rem 0.5rem", color: "var(--text-muted)" }}
-              onClick={() => setShowRaw((v) => !v)}
-            >
-              {showRaw ? t.e2ee_hide_envelope : t.e2ee_show_envelope}
-            </button>
-            {showRaw && <EnvelopePreview text={envelopePreview(m.content, t.e2ee_envelope_empty)} />}
-          </>
-        )}
-
-        {m.conversation && (
-          <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
-            {t.e2ee_conversation_label} <code style={{ fontSize: "0.74rem" }}>{m.conversation}</code>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -329,6 +329,8 @@ export function StatusCard({
   onDelete,
   onEdit,
   onPin,
+  forceDelete = false,
+  hideActions = false,
 }: {
   status: Status;
   isFocal?: boolean;
@@ -339,6 +341,8 @@ export function StatusCard({
   onDelete?: (s: Status) => void;
   onEdit?: (s: Status) => void;
   onPin?: (s: Status) => void;
+  forceDelete?: boolean;
+  hideActions?: boolean;
 }) {
   const [cwExpanded, setCwExpanded] = useState(false);
   const renderedContent = useMemo(
@@ -605,6 +609,7 @@ export function StatusCard({
         {status.edited_at && (
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ editado</div>
         )}
+        {!hideActions && (
         <div className="flex gap-5 mt-3" style={{ color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "wrap" }}>
           <button
             className="btn btn-ghost btn-sm"
@@ -731,9 +736,10 @@ export function StatusCard({
             </div>
           )}
         </div>
-        {me && me.id === status.account.id && (
+        )}
+        {(forceDelete || (me && me.id === status.account.id)) && (
           <>
-            {onEdit && (
+            {onEdit && me && me.id === status.account.id && (
               <button
                 className="btn btn-ghost btn-sm"
                 style={{ padding: "0.2rem 0.4rem", marginLeft: "auto" }}
@@ -746,7 +752,7 @@ export function StatusCard({
             {onDelete && (
               <button
                 className="btn btn-ghost btn-sm"
-                style={{ padding: "0.2rem 0.4rem", color: "var(--danger)", marginLeft: onEdit ? undefined : "auto" }}
+                style={{ padding: "0.2rem 0.4rem", color: "var(--danger)", marginLeft: onEdit && me && me.id === status.account.id ? undefined : "auto" }}
                 onClick={() => onDelete(status)}
                 title="Eliminar"
               >

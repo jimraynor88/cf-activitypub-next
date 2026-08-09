@@ -5,6 +5,9 @@ import {
   getMlsMessagesByRecipient,
   getMlsKeyPackagesByActor,
   getMlsConversationsByRecipient,
+  deleteMlsKeyPackageByObjectId,
+  deleteMlsMessageForRecipient,
+  deleteMlsMessagesByConversation,
 } from "@/lib/db";
 import type { NextRequest } from "next/server";
 
@@ -76,4 +79,32 @@ export async function GET(request: NextRequest): Promise<Response> {
     })),
     conversations,
   });
+}
+
+// DELETE /api/v1/e2ee?target=key-package|message|conversation&id=<id>
+//
+// Borra el recurso MLS del actor autenticado: un key package (por objectId), un
+// mensaje recibido (por id) o una conversación entera (por conversation).
+
+export async function DELETE(request: NextRequest): Promise<Response> {
+  const { env } = getCloudflareContext();
+  const actor = await getAuthenticatedActor(request, env.DB);
+  if (!actor) return json({ error: "No autorizado" }, 401);
+
+  const url = new URL(request.url);
+  const target = url.searchParams.get("target");
+  const id = url.searchParams.get("id");
+  if (!target || !id) return json({ error: "Faltan target o id" }, 400);
+
+  if (target === "key-package") {
+    await deleteMlsKeyPackageByObjectId(env.DB, id);
+  } else if (target === "message") {
+    await deleteMlsMessageForRecipient(env.DB, actor.id, id);
+  } else if (target === "conversation") {
+    await deleteMlsMessagesByConversation(env.DB, actor.id, id);
+  } else {
+    return json({ error: `target desconocido: ${target}` }, 400);
+  }
+
+  return json({ ok: true });
 }

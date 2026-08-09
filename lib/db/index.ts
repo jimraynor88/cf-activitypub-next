@@ -2483,6 +2483,30 @@ export async function deleteMlsMessagesByObjectId(
   await db.prepare("DELETE FROM mls_messages WHERE object_id = ?").bind(objectId).run();
 }
 
+/** Delete a single delivered MLS envelope for one recipient (per-recipient copy). */
+export async function deleteMlsMessageForRecipient(
+  db: D1Database,
+  recipientId: string,
+  id: string
+): Promise<void> {
+  await db
+    .prepare("DELETE FROM mls_messages WHERE recipient_id = ? AND id = ?")
+    .bind(recipientId, id)
+    .run();
+}
+
+/** Delete every MLS envelope of a conversation for one recipient. */
+export async function deleteMlsMessagesByConversation(
+  db: D1Database,
+  recipientId: string,
+  conversation: string
+): Promise<void> {
+  await db
+    .prepare("DELETE FROM mls_messages WHERE recipient_id = ? AND conversation = ?")
+    .bind(recipientId, conversation)
+    .run();
+}
+
 /** Insert an MLS message envelope for one recipient (deduped on activity id). */
 export async function insertMlsMessage(
   db: D1Database,
