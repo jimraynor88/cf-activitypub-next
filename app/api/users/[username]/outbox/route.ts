@@ -258,6 +258,7 @@ export async function POST(
       const recipients = [...collectAudience(activity.to), ...collectAudience(activity.cc)]
         .filter((iri) => iri !== "https://www.w3.org/ns/activitystreams#Public" && iri !== "as:Public");
       let deliveredTo = 0;
+      const activityId = activity.id ?? `${actorIri}/mls/${Date.now()}`;
       for (const iri of new Set(recipients)) {
         if (!iri.startsWith(baseUrl + "/")) {
           const inbox = await resolveRemoteInbox(env.DB, iri);
@@ -270,7 +271,7 @@ export async function POST(
         const localRecipient = await getActorById(env.DB, iri);
         if (localRecipient?.isLocal) {
           await insertMlsMessage(env.DB, {
-            id: activity.id ?? `${actorIri}/mls/${Date.now()}`,
+            id: activityId,
             type: activity.type!,
             actorId: actor.id,
             recipientId: localRecipient.id,
@@ -285,6 +286,22 @@ export async function POST(
           });
         }
       }
+      // Keep a copy in the sender's own messages so the composer can see it
+      // after sending (mirrors how the outbox page lists recent activity).
+      await insertMlsMessage(env.DB, {
+        id: activityId,
+        type: activity.type!,
+        actorId: actor.id,
+        recipientId: actor.id,
+        objectId: objectId ?? null,
+        objectType: objectType || null,
+        conversation: obj.conversation ?? null,
+        mediaType: obj.mediaType ?? null,
+        encoding: obj.encoding ?? null,
+        content: obj.content ?? null,
+        raw: JSON.stringify(activity),
+        published,
+      });
       void deliveredTo;
     } else if (type === "add") {
       await setMlsKeyPackageActive(env.DB, objectId!, true);

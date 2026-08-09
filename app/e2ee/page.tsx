@@ -4,12 +4,91 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useLocale } from "@/lib/i18n";
+import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
 import { Sidebar } from "@/components/Sidebar";
 
 // /e2ee — vista del usuario autenticado sobre sus mensajes MLS y key packages.
 // Solo se muestran metadatos y envoltorios de cifrado: este servidor nunca
-// descifra el contenido de los mensajes.
+// descifra el contenido de los mensajes. La publicación de key packages y el
+// envío se hacen contra el outbox del actor.
+
+// ─── Helpers de demostración (cifrado real = cliente MLS) ─────────────────────
+
+const CIPHERSUITE = "MLS_128_HPKEX25519_AES128GCM_SHA256";
+
+function randomHex(bytes: number): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function uuid(): string {
+  return crypto.randomUUID();
+}
+
+function demoBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let bin = "";
+  bytes.forEach((b) => (bin += String.fromCharCode(b)));
+  return btoa(bin);
+}
+
+interface Envelope {
+  mediaType: string;
+  encoding: string;
+  content: string;
+}
+
+/** Placeholder RFC 9420 key package (a real client would hold the private key). */
+function makeKeyPackage(): Envelope & { ciphersuite: string } {
+  const body = {
+    scheme: "keypackage",
+    version: "1.0",
+    ciphersuite: CIPHERSUITE,
+    publicKey: randomHex(64),
+  };
+  return {
+    ciphersuite: CIPHERSUITE,
+    mediaType: "application/mls+json",
+    encoding: "base64",
+    content: demoBase64(JSON.stringify(body)),
+  };
+}
+
+/** Placeholder encrypted envelope wrapping the plaintext. */
+function makeEnvelope(
+  plain: string,
+  opts: { sender: string; recipient: string; objectType: string; keyPackage: string | null }
+): Envelope {
+  const payload = {
+    scheme: "mls",
+    version: "1.0",
+    type: opts.objectType,
+    sender: opts.sender,
+    recipient: opts.recipient,
+    keyPackage: opts.keyPackage,
+    ciphertext: demoBase64(plain),
+  };
+  return {
+    mediaType: "application/mls+json",
+    encoding: "base64",
+    content: demoBase64(JSON.stringify(payload)),
+  };
+}
+
+/** POST an ActivityPub activity to the local actor's outbox. */
+async function postOutbox(username: string, activity: unknown): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`/users/${username}/outbox`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/activity+json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: "include",
+    body: JSON.stringify(activity),
+  });
+  if (!res.ok) throw new Error(`outbox returned ${res.status}`);
+}
 
 interface Sender {
   id: string;
@@ -42,6 +121,7 @@ interface KeyPackage {
 
 interface E2eeData {
   me: { id: string; username: string; acct: string; acctFull: string } & Sender;
+  baseUrl: string;
   keyPackagesUrl: string;
   messagesUrl: string;
   messages: MlsMessage[];
@@ -137,16 +217,115 @@ export default function E2EEPage() {
   const [data, setData] = useState<E2eeData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    fetch("/api/v1/e2ee", { credentials: "include" })
+  const load = (signal?: AbortSignal) =>
+    fetch("/api/v1/e2ee", { credentials: "include", signal })
       .then(async (res) => {
-        if (res.status === 401) { setAuthed(false); return; }
-        if (!res.ok) { setAuthed(false); return; }
-        setData(await res.json() as E2eeData);
-        setAuthed(true);
-      })
-      .catch(() => setAuthed(false));
+        if (res.status === 401) { setAuthed(false); return null; }
+        if (!res.ok) { setAuthed(false); return null; }
+        return await res.json() as E2eeData;
+      });
+
+  useEffect(() => {
+    const ctrl = new AbortController();
+    load(ctrl.signal).then((d) => {
+      if (d) { setData(d); setAuthed(true); }
+    }).catch(() => { if (!ctrl.signal.aborted) setAuthed(false); });
+    return () => ctrl.abort();
   }, []);
+
+  // ── Publish key package ─────────────────────────────────────────────────
+  const [publishing, setPublishing] = useState(false);
+  const [publishMsg, setPublishMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handlePublish() {
+    if (!data) return;
+    setPublishing(true);
+    setPublishMsg(null);
+    try {
+      const actorIri = data.me.id;
+      const kp = makeKeyPackage();
+      const objectId = `${actorIri}/keyPackages/${uuid()}`;
+      const activity = {
+        "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
+        id: `${actorIri}/outbox-activities/${uuid()}`,
+        type: "Create",
+        actor: actorIri,
+        published: new Date().toISOString(),
+        to: ["https://www.w3.org/ns/activitystreams#Public"],
+        object: { id: objectId, type: "KeyPackage", ciphersuite: kp.ciphersuite, mediaType: kp.mediaType, encoding: kp.encoding, content: kp.content },
+      };
+      await postOutbox(data.me.username, activity);
+      setPublishMsg({ ok: true, text: t.e2ee_publish_ok });
+      const d = await load();
+      if (d) setData(d);
+    } catch {
+      setPublishMsg({ ok: false, text: t.e2ee_publish_err });
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  // ── Send MLS message ────────────────────────────────────────────────────
+  const [recipient, setRecipient] = useState("");
+  const [objectType, setObjectType] = useState<string>("PrivateMessage");
+  const [plain, setPlain] = useState("");
+  const [conversation, setConversation] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendMsg, setSendMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resolvedIri, setResolvedIri] = useState<string | null>(null);
+
+  async function handleResolve() {
+    if (!recipient.trim() || !data) return;
+    try {
+      const res = await fetch(`/api/v1/e2ee/resolve?handle=${encodeURIComponent(recipient.trim().replace(/^@/, ""))}`);
+      if (!res.ok) { setSendMsg({ ok: false, text: t.e2ee_receiver_err }); setResolvedIri(null); return; }
+      const r = await res.json() as { iri: string };
+      setResolvedIri(r.iri);
+      setSendMsg({ ok: true, text: `${t.e2ee_receiver_ok}: ${r.iri}` });
+    } catch {
+      setSendMsg({ ok: false, text: t.e2ee_receiver_err });
+      setResolvedIri(null);
+    }
+  }
+
+  async function handleSend() {
+    if (!data || !resolvedIri) return;
+    setSending(true);
+    setSendMsg(null);
+    try {
+      const actorIri = data.me.id;
+      const envelope = makeEnvelope(plain || " ", { sender: actorIri, recipient: resolvedIri, objectType, keyPackage: null });
+      const objectId = `${actorIri}/objects/${uuid()}`;
+      const to = objectType === "PublicMessage"
+        ? ["https://www.w3.org/ns/activitystreams#Public"]
+        : [resolvedIri];
+      const activity = {
+        "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
+        id: `${actorIri}/outbox-activities/${uuid()}`,
+        type: "Create",
+        actor: actorIri,
+        published: new Date().toISOString(),
+        to,
+        object: {
+          id: objectId,
+          type: objectType,
+          conversation: conversation.trim() || undefined,
+          mediaType: envelope.mediaType,
+          encoding: envelope.encoding,
+          content: envelope.content,
+        },
+      };
+      await postOutbox(data.me.username, activity);
+      setSendMsg({ ok: true, text: t.e2ee_send_ok });
+      setPlain("");
+      const reloaded = await load();
+      if (reloaded) setData(reloaded);
+    } catch {
+      setSendMsg({ ok: false, text: t.e2ee_send_err });
+    } finally {
+      setSending(false);
+    }
+  }
 
   if (authed === null) {
     return (
@@ -200,6 +379,79 @@ export default function E2EEPage() {
           <Link href={data.messagesUrl} style={{ wordBreak: "break-all" }}>messages</Link>
         </div>
       </div>
+
+      {/* Publicar key package */}
+      <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>🗝️ {t.e2ee_publish_button}</h2>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 460 }}>{t.e2ee_publish_desc}</p>
+          </div>
+          <button className="btn btn-primary btn-sm" onClick={handlePublish} disabled={publishing}>
+            {publishing ? "…" : `➕ ${t.e2ee_publish_button}`}
+          </button>
+        </div>
+        {publishMsg && <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: publishMsg.ok ? "var(--success)" : "var(--danger)" }}>{publishMsg.text}</p>}
+      </section>
+
+      {/* Enviar mensaje cifrado */}
+      <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
+        <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>✉️ {t.e2ee_send_title}</h2>
+        <p style={{ margin: "0.25rem 0 0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_send_desc}</p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <input
+              className="input"
+              placeholder={t.e2ee_recipient_ph}
+              value={recipient}
+              onChange={(e) => setRecipient(e.target.value)}
+              style={{ flex: 1, minWidth: 160 }}
+            />
+            <button type="button" className="btn btn-outline btn-sm" onClick={handleResolve} disabled={!recipient.trim()}>
+              🔍
+            </button>
+          </div>
+          {resolvedIri && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", wordBreak: "break-all" }}>{resolvedIri}</div>}
+
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <select
+              className="btn btn-ghost btn-sm"
+              value={objectType}
+              onChange={(e) => setObjectType(e.target.value)}
+              style={{ fontSize: "0.82rem", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text)", padding: "0.4rem 0.6rem" }}
+            >
+              <option value="PrivateMessage">{t.e2ee_type_private}</option>
+              <option value="PublicMessage">{t.e2ee_type_public}</option>
+              <option value="Welcome">{t.e2ee_type_welcome}</option>
+            </select>
+            <input
+              className="input"
+              placeholder={t.e2ee_conv_label}
+              value={conversation}
+              onChange={(e) => setConversation(e.target.value)}
+              style={{ flex: 1, minWidth: 160 }}
+            />
+          </div>
+
+          <textarea
+            className="input"
+            placeholder={t.e2ee_plain_label}
+            value={plain}
+            onChange={(e) => setPlain(e.target.value)}
+            rows={2}
+            style={{ resize: "none", fontFamily: "inherit" }}
+          />
+
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>{t.e2ee_demo_note}</span>
+            <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !plain.trim() || !resolvedIri}>
+              {sending ? "…" : t.e2ee_send_cta}
+            </button>
+          </div>
+          {sendMsg && <p style={{ margin: 0, fontSize: "0.82rem", color: sendMsg.ok ? "var(--success)" : "var(--danger)", wordBreak: "break-word" }}>{sendMsg.text}</p>}
+        </div>
+      </section>
 
       {/* Key packages */}
       <section>
