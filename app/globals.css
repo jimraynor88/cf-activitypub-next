@@ -137,6 +137,13 @@ a:hover { color: var(--accent); }
 .status-content p { margin-bottom: 0.75em; }
 .status-content p:last-child { margin-bottom: 0; }
 .status-content a { overflow-wrap: break-word; word-break: break-word; }
+.status-content pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.status-content code { word-break: break-all; overflow-wrap: anywhere; }
 img.emojione { display: inline; vertical-align: middle; }
 
 .avatar { border-radius: 50%; object-fit: cover; background: var(--bg-overlay); flex-shrink: 0; }

@@ -736,6 +736,7 @@ export function StatusCard({
             </div>
           )}
         </div>
+        </div>
         )}
         {(forceDelete || (me && me.id === status.account.id)) && (
           <>
@@ -761,7 +762,6 @@ export function StatusCard({
             )}
           </>
         )}
-        </div>
         {interactionList && (
           <InteractionList
             apiUrl={interactionList.url}

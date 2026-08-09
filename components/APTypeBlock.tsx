@@ -40,6 +40,7 @@ const TYPE_LABELS: Record<string, string> = {
   Video: "Vídeo",
   Question: "Encuesta",
   Note: "Nota",
+  PublicMessage: "Mensaje MLS",
 };
 
 function formatDateTime(iso: string | null | undefined): string {

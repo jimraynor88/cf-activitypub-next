@@ -174,6 +174,44 @@ describe("MLS over ActivityPub inbox handling", () => {
     expect(msgs).toHaveLength(0);
   });
 
+  it("surfaces a Create(PublicMessage) on the public timeline as an encrypted envelope", async () => {
+    const activity = {
+      "@context": [
+        "https://www.w3.org/ns/activitystreams",
+        "https://purl.archive.org/socialweb/mls",
+      ],
+      id: `${REMOTE_ACTOR}/activities/pub-1`,
+      type: "Create",
+      actor: REMOTE_ACTOR,
+      published: "2026-01-01T00:00:00Z",
+      to: ["https://www.w3.org/ns/activitystreams#Public"],
+      object: {
+        id: `${REMOTE_ACTOR}/objects/pub-1`,
+        type: "PublicMessage",
+        conversation: `${BASE}/conversations/test`,
+        mediaType: "application/mls+json",
+        encoding: "base64",
+        content: "ZW5jcnlwdGVkLXB1YmxpYy1tZXNzYWdl",
+      },
+    };
+    await processInboxActivity(activity as never, { db, baseUrl: BASE } as never);
+
+    const obj = await db
+      .prepare("SELECT id, type, visibility, content, is_local FROM objects WHERE id = ?")
+      .bind(`${REMOTE_ACTOR}/objects/pub-1`)
+      .first<{ id: string; type: string; visibility: string; content: string; is_local: number }>();
+    expect(obj).toBeDefined();
+    expect(obj!.type).toBe("PublicMessage");
+    expect(obj!.visibility).toBe("public");
+    expect(obj!.is_local).toBe(0);
+    expect(obj!.content).toContain("MLS/PublicMessage");
+    expect(obj!.content).toContain("ZW5jcnlwdGVkLXB1YmxpYy1tZXNzYWdl");
+
+    // private envelopes still never become statuses
+    const rows = await db.prepare("SELECT id FROM objects WHERE type = 'PrivateMessage' LIMIT 1").first<{ id: string }>();
+    expect(rows).toBeNull();
+  });
+
   it("toggles key package active state via Add/Remove and cleans up on Delete", async () => {
     await processInboxActivity(makeKeyPackageCreateActivity() as never, { db, baseUrl: BASE } as never);
     expect((await getMlsKeyPackagesByActor(db, REMOTE_ACTOR, false))[0].isActive).toBe(true);

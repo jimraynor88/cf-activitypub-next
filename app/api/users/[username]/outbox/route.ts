@@ -4,6 +4,7 @@ import { getActorByUsername, getActorStatuses, getAttachmentsByObjectIds, getAct
 import { buildNote, buildCreate, buildOrderedCollection, buildOrderedCollectionPage, actorIRI } from "@/lib/activitypub/utils";
 import { deliverToInbox, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { isMlsObjectType } from "@/lib/activitypub/vocab";
+import { storePublicMlsEnvelope } from "@/lib/activitypub/mlsEnvelope";
 import { getAuthenticatedActor } from "@/lib/auth";
 import {
   upsertMlsKeyPackage,
@@ -12,7 +13,7 @@ import {
   deleteMlsMessagesByObjectId,
   insertMlsMessage,
 } from "@/lib/db";
-import type { APAttachment, APTag, LocalAttachment, APActor } from "@/lib/types";
+import type { APAttachment, APTag, LocalAttachment, APActor, APActivity } from "@/lib/types";
 
 interface MlsOutboxObject {
   id?: string;
@@ -302,6 +303,17 @@ export async function POST(
         raw: JSON.stringify(activity),
         published,
       });
+      // Public MLS messages are also surfaced on the public timeline as
+      // "encrypted envelope" posts for the sender (the ciphertext is never decrypted).
+      await storePublicMlsEnvelope(
+        env.DB,
+        activity as APActivity,
+        { id: objectId ?? activityId, content: obj.content, mediaType: obj.mediaType, encoding: obj.encoding, ciphersuite: obj.ciphersuite, conversation: obj.conversation },
+        objectType || "",
+        actor.id,
+        published,
+        true
+      );
       void deliveredTo;
     } else if (type === "add") {
       await setMlsKeyPackageActive(env.DB, objectId!, true);

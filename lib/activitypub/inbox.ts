@@ -44,6 +44,7 @@ import type { LocalNotification } from "@/lib/types";
 import { serializeStatus, serializePoll, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
 import { isContentObjectType, isMlsObjectType } from "./vocab";
+import { storePublicMlsEnvelope } from "./mlsEnvelope";
 import {
   getMlsKeyPackageByObjectId,
   upsertMlsKeyPackage,
@@ -1224,6 +1225,20 @@ async function handleMlsCreate(
     }
     return;
   }
+
+  // Public MLS messages are additionally surfaced on the public timeline as
+  // "encrypted envelope" posts (the ciphertext is never decrypted).
+  const actor = await ensureActorCached(ctx.db, actorId);
+  if (!actor) return;
+  await storePublicMlsEnvelope(
+    ctx.db,
+    activity,
+    obj,
+    objType,
+    actorId,
+    toUtcIso(obj.published ?? activity.published),
+    false
+  );
 
   await routeMlsToRecipients(activity, ctx, obj, objType);
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
@@ -567,6 +566,7 @@ export default function E2EEPage() {
           </div>
           {sendMsg && <p style={{ margin: 0, fontSize: "0.82rem", color: sendMsg.ok ? "var(--success)" : "var(--danger)", wordBreak: "break-word" }}>{sendMsg.text}</p>}
         </div>
+      {deleteMsg && <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: deleteMsg.ok ? "var(--success)" : "var(--danger)" }}>{deleteMsg.text}</p>}
       </section>
 
       {/* Key packages */}
