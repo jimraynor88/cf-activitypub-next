@@ -47,11 +47,14 @@ interface Envelope {
 
 /** Placeholder RFC 9420 key package (a real client would hold the private key). */
 function makeKeyPackage(): Envelope & { ciphersuite: string } {
+  // publicKey va PRIMERO en el JSON: es el único campo aleatorio y así el
+  // preview truncado de la lista (primeros ~72 chars del base64) no muestra
+  // siempre el mismo prefijo fijo.
   const body = {
+    publicKey: randomHex(64),
     scheme: "keypackage",
     version: "1.0",
     ciphersuite: CIPHERSUITE,
-    publicKey: randomHex(64),
   };
   return {
     ciphersuite: CIPHERSUITE,
@@ -66,14 +69,16 @@ function makeEnvelope(
   plain: string,
   opts: { sender: string; recipient: string; objectType: string; keyPackage: string | null }
 ): Envelope {
+  // ciphertext va primero en el JSON: es el contenido variable y así el
+  // preview truncado no muestra siempre el mismo prefijo fijo.
   const payload = {
     scheme: "mls",
     version: "1.0",
     type: opts.objectType,
+    ciphertext: demoBase64(plain),
     sender: opts.sender,
     recipient: opts.recipient,
     keyPackage: opts.keyPackage,
-    ciphertext: demoBase64(plain),
   };
   return {
     mediaType: "application/mls+json",
