@@ -36,5 +36,18 @@ export async function GET(
     fields: fields.map((f) => ({ name: f.name, value: f.value })),
   });
 
-  return activityJson(apActor);
+  return activityJson({
+    ...apActor,
+    // MLS over ActivityPub (RFC 9420 draft) collections.
+    keyPackages: {
+      type: "Collection",
+      totalItems: 0,
+      id: `${baseUrl}/users/${actor.username}/keyPackages`,
+    },
+    messages: {
+      type: "OrderedCollection",
+      totalItems: 0,
+      id: `${baseUrl}/users/${actor.username}/messages`,
+    },
+  });
 }

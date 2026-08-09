@@ -79,6 +79,34 @@ export const OBJECT_TYPES = [
 ] as const;
 
 /**
+ * MLS (Messaging Layer Security, RFC 9420) object types federated over
+ * ActivityPub per the "Messaging Layer Security in ActivityPub" draft.
+ * These carry ciphertext envelopes (MLSTM/MLSMessage) — the server never
+ * decrypts them, it only delivers and stores the envelopes.
+ */
+export const MLS_OBJECT_TYPES = [
+  "KeyPackage",
+  "Welcome",
+  "GroupInfo",
+  "PrivateMessage",
+  "PublicMessage",
+] as const;
+
+export type MlsObjectType = (typeof MLS_OBJECT_TYPES)[number];
+
+/**
+ * JSON-LD context declaring the MLS vocabulary. Servers/clients that want to
+ * cryptographically verify types should dereference the canonical context.
+ */
+export const MLS_CONTEXT = "https://purl.archive.org/socialweb/mls";
+
+const MLS_SET = new Set<string>(MLS_OBJECT_TYPES);
+
+export function isMlsObjectType(type: string): boolean {
+  return MLS_SET.has(type);
+}
+
+/**
  * Object types that carry user-rendered content and are surfaced on timelines
  * as a first-class "status", mirroring how Mastodon federates Article/Page/Video
  * etc. as rich posts. Everything here is stored as a LocalObject row.
@@ -148,6 +176,20 @@ export const DEFAULT_CONTEXT = [
     Hashtag:       "as:Hashtag",
     Emoji:         "toot:Emoji",
     focalPoint:    { "@container": "@list", "@id": "toot:focalPoint" },
+  },
+  // MLS (Messaging Layer Security) over ActivityPub — see MLS_CONTEXT.
+  {
+    mls: "https://purl.archive.org/socialweb/mls#",
+    keyPackages: { "@id": "mls:keyPackages", "@type": "@id" },
+    messages:    { "@id": "mls:messages",    "@type": "@id" },
+    encoding:    "mls:encoding",
+    conversation: "mls:conversation",
+    ciphersuite: "mls:ciphersuite",
+    KeyPackage:   { "@id": "mls:KeyPackage",   "@type": "@id" },
+    Welcome:      { "@id": "mls:Welcome",      "@type": "@id" },
+    GroupInfo:    { "@id": "mls:GroupInfo",    "@type": "@id" },
+    PublicMessage:   { "@id": "mls:PublicMessage",   "@type": "@id" },
+    PrivateMessage:  { "@id": "mls:PrivateMessage",  "@type": "@id" },
   },
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ] as any[];

@@ -46,9 +46,10 @@ export function middleware(request: NextRequest) {
   // /inbox and /users/:username/inbox are handled by direct Next.js route files
   // (app/inbox/route.ts and app/users/[username]/inbox/route.ts) — no rewrite needed.
 
-  // Rewrite /users/:username/outbox, /followers, /following → /api/users/:username/...
+  // Rewrite /users/:username/{outbox,followers,following,keyPackages,messages}
+  // → /api/users/:username/... (MLS collections added for the RFC 9420 draft).
   const subMatch = pathname.match(
-    /^\/users\/([^/]+)\/(outbox|followers|following)$/
+    /^\/users\/([^/]+)\/(outbox|followers|following|keyPackages|messages)$/
   );
   if (subMatch) {
     const url = request.nextUrl.clone();

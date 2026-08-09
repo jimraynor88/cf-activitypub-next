@@ -234,6 +234,48 @@ export interface LocalFollow {
   createdAt: string;
 }
 
+/**
+ * A cached KeyPackage of an actor (RFC 9420). Canonical for local actors
+ * (backed by the actor's keyPackages collection); cached for remote actors
+ * so the server can also serve the incoming direction.
+ */
+export interface LocalMlsKeyPackage {
+  id: string;
+  actorId: string;
+  objectId: string;
+  ciphersuite: string | null;
+  mediaType: string | null;
+  encoding: string | null;
+  content: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * A delivered MLS message envelope stored for a specific local recipient.
+ * `type` is the ActivityPub activity type that carried it (Create/Add/Remove/
+ * Delete), `objectType` is the MLS object type (PrivateMessage, Welcome, ...).
+ * `raw` holds the full activity JSON so the web UI / a client can decrypt the
+ * MLSTM envelope later without re-fetching.
+ */
+export interface LocalMlsMessage {
+  id: string;
+  type: string;
+  actorId: string;
+  recipientId: string;
+  objectId: string | null;
+  objectType: string | null;
+  conversation: string | null;
+  mediaType: string | null;
+  encoding: string | null;
+  content: string | null;
+  raw: string; // JSON
+  published: string;
+  local: boolean;
+  delivered: boolean;
+}
+
 export interface LocalLike {
   id: string;
   actorId: string;

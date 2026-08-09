@@ -43,7 +43,15 @@ import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
 import { serializeStatus, serializePoll, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
-import { isContentObjectType } from "./vocab";
+import { isContentObjectType, isMlsObjectType } from "./vocab";
+import {
+  getMlsKeyPackageByObjectId,
+  upsertMlsKeyPackage,
+  setMlsKeyPackageActive,
+  deleteMlsKeyPackageByObjectId,
+  deleteMlsMessagesByObjectId,
+  insertMlsMessage,
+} from "@/lib/db";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DONamespace = { idFromName(name: string): any; get(id: any): { fetch(input: string | URL, init?: RequestInit): Promise<Response> } };
@@ -150,6 +158,12 @@ export async function processInboxActivity(
       case "delete":
         await handleDelete(activity, ctx);
         break;
+      case "add":
+        await handleAdd(activity, ctx);
+        break;
+      case "remove":
+        await handleRemove(activity, ctx);
+        break;
       case "update":
         await handleUpdate(activity, ctx);
         break;
@@ -221,6 +235,12 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
   if (!obj || typeof obj !== "object") return;
 
   const objType = (obj.type ?? "").split("/").pop() ?? "";
+  // MLS envelopes (KeyPackage, Welcome, GroupInfo, PrivateMessage, PublicMessage)
+  // are handled separately — they carry ciphertext, not renderable content.
+  if (isMlsObjectType(objType)) {
+    await handleMlsCreate(activity, ctx, obj as unknown as APMlsObject);
+    return;
+  }
   // Ingest any content-bearing object type, not just Notes.
   if (!isContentObjectType(objType)) return;
 
@@ -902,6 +922,17 @@ async function handleDelete(activity: APActivity, ctx: InboxContext): Promise<vo
     : (activity.object as { id: string })?.id;
   if (!objectId) return;
 
+  // MLS: delete a KeyPackage or a delivered message envelope.
+  const kp = await getMlsKeyPackageByObjectId(ctx.db, objectId);
+  if (kp && kp.actorId === actorId) {
+    await deleteMlsKeyPackageByObjectId(ctx.db, objectId);
+  }
+  if (await mlsObjectExists(ctx, objectId)) {
+    await deleteMlsMessagesByObjectId(ctx.db, objectId);
+    await routeMlsLifecycle(activity, ctx, objectId, null);
+    return;
+  }
+
   const obj = await getObjectById(ctx.db, objectId);
   if (obj && obj.actorId === actorId) {
     await deleteObject(ctx.db, objectId);
@@ -1005,6 +1036,224 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
       manuallyApprovesFollowers: actor.manuallyApprovesFollowers ?? false,
     });
   }
+}
+
+// ─────────────────────────────────────────
+// MLS (Messaging Layer Security) over ActivityPub
+// ─────────────────────────────────────────
+
+/** An MLS object envelope as defined by the MLS-in-ActivityPub draft. */
+interface APMlsObject {
+  id: string;
+  type: string | string[];
+  content?: string | null;
+  mediaType?: string | null;
+  encoding?: string | null;
+  ciphersuite?: string;
+  conversation?: string | null;
+  to?: unknown;
+  cc?: unknown;
+  published?: string;
+}
+
+function mlsObjectType(obj: { type?: string | string[] }): string {
+  return Array.isArray(obj.type) ? (obj.type[0] ?? "") : (obj.type ?? "");
+}
+
+function activityActorId(activity: APActivity): string {
+  return typeof activity.actor === "string" ? activity.actor : (activity.actor as { id?: string })?.id ?? "";
+}
+
+/** Flatten `to`/`cc` (string | array | Link) into IRIs. */
+function collectAudience(value: unknown): string[] {
+  if (!value) return [];
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) {
+    const out: string[] = [];
+    for (const item of value) {
+      if (typeof item === "string") out.push(item);
+      else if (item && typeof item === "object") {
+        const href = (item as { href?: unknown }).href;
+        if (typeof href === "string") out.push(href);
+      }
+    }
+    return out;
+  }
+  if (typeof value === "object") {
+    const href = (value as { href?: unknown }).href;
+    if (typeof href === "string") return [href];
+  }
+  return [];
+}
+
+const PUBLIC_IRI = "https://www.w3.org/ns/activitystreams#Public";
+
+/**
+ * Resolve the explicit local actors a delivered MLS activity is addressed to.
+ * Only actor IRIs count — collection/public recipients are not stored.
+ */
+async function resolveLocalMlsRecipients(
+  ctx: InboxContext,
+  activity: APActivity
+): Promise<{ id: string }[]> {
+  const raw = [...collectAudience(activity.to), ...collectAudience(activity.cc)];
+  const actors: { id: string }[] = [];
+  for (const iri of new Set(raw)) {
+    if (iri === PUBLIC_IRI || iri === "as:Public" || iri === "Public") continue;
+    if (!iri.startsWith(ctx.baseUrl + "/")) continue;
+    const actor = await getActorById(ctx.db, iri);
+    if (actor?.isLocal) actors.push({ id: actor.id });
+  }
+  return actors;
+}
+
+/** True when any mls_messages row references this object id. */
+async function mlsObjectExists(ctx: InboxContext, objectId: string): Promise<boolean> {
+  const row = await ctx.db
+    .prepare("SELECT id FROM mls_messages WHERE object_id = ? LIMIT 1")
+    .bind(objectId)
+    .first<{ id: string }>();
+  return Boolean(row);
+}
+
+/** Store one delivered MLS activity row per explicit local recipient. */
+async function routeMlsToRecipients(
+  activity: APActivity,
+  ctx: InboxContext,
+  object: APMlsObject,
+  objType: string
+): Promise<void> {
+  const actorId = activityActorId(activity);
+  if (!actorId) return;
+  const author = await ensureActorCached(ctx.db, actorId);
+  if (!author) return;
+  const recipients = await resolveLocalMlsRecipients(ctx, activity);
+  if (recipients.length === 0) return;
+
+  const published = toUtcIso(object.published ?? activity.published);
+  for (const recipient of recipients) {
+    try {
+      await insertMlsMessage(ctx.db, {
+        id: activity.id,
+        type: activity.type,
+        actorId,
+        recipientId: recipient.id,
+        objectId: object.id,
+        objectType: objType,
+        conversation: object.conversation ?? null,
+        mediaType: object.mediaType ?? null,
+        encoding: object.encoding ?? null,
+        content: object.content ?? null,
+        raw: JSON.stringify(activity),
+        published,
+      });
+    } catch {
+      /* duplicate / FK race — ignore */
+    }
+  }
+}
+
+/** Store a lifecycle activity (Add/Remove/Delete) for its local recipients. */
+async function routeMlsLifecycle(
+  activity: APActivity,
+  ctx: InboxContext,
+  objectId: string,
+  objType: string | null
+): Promise<void> {
+  const actorId = activityActorId(activity);
+  if (!actorId) return;
+  const author = await ensureActorCached(ctx.db, actorId);
+  if (!author) return;
+  const recipients = await resolveLocalMlsRecipients(ctx, activity);
+  if (recipients.length === 0) return;
+
+  const published = toUtcIso(activity.published);
+  for (const recipient of recipients) {
+    try {
+      await insertMlsMessage(ctx.db, {
+        id: activity.id,
+        type: activity.type,
+        actorId,
+        recipientId: recipient.id,
+        objectId,
+        objectType: objType,
+        conversation: null,
+        mediaType: null,
+        encoding: null,
+        content: null,
+        raw: JSON.stringify(activity),
+        published,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/**
+ * A Create carrying an MLS object (RFC 9420 KeyPackage/Welcome/GroupInfo or
+ * MLSTM Public/PrivateMessage envelope). The server never decrypts — it caches
+ * key packages and routes encrypted envelopes to the explicit recipients.
+ */
+async function handleMlsCreate(
+  activity: APActivity,
+  ctx: InboxContext,
+  obj: APMlsObject
+): Promise<void> {
+  if (!obj?.id) return;
+  const objType = mlsObjectType(obj);
+  const actorId = activityActorId(activity);
+  if (!actorId) return;
+
+  if (objType === "KeyPackage") {
+    // Cache the key package keyed by its object IRI. Owned by the sender, so a
+    // local actor's keyPackages collection is backed by these rows.
+    try {
+      await upsertMlsKeyPackage(ctx.db, {
+        id: obj.id,
+        actorId,
+        objectId: obj.id,
+        ciphersuite: obj.ciphersuite ?? null,
+        mediaType: obj.mediaType ?? null,
+        encoding: obj.encoding ?? null,
+        content: obj.content ?? null,
+        isActive: true,
+      });
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+
+  await routeMlsToRecipients(activity, ctx, obj, objType);
+}
+
+/** Add(KeyPackage) — re-activate a cached key package of the sender. */
+async function handleAdd(activity: APActivity, ctx: InboxContext): Promise<void> {
+  const object = activity.object as APActivity | string | undefined;
+  const objectId = typeof object === "string" ? object : (object as { id?: string })?.id;
+  if (!objectId) return;
+  const actorId = activityActorId(activity);
+
+  const kp = await getMlsKeyPackageByObjectId(ctx.db, objectId);
+  if (kp && kp.actorId === actorId) {
+    await setMlsKeyPackageActive(ctx.db, objectId, true);
+  }
+  await routeMlsLifecycle(activity, ctx, objectId, "KeyPackage");
+}
+
+/** Remove(KeyPackage) — deactivate a cached key package of the sender. */
+async function handleRemove(activity: APActivity, ctx: InboxContext): Promise<void> {
+  const object = activity.object as APActivity | string | undefined;
+  const objectId = typeof object === "string" ? object : (object as { id?: string })?.id;
+  if (!objectId) return;
+  const actorId = activityActorId(activity);
+
+  const kp = await getMlsKeyPackageByObjectId(ctx.db, objectId);
+  if (kp && kp.actorId === actorId) {
+    await setMlsKeyPackageActive(ctx.db, objectId, false);
+  }
+  await routeMlsLifecycle(activity, ctx, objectId, "KeyPackage");
 }
 
 // ─────────────────────────────────────────

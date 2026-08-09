@@ -682,3 +682,46 @@ CREATE TABLE IF NOT EXISTS account_notes (
 
 CREATE INDEX IF NOT EXISTS idx_account_notes_actor ON account_notes(actor_id);
 CREATE INDEX IF NOT EXISTS idx_account_notes_target ON account_notes(target_id);
+
+-- ─────────────────────────────────────────
+-- MLS (Messaging Layer Security) over ActivityPub
+-- Key packages are published by a user on their own server so that others
+-- can encrypt Welcome/PrivateMessage/PublicMessage to them (RFC 9420 draft).
+-- Messages are the received/decryptable MLSTM content envelopes.
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS mls_key_packages (
+  id          TEXT PRIMARY KEY,
+  actor_id    TEXT NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+  object_id   TEXT NOT NULL,
+  ciphersuite TEXT,
+  media_type  TEXT,
+  encoding    TEXT,
+  content     TEXT,
+  is_active   INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_mls_kp_actor ON mls_key_packages(actor_id, is_active);
+
+CREATE TABLE IF NOT EXISTS mls_messages (
+  id           TEXT NOT NULL,
+  type         TEXT NOT NULL,
+  actor_id     TEXT NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+  recipient_id TEXT NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+  object_id    TEXT,
+  object_type  TEXT,
+  conversation TEXT,
+  media_type   TEXT,
+  encoding     TEXT,
+  content      TEXT,
+  raw          TEXT NOT NULL DEFAULT '{}',
+  published    TEXT NOT NULL DEFAULT (datetime('now')),
+  is_local     INTEGER NOT NULL DEFAULT 0,
+  delivered    INTEGER NOT NULL DEFAULT 0,
+  -- One activity id is delivered to many recipients; dedup is per recipient.
+  PRIMARY KEY (recipient_id, id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mls_msg_recipient ON mls_messages(recipient_id, published DESC);
+CREATE INDEX IF NOT EXISTS idx_mls_msg_conv ON mls_messages(conversation);

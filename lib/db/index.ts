@@ -18,6 +18,8 @@ import type {
   OAuthToken,
   APActor,
   ObjectEdit,
+  LocalMlsKeyPackage,
+  LocalMlsMessage,
 } from "@/lib/types";
 
 // ─────────────────────────────────────────
@@ -2346,3 +2348,239 @@ export async function deletePushSubscription(
     .run();
 }
 
+
+// ─────────────────────────────────────────
+// MLS (Messaging Layer Security) over ActivityPub
+// ─────────────────────────────────────────
+
+function rowToMlsKeyPackage(r: Row): LocalMlsKeyPackage {
+  return {
+    id: r.id,
+    actorId: r.actor_id,
+    objectId: r.object_id,
+    ciphersuite: r.ciphersuite ?? null,
+    mediaType: r.media_type ?? null,
+    encoding: r.encoding ?? null,
+    content: r.content ?? null,
+    isActive: Boolean(r.is_active),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+function rowToMlsMessage(r: Row): LocalMlsMessage {
+  return {
+    id: r.id,
+    type: r.type,
+    actorId: r.actor_id,
+    recipientId: r.recipient_id,
+    objectId: r.object_id ?? null,
+    objectType: r.object_type ?? null,
+    conversation: r.conversation ?? null,
+    mediaType: r.media_type ?? null,
+    encoding: r.encoding ?? null,
+    content: r.content ?? null,
+    raw: r.raw ?? "{}",
+    published: r.published,
+    local: Boolean(r.is_local),
+    delivered: Boolean(r.delivered),
+  };
+}
+
+/** Insert (or refresh) a cached key package for an actor. */
+export async function upsertMlsKeyPackage(
+  db: D1Database,
+  kp: Omit<LocalMlsKeyPackage, "createdAt" | "updatedAt">
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT INTO mls_key_packages (
+        id, actor_id, object_id, ciphersuite, media_type, encoding, content, is_active
+      ) VALUES (?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET
+        ciphersuite = excluded.ciphersuite,
+        media_type = excluded.media_type,
+        encoding = excluded.encoding,
+        content = excluded.content,
+        is_active = excluded.is_active,
+        updated_at = datetime('now')`
+    )
+    .bind(
+      kp.id,
+      kp.actorId,
+      kp.objectId,
+      kp.ciphersuite ?? null,
+      kp.mediaType ?? null,
+      kp.encoding ?? null,
+      kp.content ?? null,
+      kp.isActive ? 1 : 0
+    )
+    .run();
+}
+
+export async function getMlsKeyPackageById(
+  db: D1Database,
+  id: string
+): Promise<LocalMlsKeyPackage | null> {
+  const r = await db
+    .prepare("SELECT * FROM mls_key_packages WHERE id = ?")
+    .bind(id)
+    .first<Row>();
+  return r ? rowToMlsKeyPackage(r) : null;
+}
+
+export async function getMlsKeyPackageByObjectId(
+  db: D1Database,
+  objectId: string
+): Promise<LocalMlsKeyPackage | null> {
+  const r = await db
+    .prepare("SELECT * FROM mls_key_packages WHERE object_id = ?")
+    .bind(objectId)
+    .first<Row>();
+  return r ? rowToMlsKeyPackage(r) : null;
+}
+
+/** Active key packages of an actor (canonical source for a local keyPackages collection). */
+export async function getMlsKeyPackagesByActor(
+  db: D1Database,
+  actorId: string,
+  activeOnly = true
+): Promise<LocalMlsKeyPackage[]> {
+  const rows = await db
+    .prepare(
+      `SELECT * FROM mls_key_packages WHERE actor_id = ?${activeOnly ? " AND is_active = 1" : ""}
+       ORDER BY created_at DESC`
+    )
+    .bind(actorId)
+    .all<Row>();
+  return (rows.results ?? []).map(rowToMlsKeyPackage);
+}
+
+export async function setMlsKeyPackageActive(
+  db: D1Database,
+  objectId: string,
+  active: boolean
+): Promise<void> {
+  await db
+    .prepare(
+      "UPDATE mls_key_packages SET is_active = ?, updated_at = datetime('now') WHERE object_id = ?"
+    )
+    .bind(active ? 1 : 0, objectId)
+    .run();
+}
+
+export async function deleteMlsKeyPackageByObjectId(
+  db: D1Database,
+  objectId: string
+): Promise<void> {
+  await db.prepare("DELETE FROM mls_key_packages WHERE object_id = ?").bind(objectId).run();
+}
+
+export async function deleteMlsMessagesByObjectId(
+  db: D1Database,
+  objectId: string
+): Promise<void> {
+  await db.prepare("DELETE FROM mls_messages WHERE object_id = ?").bind(objectId).run();
+}
+
+/** Insert an MLS message envelope for one recipient (deduped on activity id). */
+export async function insertMlsMessage(
+  db: D1Database,
+  msg: Omit<LocalMlsMessage, "local" | "delivered">
+): Promise<void> {
+  await db
+    .prepare(
+      `INSERT OR IGNORE INTO mls_messages (
+        id, type, actor_id, recipient_id, object_id, object_type, conversation,
+        media_type, encoding, content, raw, published
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+    )
+    .bind(
+      msg.id,
+      msg.type,
+      msg.actorId,
+      msg.recipientId,
+      msg.objectId ?? null,
+      msg.objectType ?? null,
+      msg.conversation ?? null,
+      msg.mediaType ?? null,
+      msg.encoding ?? null,
+      msg.content ?? null,
+      msg.raw,
+      msg.published
+    )
+    .run();
+}
+
+export async function getMlsMessagesByRecipient(
+  db: D1Database,
+  recipientId: string,
+  limit = 50,
+  maxId?: string,
+  conversation?: string
+): Promise<LocalMlsMessage[]> {
+  const params: (string | number)[] = [recipientId];
+  let filter = "";
+  if (conversation) {
+    filter += " AND conversation = ?";
+    params.push(conversation);
+  }
+  if (maxId) {
+    filter += " AND published < (SELECT published FROM mls_messages WHERE id = ? AND recipient_id = ?)";
+    params.push(maxId, recipientId);
+  }
+  params.push(limit);
+  const rows = await db
+    .prepare(
+      `SELECT * FROM mls_messages WHERE recipient_id = ?${filter}
+       ORDER BY published DESC LIMIT ?`
+    )
+    .bind(...params)
+    .all<Row>();
+  return (rows.results ?? []).map(rowToMlsMessage);
+}
+
+export async function getMlsMessageById(
+  db: D1Database,
+  id: string
+): Promise<LocalMlsMessage | null> {
+  const r = await db
+    .prepare("SELECT * FROM mls_messages WHERE id = ? LIMIT 1")
+    .bind(id)
+    .first<Row>();
+  return r ? rowToMlsMessage(r) : null;
+}
+
+export async function countMlsMessagesByRecipient(
+  db: D1Database,
+  recipientId: string,
+  conversation?: string
+): Promise<number> {
+  const params: (string | number)[] = [recipientId];
+  let filter = "";
+  if (conversation) {
+    filter += " AND conversation = ?";
+    params.push(conversation);
+  }
+  const r = await db
+    .prepare(`SELECT COUNT(*) AS c FROM mls_messages WHERE recipient_id = ?${filter}`)
+    .bind(...params)
+    .first<{ c: number }>();
+  return r?.c ?? 0;
+}
+
+/** Conversations (distinct group-id keys) a recipient has MLS traffic for. */
+export async function getMlsConversationsByRecipient(
+  db: D1Database,
+  recipientId: string
+): Promise<{ conversation: string; last: string }[]> {
+  const rows = await db
+    .prepare(
+      `SELECT conversation, MAX(published) AS last FROM mls_messages
+       WHERE recipient_id = ? AND conversation IS NOT NULL
+       GROUP BY conversation ORDER BY last DESC`
+    )
+    .bind(recipientId)
+    .all<Row>();
+  return (rows.results ?? []).map((r) => ({ conversation: r.conversation, last: r.last }));
+}
