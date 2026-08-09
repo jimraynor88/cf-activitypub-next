@@ -735,10 +735,34 @@ export function StatusCard({
               )}
             </div>
           )}
+          {(forceDelete || (me && me.id === status.account.id)) && (
+            <>
+              {onEdit && me && me.id === status.account.id && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: "0.2rem 0.4rem" }}
+                  onClick={() => onEdit(status)}
+                  title="Editar"
+                >
+                  ✏️
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
+                  onClick={() => onDelete(status)}
+                  title="Eliminar"
+                >
+                  🗑️
+                </button>
+              )}
+            </>
+          )}
         </div>
         </div>
         )}
-        {(forceDelete || (me && me.id === status.account.id)) && (
+        {hideActions && (forceDelete || (me && me.id === status.account.id)) && (
           <>
             {onEdit && me && me.id === status.account.id && (
               <button
@@ -753,7 +777,7 @@ export function StatusCard({
             {onDelete && (
               <button
                 className="btn btn-ghost btn-sm"
-                style={{ padding: "0.2rem 0.4rem", color: "var(--danger)", marginLeft: onEdit && me && me.id === status.account.id ? undefined : "auto" }}
+                style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
                 onClick={() => onDelete(status)}
                 title="Eliminar"
               >
