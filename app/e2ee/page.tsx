@@ -32,6 +32,13 @@ function demoBase64(text: string): string {
   return btoa(bin);
 }
 
+/** Decode a base64 string produced by `demoBase64` back to text. */
+function demoUnbase64(b64: string): string {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 interface Envelope {
   mediaType: string;
   encoding: string;
@@ -73,6 +80,43 @@ function makeEnvelope(
     encoding: "base64",
     content: demoBase64(JSON.stringify(payload)),
   };
+}
+
+interface DecryptedEnvelope {
+  scheme: string;
+  version: string;
+  type: string;
+  sender: string;
+  recipient: string;
+  keyPackage: string | null;
+  ciphertext?: string;
+  plaintext: string;
+}
+
+/**
+ * Demo decryption performed entirely on the client. The server only ever stores
+ * and relays the opaque `content` envelope. In production this would call into
+ * the user's MLS library (RFC 9420) using the key packages on /e2ee.
+ */
+function demoDecrypt(content: string | null): DecryptedEnvelope | null {
+  if (!content) return null;
+  try {
+    const payload = JSON.parse(demoUnbase64(content)) as Partial<DecryptedEnvelope>;
+    if (payload.scheme !== "mls") return null;
+    if (typeof payload.ciphertext !== "string") return null;
+    const plaintext = demoUnbase64(payload.ciphertext);
+    return {
+      scheme: payload.scheme ?? "mls",
+      version: payload.version ?? "1.0",
+      type: payload.type ?? "PrivateMessage",
+      sender: payload.sender ?? "",
+      recipient: payload.recipient ?? "",
+      keyPackage: payload.keyPackage ?? null,
+      plaintext,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** POST an ActivityPub activity to the local actor's outbox. */
@@ -297,7 +341,7 @@ export default function E2EEPage() {
       const envelope = makeEnvelope(plain || " ", { sender: actorIri, recipient: resolvedIri, objectType, keyPackage: null });
       const objectId = `${actorIri}/objects/${uuid()}`;
       const to = objectType === "PublicMessage"
-        ? ["https://www.w3.org/ns/activitystreams#Public"]
+        ? ["https://www.w3.org/ns/activitystreams#Public", resolvedIri]
         : [resolvedIri];
       const activity = {
         "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
@@ -558,6 +602,9 @@ function LoadingSkeleton() {
 }
 
 function MlsMessageRow({ m, t }: { m: MlsMessage; t: ReturnType<typeof useLocale>["t"] }) {
+  const [showRaw, setShowRaw] = useState(false);
+  const decrypted = demoDecrypt(m.content);
+
   return (
     <div className="status-card flex gap-3" style={{ alignItems: "flex-start", padding: "1rem" }}>
       <Avatar sender={m.sender} />
@@ -572,7 +619,7 @@ function MlsMessageRow({ m, t }: { m: MlsMessage; t: ReturnType<typeof useLocale
             className="badge"
             style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)", border: "1px solid var(--border)" }}
           >
-            {m.type}
+            {decrypted ? `${m.type} · ${decrypted.type}` : m.type}
           </span>
           <span style={{ marginLeft: "auto", fontSize: "0.78rem", color: "var(--text-muted)" }}>
             {formatRelativeTime(m.published)}
@@ -588,11 +635,34 @@ function MlsMessageRow({ m, t }: { m: MlsMessage; t: ReturnType<typeof useLocale
           )}
         </div>
 
-        <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
-          {t.e2ee_result_hint}
-        </div>
+        {decrypted && (
+          <div
+            className="status-content"
+            style={{ marginTop: "0.5rem", fontSize: "0.95rem", lineHeight: 1.55, color: "var(--text)", overflowWrap: "break-word", wordBreak: "break-word", whiteSpace: "pre-wrap" }}
+          >
+            {decrypted.plaintext}
+          </div>
+        )}
 
-        <EnvelopePreview text={envelopePreview(m.content, t.e2ee_envelope_empty)} />
+        {!decrypted && (
+          <div style={{ marginTop: "0.25rem", fontSize: "0.8rem", color: "var(--text-secondary)" }}>
+            {t.e2ee_result_hint}
+          </div>
+        )}
+
+        {m.content && (
+          <>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ marginTop: "0.5rem", fontSize: "0.72rem", padding: "0.15rem 0.5rem", color: "var(--text-muted)" }}
+              onClick={() => setShowRaw((v) => !v)}
+            >
+              {showRaw ? t.e2ee_hide_envelope : t.e2ee_show_envelope}
+            </button>
+            {showRaw && <EnvelopePreview text={envelopePreview(m.content, t.e2ee_envelope_empty)} />}
+          </>
+        )}
 
         {m.conversation && (
           <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
