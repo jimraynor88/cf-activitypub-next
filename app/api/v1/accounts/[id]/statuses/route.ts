@@ -4,6 +4,7 @@ import { getActorById, getActorStatuses, getActorStatuses_withReplies, getAttach
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
+import { fetchAndCacheRemoteActorStatuses } from "@/lib/activitypub/remote";
 
 // GET /api/v1/accounts/:id/statuses
 export async function GET(
@@ -26,6 +27,13 @@ export async function GET(
 
   const me = await getAuthenticatedActor(request, env.DB);
   const isFollowing = me ? !!(await getFollow(env.DB, me.id, actor.id)) : false;
+
+  // Remote accounts whose statuses were never federated here have nothing in
+  // `objects`. On the first page of a remote profile, poll the actor's outbox
+  // and ingest the visible statuses so the timeline isn't empty.
+  if (!actor.isLocal && !pinnedOnly && !onlyReplies && !maxId) {
+    await fetchAndCacheRemoteActorStatuses(env.DB, actor.id, limit);
+  }
 
   // Fetch pinned statuses from status_pins table
   let pinnedSet = new Set<string>();

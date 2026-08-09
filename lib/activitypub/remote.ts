@@ -1,7 +1,20 @@
 import type { D1Database } from "@cloudflare/workers-types";
-import { sanitizeFediversePlain, sanitizeRemoteActorSummary } from "@/lib/activitypub/sanitize";
-import { getDomainCallsSupport, setDomainCallsSupport, setActorFields } from "@/lib/db";
-import { validateOutboundUrl } from "@/lib/activitypub/federation";
+import { sanitizeFediversePlain, sanitizeRemoteActorSummary, sanitizeRemoteNoteContent } from "@/lib/activitypub/sanitize";
+import {
+  getDomainCallsSupport,
+  setDomainCallsSupport,
+  setActorFields,
+  getActorById,
+  getObjectById,
+  createObject,
+  createAttachment,
+  createPoll,
+  getPollByObjectId,
+} from "@/lib/db";
+import { validateOutboundUrl, fetchRemoteObject } from "@/lib/activitypub/federation";
+import { isContentObjectType } from "@/lib/activitypub/vocab";
+import type { APAttachment, APNote, LocalAttachment } from "@/lib/types";
+import { generateId } from "@/lib/activitypub/utils";
 
 export interface RemoteActorResult {
   id: string;
@@ -211,5 +224,232 @@ export async function fetchAndCacheRemoteActor(
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve the visibility of a fediverse status from its AP audience.
+ * Mirrors the inbox's resolveVisibility so outbox-ingested objects line up.
+ */
+function outboxVisibility(to: unknown, cc: unknown): "public" | "unlisted" | "followers" | "direct" {
+  const toArr: string[] = Array.isArray(to) ? to : (to ? [to as string] : []);
+  const ccArr: string[] = Array.isArray(cc) ? cc : (cc ? [cc as string] : []);
+  const isPublic = (v: string) =>
+    v === "https://www.w3.org/ns/activitystreams#Public" ||
+    v === "http://www.w3.org/ns/activitystreams#Public" ||
+    v === "as:Public" ||
+    v === "Public";
+  if (toArr.some(isPublic)) return "public";
+  if (ccArr.some(isPublic)) return "unlisted";
+  if (toArr.some((t) => t.includes("/followers"))) return "followers";
+  return "direct";
+}
+
+/** Normalize an object's presentation URL (string, Link, or array of both). */
+function outboxObjectUrl(url: unknown, fallback: string): string {
+  if (typeof url === "string") return url;
+  if (Array.isArray(url)) {
+    for (const u of url) {
+      if (typeof u === "string") return u;
+      if (u && typeof u === "object") {
+        const href = (u as Record<string, unknown>).href;
+        if (typeof href === "string") return href;
+      }
+    }
+    return fallback;
+  }
+  if (url && typeof url === "object") {
+    const href = (url as Record<string, unknown>).href;
+    if (typeof href === "string") return href;
+  }
+  return fallback;
+}
+
+/** Parse a remote collection/collection page into its item entries. */
+async function fetchOutboxItems(
+  outboxUrl: string,
+  pageUrl?: string,
+  limit = 20
+): Promise<unknown[]> {
+  const fetched = await fetchRemoteObject(pageUrl ?? outboxUrl);
+  if (!fetched || typeof fetched !== "object") return [];
+
+  const doc = fetched as Record<string, unknown>;
+  const items = Array.isArray(doc.orderedItems)
+    ? doc.orderedItems
+    : Array.isArray(doc.items)
+      ? doc.items
+      : [];
+
+  if (items.length > 0) return items.slice(0, limit);
+
+  // Collection envelope: first page is referenced by URL (Mastodon style).
+  const first = doc.first;
+  if (typeof first === "string" && first.startsWith("https://")) {
+    const page = await fetchRemoteObject(first);
+    if (page && typeof page === "object") {
+      const pageDoc = page as Record<string, unknown>;
+      const pageItems = Array.isArray(pageDoc.orderedItems)
+        ? pageDoc.orderedItems
+        : Array.isArray(pageDoc.items)
+          ? pageDoc.items
+          : [];
+      return pageItems.slice(0, limit);
+    }
+  }
+  if (first && typeof first === "object") {
+    const firstDoc = first as Record<string, unknown>;
+    const firstItems = Array.isArray(firstDoc.orderedItems)
+      ? firstDoc.orderedItems
+      : Array.isArray(firstDoc.items)
+        ? firstDoc.items
+        : [];
+    return firstItems.slice(0, limit);
+  }
+  return [];
+}
+
+/**
+ * Poll the first page of a remote actor's outbox and ingest the public/visible
+ * Notes into the local objects table so their profile pages show content even
+ * when none of their statuses were ever federated to this instance.
+ *
+ * Idempotent: already-stored objects (by AP id) are skipped.
+ */
+export async function fetchAndCacheRemoteActorStatuses(
+  db: D1Database,
+  actorId: string,
+  limit = 20
+): Promise<number> {
+  const actor = await getActorById(db, actorId);
+  if (!actor || actor.isLocal) return 0;
+
+  const outboxUrl = `${actorId.replace(/\/+$/, "")}/outbox`;
+
+  const items = await fetchOutboxItems(outboxUrl, undefined, limit);
+  let ingested = 0;
+
+  for (const rawItem of items) {
+    if (!rawItem || typeof rawItem !== "object") continue;
+
+    // Outbox entries can be activities (Create{object}) or bare objects.
+    const item = rawItem as Record<string, unknown>;
+    let obj = item;
+    if (typeof item.type === "string" && String(item.type).toLowerCase() === "create") {
+      const inner = item.object;
+      if (typeof inner === "string") continue;
+      if (inner && typeof inner === "object") obj = inner as Record<string, unknown>;
+    }
+    if (!obj || typeof obj !== "object") continue;
+
+    // Only store content-bearing objects (Note/Article/Video/Image/Question…).
+    const objType = String(obj.type ?? "").split("/").pop() ?? "";
+    if (!isContentObjectType(objType)) continue;
+
+    const oid = obj.id as string | undefined;
+    if (!oid) continue;
+
+    // Idempotency: skip anything we already have.
+    if (await getObjectById(db, oid)) continue;
+
+    // Only surface public/unlisted statuses from an outbox fetch. Direct and
+    // followers-only posts must arrive via the real inbox to be counted.
+    const visibility = outboxVisibility(obj.to, obj.cc);
+    if (visibility !== "public" && visibility !== "unlisted") continue;
+
+    const sanitized = sanitizeRemoteNoteContent(
+      obj.content as string | undefined,
+      obj.summary as string | undefined,
+      obj.sensitive === true
+    );
+
+    const published = toIso(obj.published);
+    try {
+      await createObject(db, {
+        id: oid,
+        type: objType,
+        actorId,
+        content: sanitized.content,
+        contentWarning: sanitized.contentWarning,
+        sensitive: obj.sensitive === true,
+        visibility,
+        inReplyToId: (obj.inReplyTo as string) ?? null,
+        language: obj.contentMap ? Object.keys(obj.contentMap)[0] : null,
+        url: outboxObjectUrl(obj.url, oid),
+        repliesCount: 0,
+        reblogsCount: 0,
+        favouritesCount: 0,
+        published,
+        local: false,
+        raw: JSON.stringify(obj),
+      });
+
+      // Inline attachments (remote objects reference of their URLs).
+      if (Array.isArray(obj.attachment)) {
+        for (const attachment of obj.attachment as APAttachment[]) {
+          if (!attachment?.url || typeof attachment.url !== "string") continue;
+          const localAttachment: LocalAttachment = {
+            id: attachment.id || generateId(),
+            objectId: oid,
+            type: (attachment.type ?? "image").toLowerCase(),
+            url: attachment.url,
+            remoteUrl: attachment.url,
+            description: attachment.name ?? null,
+            blurhash: attachment.blurhash ?? null,
+            width: attachment.width ?? null,
+            height: attachment.height ?? null,
+            fileSize: null,
+            mimeType: attachment.mediaType ?? null,
+            createdAt: new Date().toISOString(),
+          };
+          try { await createAttachment(db, localAttachment); } catch { /* ignore */ }
+        }
+      }
+
+      // Backfill poll rows for Question objects.
+      if (objType === "Question") {
+        try { await ensureOutboxPollRows(db, obj as unknown as APNote); } catch { /* ignore */ }
+      }
+
+      ingested++;
+    } catch {
+      /* object insert may race / conflict; ignore and keep going */
+    }
+  }
+
+  return ingested;
+}
+
+function toIso(dateStr: unknown): string {
+  if (typeof dateStr === "string") {
+    try { return new Date(dateStr).toISOString(); } catch { /* fallthrough */ }
+  }
+  return new Date().toISOString();
+}
+
+function safe(dateStr: unknown): string {
+  try { return new Date(String(dateStr)).toISOString(); } catch { return new Date().toISOString(); }
+}
+
+/** Create poll rows for a Question ingested from a remote outbox. */
+async function ensureOutboxPollRows(db: D1Database, obj: APNote): Promise<void> {
+  if (await getPollByObjectId(db, obj.id)) return;
+  const single = Array.isArray(obj.oneOf) ? obj.oneOf : [];
+  const multi = Array.isArray(obj.anyOf) ? obj.anyOf : [];
+  const choices = single.length > 0 ? single : multi;
+  if (choices.length === 0) return;
+  const expiresAt = typeof obj.endTime === "string"
+    ? safe(obj.endTime)
+    : new Date(Date.now() + 24 * 36e5).toISOString();
+  await createPoll(db, {
+    id: generateId(),
+    objectId: obj.id,
+    expiresAt,
+    multiple: multi.length > 0,
+    options: choices.map((opt, i) => ({
+      id: generateId(),
+      title: typeof opt?.name === "string" ? opt.name : `Opción ${i + 1}`,
+      position: i,
+    })),
+  });
 }
 
