@@ -8,6 +8,8 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { useStartCallButton } from "@/components/CallOverlay";
+import { TypeBadge, APTypeBlock } from "@/components/APTypeBlock";
+import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -86,6 +88,8 @@ interface Status {
   visibility: string;
   language?: string | null;
   poll: Poll | null;
+  ap_type?: string | null;
+  ap_meta?: APMeta | null;
 }
 
 interface Me {
@@ -327,6 +331,7 @@ function StatusCard({ s, onFav, me: meProp, onEdit, onDelete }: { s: Status; onF
             {formatTime(s.created_at)}
           </Link>
         </div>
+        <TypeBadge apType={s.ap_type} />
         {s.spoiler_text && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.375rem 0.625rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)", fontSize: "0.875rem", marginBottom: "0.4rem", color: "var(--text-secondary)", gap: "0.5rem" }}>
             <span>⚠️ {s.spoiler_text}</span>
@@ -344,6 +349,7 @@ function StatusCard({ s, onFav, me: meProp, onEdit, onDelete }: { s: Status; onF
           <div style={{ fontSize: "0.95rem", lineHeight: 1.55, overflowWrap: "break-word", wordBreak: "break-word", minWidth: 0 }} dangerouslySetInnerHTML={{ __html: showTranslation && translatedContent ? translatedContent : s.content }} />
         )}
         {(!s.spoiler_text || expandedCw) && <MediaGrid attachments={s.media_attachments} />}
+        {(!s.spoiler_text || expandedCw) && <APTypeBlock apType={s.ap_type} apMeta={s.ap_meta} mediaAttachments={s.media_attachments ?? []} />}
         {(!s.spoiler_text || expandedCw) && poll && (
           <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
             {poll.options.map((opt, i) => {

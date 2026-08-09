@@ -262,6 +262,23 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     }
   }
 
+  // The display URL may be a string, a list, or a Link object (href).
+  const rawUrl = raw.url;
+  let url: string | null = null;
+  if (typeof rawUrl === "string") url = rawUrl;
+  else if (Array.isArray(rawUrl)) {
+    for (const u of rawUrl) {
+      if (typeof u === "string") { url = u; break; }
+      if (u && typeof u === "object") {
+        const href = (u as Record<string, unknown>).href;
+        if (typeof href === "string") { url = href; break; }
+      }
+    }
+  } else if (rawUrl && typeof rawUrl === "object") {
+    const href = (rawUrl as Record<string, unknown>).href;
+    if (typeof href === "string") url = href;
+  }
+
   const meta: APObjectMeta = {
     name: name ?? null,
     startTime: startTime ?? null,
@@ -270,7 +287,7 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     location: locationName,
     latitude,
     longitude,
-    url: (typeof raw.url === "string" ? raw.url : null) ?? null,
+    url,
   };
   const hasData = Object.values(meta).some((v) => v != null);
   return hasData ? meta : null;

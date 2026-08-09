@@ -151,21 +151,39 @@ export function APTypeBlock({
     );
   }
 
-  // ── Article / Page / Document: show a title header linking out ──────────
+  // ── Article / Page / Document: title header + original link ────────────
   if (apType === "Article" || apType === "Page" || apType === "Document") {
-    if (!apMeta?.name) return null;
+    const title = apMeta?.name;
+    const target = apMeta?.url;
+    let hostname: string | null = null;
+    if (target) {
+      try { hostname = new URL(target).hostname; } catch { /* ignore */ }
+    }
+    if (!title && !target) return null;
     return (
       <header style={{ marginBottom: "0.15rem" }}>
-        <Link
-          href={apMeta.url ?? "#"}
-          target={apMeta.url ? "_blank" : undefined}
-          rel={apMeta.url ? "nofollow noopener noreferrer" : undefined}
-          style={{ display: "block", fontWeight: 650, fontSize: "1.05rem", lineHeight: 1.35, color: "var(--text)", textDecoration: "none" }}
-        >
-          {apMeta.name}
-        </Link>
-        {apMeta.name && apMeta.url && (
-          <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{new URL(apMeta.url).hostname}</span>
+        {title && (
+          <Link
+            href={target ?? "#"}
+            target={target ? "_blank" : undefined}
+            rel={target ? "nofollow noopener noreferrer" : undefined}
+            style={{ display: "block", fontWeight: 650, fontSize: "1.05rem", lineHeight: 1.35, color: "var(--text)", textDecoration: "none" }}
+          >
+            {title}
+          </Link>
+        )}
+        {target && (
+          <div style={{ marginTop: title ? "0.15rem" : 0, display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+            <Link
+              href={target}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              style={{ fontSize: "0.8rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all", minWidth: 0 }}
+            >
+              {title ? "Ir al original →" : target}
+            </Link>
+            {hostname && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>· {hostname}</span>}
+          </div>
         )}
       </header>
     );
