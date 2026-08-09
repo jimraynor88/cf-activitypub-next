@@ -179,6 +179,43 @@ export async function processInboxActivity(
 // Handlers
 // ─────────────────────────────────────────
 
+/**
+ * Ensure a Question object has poll rows (polls + poll_options). Idempotent.
+ * Used by every ingestion path (Create, Update, Announce, Like) so voting
+ * options render on timelines even when the object was stored before poll
+ * rows existed (e.g. ingested via Announce/Update/Like, or a stale object).
+ */
+async function ensurePollRowsForQuestion(ctx: InboxContext, obj: APNote): Promise<void> {
+  const rawType = Array.isArray(obj.type) ? obj.type[0] : obj.type;
+  const objType = String(rawType ?? "").split("/").pop();
+  if (objType !== "Question") return;
+  if (await getPollByObjectId(ctx.db, obj.id)) return;
+
+  const single = Array.isArray(obj.oneOf) ? obj.oneOf : [];
+  const multi = Array.isArray(obj.anyOf) ? obj.anyOf : [];
+  const choices = single.length > 0 ? single : multi;
+  if (choices.length === 0) return;
+
+  const expiresAt = obj.endTime
+    ? toUtcIso(obj.endTime)
+    : new Date(Date.now() + 24 * 36e5).toISOString();
+  try {
+    await createPoll(ctx.db, {
+      id: generateId(),
+      objectId: obj.id,
+      expiresAt,
+      multiple: multi.length > 0,
+      options: choices.map((opt, i) => ({
+        id: generateId(),
+        title: typeof opt?.name === "string" ? opt.name : `Opción ${i + 1}`,
+        position: i,
+      })),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<void> {
   const obj = activity.object as APNote | undefined;
   if (!obj || typeof obj !== "object") return;
@@ -250,7 +287,12 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
   }
 
   const existing = await getObjectById(ctx.db, obj.id);
-  if (existing) return; // Already stored
+  if (existing) {
+    // Already stored. Backfill poll rows for Questions that were ingested via
+    // other paths (Announce/Update/Like) without creating them.
+    await ensurePollRowsForQuestion(ctx, obj);
+    return;
+  }
 
   const { content, contentWarning } = sanitizeRemoteNoteContent(
     obj.content,
@@ -281,29 +323,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
   // Mastodon/poll servers send a Question with the choices in `oneOf` (single
   // choice) or `anyOf` (multiple choice) and the deadline in `endTime`. Without
   // creating the poll rows the status only shows the text and never the options.
-  if (objType === "Question") {
-    const single = Array.isArray(obj.oneOf) ? obj.oneOf : [];
-    const multi = Array.isArray(obj.anyOf) ? obj.anyOf : [];
-    const choices = single.length > 0 ? single : multi;
-    if (choices.length > 0) {
-      const expiresAt = obj.endTime
-        ? toUtcIso(obj.endTime)
-        : new Date(Date.now() + 24 * 36e5).toISOString();
-      try {
-        await createPoll(ctx.db, {
-          id: generateId(),
-          objectId: obj.id,
-          expiresAt,
-          multiple: multi.length > 0,
-          options: choices.map((opt, i) => ({
-            id: generateId(),
-            title: typeof opt?.name === "string" ? opt.name : `Opción ${i + 1}`,
-            position: i,
-          })),
-        });
-      } catch { /* ignore */ }
-    }
-  }
+  await ensurePollRowsForQuestion(ctx, obj);
 
   const storedAttachments: LocalAttachment[] = [];
   if (Array.isArray(obj.attachment)) {
@@ -687,6 +707,7 @@ async function handleLike(activity: APActivity, ctx: InboxContext): Promise<void
             raw: JSON.stringify(fetched),
           });
           await saveObjectAttachments(ctx.db, fetched.id, fetched.attachment);
+          await ensurePollRowsForQuestion(ctx, fetched);
           likedObject = await getObjectById(ctx.db, objectId);
         }
       }
@@ -783,6 +804,7 @@ async function persistRemoteNote(
     raw: JSON.stringify(note),
   });
   await saveObjectAttachments(ctx.db, note.id, note.attachment);
+  await ensurePollRowsForQuestion(ctx, note);
 }
 
 async function handleAnnounce(activity: APActivity, ctx: InboxContext): Promise<void> {
@@ -925,6 +947,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
           raw: JSON.stringify(note),
         });
         await saveObjectAttachments(ctx.db, note.id, note.attachment);
+        await ensurePollRowsForQuestion(ctx, note);
       }
       return;
     }
@@ -943,6 +966,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
       language: note.contentMap ? Object.keys(note.contentMap)[0] : undefined,
       raw: JSON.stringify(note),
     });
+    await ensurePollRowsForQuestion(ctx, note);
     // Notify local users who interacted with the edited note
     const interacted = await getLocalInteractedActorIds(ctx.db, note.id);
     for (const targetId of interacted) {
