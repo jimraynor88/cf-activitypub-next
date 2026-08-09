@@ -105,6 +105,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
     { label: t.nav_timelines, icon: "🌐", href: "/timelines", badge: 0 },
     { label: t.nav_notifications, icon: "🔔", href: "/notifications", badge: unreadCount, onClick: () => setUnreadCount(0) },
     { label: t.nav_messages, icon: "💬", href: "/messages", badge: 0 },
+    { label: t.nav_e2ee, icon: "🔒", href: "/e2ee", badge: 0 },
     { label: t.nav_bookmarks, icon: "🔖", href: "/bookmarks", badge: 0 },
     { label: t.nav_favourites, icon: "❤️", href: "/favourites", badge: 0 },
     { label: t.nav_lists, icon: "📋", href: "/lists", badge: 0 },

@@ -247,6 +247,7 @@ const EN = {
   // Nav
   nav_bookmarks: "Bookmarks",
   nav_messages: "Messages",
+  nav_e2ee: "E2EE messages",
   nav_lists: "Lists",
   nav_mutes: "Mutes",
   nav_settings: "Settings",
@@ -522,6 +523,7 @@ const ES: typeof EN = {
   // Navegación
   nav_bookmarks: "Marcadores",
   nav_messages: "Mensajes",
+  nav_e2ee: "Mensajes E2EE",
   nav_lists: "Listas",
   nav_mutes: "Silenciados",
   nav_settings: "Ajustes",
