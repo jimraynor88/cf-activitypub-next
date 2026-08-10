@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, activityJson, notFound } from "@/lib/cf";
-import { getActorByUsername, getActorFields } from "@/lib/db";
+import { getActorByUsername, getActorFields, getMlsKeyPackagesByActor, countMlsMessagesByRecipient } from "@/lib/db";
 import { buildActor } from "@/lib/activitypub/utils";
 
 // GET /users/:username
@@ -23,6 +23,8 @@ export async function GET(
 
   const fields = await getActorFields(env.DB, actor.id);
   const baseUrl = `https://${domain}`;
+  const keyPackageCount = (await getMlsKeyPackagesByActor(env.DB, actor.id)).length;
+  const messageCount = await countMlsMessagesByRecipient(env.DB, actor.id);
   const apActor = buildActor(baseUrl, actor.username, {
     displayName: actor.displayName ?? undefined,
     summary: actor.summary ?? undefined,
@@ -41,12 +43,12 @@ export async function GET(
     // MLS over ActivityPub (RFC 9420 draft) collections.
     keyPackages: {
       type: "Collection",
-      totalItems: 0,
+      totalItems: keyPackageCount,
       id: `${baseUrl}/users/${actor.username}/keyPackages`,
     },
     messages: {
       type: "OrderedCollection",
-      totalItems: 0,
+      totalItems: messageCount,
       id: `${baseUrl}/users/${actor.username}/messages`,
     },
   });

@@ -43,7 +43,7 @@ import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
 import { serializeStatus, serializePoll, serializeNotification } from "@/lib/mastodon/serializers";
 import { sanitizeRemoteNoteContent, sanitizeRemoteActorSummary, sanitizeFediversePlain } from "./sanitize";
-import { isContentObjectType, isMlsObjectType } from "./vocab";
+import { isContentObjectType, mlsObjectTypeFromType } from "./vocab";
 import { storePublicMlsEnvelope } from "./mlsEnvelope";
 import {
   getMlsKeyPackageByObjectId,
@@ -238,7 +238,8 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
   const objType = (obj.type ?? "").split("/").pop() ?? "";
   // MLS envelopes (KeyPackage, Welcome, GroupInfo, PrivateMessage, PublicMessage)
   // are handled separately — they carry ciphertext, not renderable content.
-  if (isMlsObjectType(objType)) {
+  // `type` may be an array ([“Object”, “PrivateMessage”]) or a namespaced string.
+  if (mlsObjectTypeFromType(obj.type)) {
     await handleMlsCreate(activity, ctx, obj as unknown as APMlsObject);
     return;
   }
@@ -1057,8 +1058,8 @@ interface APMlsObject {
   published?: string;
 }
 
-function mlsObjectType(obj: { type?: string | string[] }): string {
-  return Array.isArray(obj.type) ? (obj.type[0] ?? "") : (obj.type ?? "");
+function mlsObjectType(obj: { type?: string | string[] | unknown }): string {
+  return mlsObjectTypeFromType(obj.type) ?? "";
 }
 
 function activityActorId(activity: APActivity): string {

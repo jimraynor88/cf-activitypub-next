@@ -3,7 +3,7 @@ import { getCloudflareContext, activityJson, notFound } from "@/lib/cf";
 import { getActorByUsername, getActorStatuses, getAttachmentsByObjectIds, getActorById } from "@/lib/db";
 import { buildNote, buildCreate, buildOrderedCollection, buildOrderedCollectionPage, actorIRI } from "@/lib/activitypub/utils";
 import { deliverToInbox, fetchRemoteObject } from "@/lib/activitypub/federation";
-import { isMlsObjectType } from "@/lib/activitypub/vocab";
+import { mlsObjectTypeFromType } from "@/lib/activitypub/vocab";
 import { storePublicMlsEnvelope } from "@/lib/activitypub/mlsEnvelope";
 import { getAuthenticatedActor } from "@/lib/auth";
 import {
@@ -230,10 +230,10 @@ export async function POST(
     }
   }
   const objectType = object && typeof object === "object"
-    ? (Array.isArray(object.type) ? (object.type[0] ?? "") : (object.type ?? ""))
+    ? (mlsObjectTypeFromType((object as { type?: unknown }).type) ?? "")
     : "";
 
-  if (type === "create" && (!object || typeof object !== "object" || !object.id || !isMlsObjectType(objectType))) {
+  if (type === "create" && (!object || typeof object !== "object" || !object.id || !objectType)) {
     return new Response(
       JSON.stringify({ error: "Create must wrap an MLS object (KeyPackage/Welcome/GroupInfo/PrivateMessage/PublicMessage)" }),
       { status: 400, headers: { "Content-Type": "application/json" } }

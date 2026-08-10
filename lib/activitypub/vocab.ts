@@ -107,6 +107,22 @@ export function isMlsObjectType(type: string): boolean {
 }
 
 /**
+ * Resolve the MLS object type out of a `type` field that may be a plain string
+ * (`"PrivateMessage"`), a namespaced string (`"mls:PrivateMessage"`), or an
+ * array like `["Object", "PrivateMessage"]` (as the draft's examples use).
+ * Returns the first recognized MLS type, or null.
+ */
+export function mlsObjectTypeFromType(type: unknown): string | null {
+  const candidates = Array.isArray(type) ? type : [type];
+  for (const c of candidates) {
+    if (typeof c !== "string") continue;
+    const last = c.split("/").pop() ?? "";
+    if (MLS_SET.has(last)) return last;
+  }
+  return null;
+}
+
+/**
  * Object types that carry user-rendered content and are surfaced on timelines
  * as a first-class "status", mirroring how Mastodon federates Article/Page/Video
  * etc. as rich posts. Everything here is stored as a LocalObject row.

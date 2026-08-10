@@ -24,7 +24,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!actor) return json({ error: "No autorizado" }, 401);
 
   const messages = await getMlsMessagesByRecipient(env.DB, actor.id, 100);
-  const keyPackages = await getMlsKeyPackagesByActor(env.DB, actor.id);
+  // List ALL key packages, active and retired, so the UI can show the lifecycle
+  // states (the public keyPackages collection still serves only active ones).
+  const keyPackages = await getMlsKeyPackagesByActor(env.DB, actor.id, false);
   const conversations = await getMlsConversationsByRecipient(env.DB, actor.id);
 
   // Resolve sender display info in one pass (mirrors how timeline statuses embed accounts).

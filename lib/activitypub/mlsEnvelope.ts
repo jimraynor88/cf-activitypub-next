@@ -1,7 +1,6 @@
 import type { D1Database } from "@cloudflare/workers-types";
 import { createObject, getObjectById } from "@/lib/db";
 import type { APActivity } from "@/lib/types";
-import { isPublic } from "./utils";
 
 /**
  * Representation of an MLS object envelope. Public MLS messages
@@ -64,8 +63,10 @@ export async function storePublicMlsEnvelope(
   published: string,
   local: boolean
 ): Promise<void> {
+  // PublicMessage is public *by type* (MLS wire format: signed, not encrypted).
+  // We deliberately do NOT require the activity to be addressed to as:Public:
+  // the draft says MLS objects must be addressed to explicit actors only.
   if (objType !== "PublicMessage") return;
-  if (!isPublic(activity)) return;
   if (!obj.id) return;
 
   const existing = await getObjectById(db, obj.id).catch(() => null);

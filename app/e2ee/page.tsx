@@ -7,19 +7,12 @@ import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusCard, type Status, type Account, type Me } from "@/components/StatusCard";
+import { generateKeyPackage } from "@/lib/mls/keypackage";
 
 // /e2ee — vista del usuario autenticado sobre sus mensajes MLS y key packages.
 // Solo se muestran metadatos y envoltorios de cifrado: este servidor nunca
 // descifra el contenido de los mensajes. La publicación de key packages y el
 // envío se hacen contra el outbox del actor.
-
-// ─── Helpers de demostración (cifrado real = cliente MLS) ─────────────────────
-
-const CIPHERSUITE = "MLS_128_HPKEX25519_AES128GCM_SHA256";
-
-function randomHex(bytes: number): string {
-  return Array.from(crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 function uuid(): string {
   return crypto.randomUUID();
@@ -45,25 +38,6 @@ interface Envelope {
   content: string;
 }
 
-/** Placeholder RFC 9420 key package (a real client would hold the private key). */
-function makeKeyPackage(): Envelope & { ciphersuite: string } {
-  // publicKey va PRIMERO en el JSON: es el único campo aleatorio y así el
-  // preview truncado de la lista (primeros ~72 chars del base64) no muestra
-  // siempre el mismo prefijo fijo.
-  const body = {
-    publicKey: randomHex(64),
-    scheme: "keypackage",
-    version: "1.0",
-    ciphersuite: CIPHERSUITE,
-  };
-  return {
-    ciphersuite: CIPHERSUITE,
-    mediaType: "application/mls+json",
-    encoding: "base64",
-    content: demoBase64(JSON.stringify(body)),
-  };
-}
-
 /** Placeholder encrypted envelope wrapping the plaintext. */
 function makeEnvelope(
   plain: string,
@@ -81,7 +55,7 @@ function makeEnvelope(
     keyPackage: opts.keyPackage,
   };
   return {
-    mediaType: "application/mls+json",
+    mediaType: "message/mls",
     encoding: "base64",
     content: demoBase64(JSON.stringify(payload)),
   };
@@ -339,7 +313,7 @@ export default function E2EEPage() {
     setPublishMsg(null);
     try {
       const actorIri = data.me.id;
-      const kp = makeKeyPackage();
+      const kp = await generateKeyPackage(actorIri);
       const objectId = `${actorIri}/keyPackages/${uuid()}`;
       const activity = {
         "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
@@ -416,9 +390,19 @@ export default function E2EEPage() {
       const actorIri = data.me.id;
       const envelope = makeEnvelope(plain || " ", { sender: actorIri, recipient: resolvedIri, objectType, keyPackage: null });
       const objectId = `${new URL(actorIri).origin}/objects/${uuid()}`;
-      const to = objectType === "PublicMessage"
-        ? ["https://www.w3.org/ns/activitystreams#Public", resolvedIri]
-        : [resolvedIri];
+      // Draft: MLS messages must be addressed only to explicit actors, never to
+      // collections (followers, as:Public). PublicMessage is public *by type*:
+      // the server surfaces its envelope on the public timeline regardless.
+      const to = [resolvedIri];
+      // `conversation` must be an IRI (an OrderedCollection of the group's
+      // activities, draft §conversation). Normalize free-text input into a
+      // conversation collection URI under the sender's actor namespace.
+      const rawConv = conversation.trim();
+      const convIri = rawConv
+        ? (/^https?:\/\//.test(rawConv)
+            ? rawConv
+            : `${actorIri}/collections/conversations/${encodeURIComponent(rawConv)}`)
+        : undefined;
       const activity = {
         "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
         id: `${actorIri}/outbox-activities/${uuid()}`,
@@ -429,7 +413,7 @@ export default function E2EEPage() {
         object: {
           id: objectId,
           type: objectType,
-          conversation: conversation.trim() || undefined,
+          conversation: convIri,
           mediaType: envelope.mediaType,
           encoding: envelope.encoding,
           content: envelope.content,
@@ -544,6 +528,7 @@ export default function E2EEPage() {
               <option value="PrivateMessage">{t.e2ee_type_private}</option>
               <option value="PublicMessage">{t.e2ee_type_public}</option>
               <option value="Welcome">{t.e2ee_type_welcome}</option>
+              <option value="GroupInfo">{t.e2ee_type_groupinfo}</option>
             </select>
             <input
               className="input"

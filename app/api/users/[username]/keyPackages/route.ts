@@ -51,7 +51,7 @@ function mlsKeyPackageObject(baseUrl: string, kp: LocalMlsKeyPackage): Record<st
     id: kp.objectId,
     type: "KeyPackage",
     ciphersuite: kp.ciphersuite ?? undefined,
-    mediaType: kp.mediaType ?? "application/mls+json",
+    mediaType: kp.mediaType ?? "message/mls",
     encoding: kp.encoding ?? undefined,
     content: kp.content ?? undefined,
   };
