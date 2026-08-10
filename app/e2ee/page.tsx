@@ -7,26 +7,26 @@ import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusCard, type Status, type Account, type Me } from "@/components/StatusCard";
-import { generateKeyPackage } from "@/lib/mls/keypackage";
+import {
+  generateKeyPackage,
+  storeSessionInitKey,
+  sealToKeyPackage,
+  openEnvelope,
+  encodeSenderContext,
+  parseKeyPackageObject,
+} from "@/lib/mls/keypackage";
 
 // /e2ee — vista del usuario autenticado sobre sus mensajes MLS y key packages.
-// Solo se muestran metadatos y envoltorios de cifrado: este servidor nunca
-// descifra el contenido de los mensajes. La publicación de key packages y el
-// envío se hacen contra el outbox del actor.
+// El cifrado y el descifrado ocurren en el navegador: este servidor nunca ve el
+// texto plano, solo los envoltorios. La publicación de key packages y el envío
+// se hacen contra el outbox del actor.
 
 function uuid(): string {
   return crypto.randomUUID();
 }
 
-function demoBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = "";
-  bytes.forEach((b) => (bin += String.fromCharCode(b)));
-  return btoa(bin);
-}
-
-/** Decode a base64 string produced by `demoBase64` back to text. */
-function demoUnbase64(b64: string): string {
+/** Decode a base64 string back to text. */
+function base64Decode(b64: string): string {
   const bin = atob(b64);
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
   return new TextDecoder().decode(bytes);
@@ -38,27 +38,28 @@ interface Envelope {
   content: string;
 }
 
-/** Placeholder encrypted envelope wrapping the plaintext. */
-function makeEnvelope(
+interface RecipientKeyPackage {
+  objectId: string | null;
+  ciphersuite?: string | null;
+  mediaType?: string | null;
+  encoding?: string | null;
+  content: string;
+}
+
+/**
+ * Real envelope: seals the plaintext with HPKE (RFC 9180) to the recipient's
+ * active KeyPackage init_key and wraps it as an MLSMessage. The key package
+ * objectId is embedded in the sender context so the recipient can open it.
+ */
+async function makeEnvelope(
   plain: string,
-  opts: { sender: string; recipient: string; objectType: string; keyPackage: string | null }
-): Envelope {
-  // ciphertext va primero en el JSON: es el contenido variable y así el
-  // preview truncado no muestra siempre el mismo prefijo fijo.
-  const payload = {
-    scheme: "mls",
-    version: "1.0",
-    type: opts.objectType,
-    ciphertext: demoBase64(plain),
-    sender: opts.sender,
-    recipient: opts.recipient,
-    keyPackage: opts.keyPackage,
-  };
-  return {
-    mediaType: "message/mls",
-    encoding: "base64",
-    content: demoBase64(JSON.stringify(payload)),
-  };
+  opts: { sender: string; recipient: string; objectType: string; keyPackage: RecipientKeyPackage }
+): Promise<Envelope> {
+  const kp = parseKeyPackageObject(opts.keyPackage);
+  if (!kp) throw new Error("recipient key package is not a valid MLS KeyPackage");
+  const senderContext = encodeSenderContext(opts.keyPackage.objectId ?? opts.recipient);
+  const content = await sealToKeyPackage(plain, kp, senderContext);
+  return { mediaType: "message/mls", encoding: "base64", content };
 }
 
 interface DecryptedEnvelope {
@@ -73,29 +74,28 @@ interface DecryptedEnvelope {
 }
 
 /**
- * Demo decryption performed entirely on the client. The server only ever stores
- * and relays the opaque `content` envelope. In production this would call into
- * the user's MLS library (RFC 9420) using the key packages on /e2ee.
+ * Real decryption performed entirely on the client. The server only ever stores
+ * and relays the opaque `content` envelope. Works when the message was sealed
+ * to a key package whose private half is registered in this browser session;
+ * otherwise it falls back to legacy JSON envelopes (scheme "mls").
  */
-function demoDecrypt(content: string | null): DecryptedEnvelope | null {
+async function decryptMessage(content: string | null): Promise<string | null> {
   if (!content) return null;
   try {
-    const payload = JSON.parse(demoUnbase64(content)) as Partial<DecryptedEnvelope>;
-    if (payload.scheme !== "mls") return null;
-    if (typeof payload.ciphertext !== "string") return null;
-    const plaintext = demoUnbase64(payload.ciphertext);
-    return {
-      scheme: payload.scheme ?? "mls",
-      version: payload.version ?? "1.0",
-      type: payload.type ?? "PrivateMessage",
-      sender: payload.sender ?? "",
-      recipient: payload.recipient ?? "",
-      keyPackage: payload.keyPackage ?? null,
-      plaintext,
-    };
+    const opened = await openEnvelope(content);
+    if (opened) return opened.plaintext;
   } catch {
-    return null;
+    /* not a real envelope */
   }
+  try {
+    const payload = JSON.parse(base64Decode(content)) as Partial<DecryptedEnvelope>;
+    if (payload.scheme === "mls" && typeof payload.ciphertext === "string") {
+      return base64Decode(payload.ciphertext);
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /** POST an ActivityPub activity to the local actor's outbox. */
@@ -213,8 +213,10 @@ function toMe(data: E2eeData): Me {
   return { id: data.me.id, username: data.me.username, acct: data.me.acct, display_name: data.me.displayName, avatar: data.me.avatarUrl ?? "" };
 }
 
-function messageToStatus(m: MlsMessage, t: ReturnType<typeof useLocale>["t"]): Status {
-  const decrypted = demoDecrypt(m.content);
+function messageToStatus(m: MlsMessage, t: ReturnType<typeof useLocale>["t"], decryptedPlaintext: string | null): Status {
+  const decrypted = decryptedPlaintext !== null
+    ? { plaintext: decryptedPlaintext, type: m.objectType ?? "PrivateMessage" }
+    : null;
   const title = escapeHtml(messageTitle(t, m));
   const parts: string[] = [];
   if (decrypted) {
@@ -254,11 +256,12 @@ function conversationToStatus(
   c: { conversation: string; last: string },
   messages: MlsMessage[],
   me: Sender,
-  t: ReturnType<typeof useLocale>["t"]
+  t: ReturnType<typeof useLocale>["t"],
+  decryptedByMessage: Map<string, string | null>
 ): Status {
   const convMsgs = messages.filter((m) => m.conversation === c.conversation);
-  const lastDecrypted = convMsgs.length ? demoDecrypt(convMsgs[convMsgs.length - 1].content) : null;
-  const preview = lastDecrypted?.plaintext ?? t.e2ee_envelope_empty;
+  const last = convMsgs.length ? convMsgs[convMsgs.length - 1] : null;
+  const preview = last && decryptedByMessage.get(last.id) ? decryptedByMessage.get(last.id)! : t.e2ee_envelope_empty;
   const content = [
     `<p style="margin:0 0 0.35rem"><strong>${escapeHtml(c.conversation)}</strong></p>`,
     `<p style="margin:0;font-size:0.8rem;color:var(--text-muted)">${convMsgs.length} ${escapeHtml(t.e2ee_stat_messages)}</p>`,
@@ -286,6 +289,8 @@ export default function E2EEPage() {
   const { t } = useLocale();
   const [data, setData] = useState<E2eeData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  // plaintext por mensaje, descifrado en el navegador (null = no descifrable aquí)
+  const [decryptedByMessage, setDecryptedByMessage] = useState<Map<string, string | null>>(new Map());
 
   const load = (signal?: AbortSignal) =>
     fetch("/api/v1/e2ee", { credentials: "include", signal })
@@ -294,6 +299,18 @@ export default function E2EEPage() {
         if (!res.ok) { setAuthed(false); return null; }
         return await res.json() as E2eeData;
       });
+
+  useEffect(() => {
+    if (!data) return;
+    let cancelled = false;
+    (async () => {
+      const entries = await Promise.all(
+        data.messages.map(async (m) => [m.id, await decryptMessage(m.content)] as const)
+      );
+      if (!cancelled) setDecryptedByMessage(new Map(entries));
+    })();
+    return () => { cancelled = true; };
+  }, [data]);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -313,8 +330,11 @@ export default function E2EEPage() {
     setPublishMsg(null);
     try {
       const actorIri = data.me.id;
-      const kp = await generateKeyPackage(actorIri);
       const objectId = `${actorIri}/keyPackages/${uuid()}`;
+      const kp = await generateKeyPackage(actorIri);
+      // Guardar la mitad privada en esta sesión: permite descifrar mensajes
+      // sellados a este key package (equivalente a persistirla en un cliente real).
+      storeSessionInitKey(objectId, kp.session());
       const activity = {
         "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
         id: `${actorIri}/outbox-activities/${uuid()}`,
@@ -388,7 +408,36 @@ export default function E2EEPage() {
     setSendMsg(null);
     try {
       const actorIri = data.me.id;
-      const envelope = makeEnvelope(plain || " ", { sender: actorIri, recipient: resolvedIri, objectType, keyPackage: null });
+      // Envelope para el destinatario: HPKE al init_key de su key package activo.
+      const kpRes = await fetch(`/api/v1/e2ee/keypackage?iri=${encodeURIComponent(resolvedIri)}`);
+      if (!kpRes.ok) {
+        setSendMsg({ ok: false, text: t.e2ee_no_key_recipient });
+        return;
+      }
+      const recipientKp = await kpRes.json() as RecipientKeyPackage;
+      const envelope = await makeEnvelope(plain || " ", {
+        sender: actorIri,
+        recipient: resolvedIri,
+        objectType,
+        keyPackage: recipientKp,
+      });
+      // Copia para el remitente: se sella el mismo texto a su PROPIO key package
+      // activo para que pueda volver a descifrarlo en la lista de mensajes. Sin
+      // esto, su copia quedaría sellada a la clave del destinatario y no sería
+      // legible para él.
+      let senderContent: string | null = null;
+      const selfKpRes = await fetch(`/api/v1/e2ee/keypackage?iri=${encodeURIComponent(actorIri)}`);
+      if (selfKpRes.ok) {
+        const selfKp = await selfKpRes.json() as RecipientKeyPackage;
+        const selfParsed = parseKeyPackageObject(selfKp);
+        if (selfParsed) {
+          senderContent = await sealToKeyPackage(
+            plain || " ",
+            selfParsed,
+            encodeSenderContext(selfKp.objectId ?? actorIri)
+          );
+        }
+      }
       const objectId = `${new URL(actorIri).origin}/objects/${uuid()}`;
       // Draft: MLS messages must be addressed only to explicit actors, never to
       // collections (followers, as:Public). PublicMessage is public *by type*:
@@ -417,6 +466,7 @@ export default function E2EEPage() {
           mediaType: envelope.mediaType,
           encoding: envelope.encoding,
           content: envelope.content,
+          senderContent,
         },
       };
       await postOutbox(data.me.username, activity);
@@ -549,7 +599,7 @@ export default function E2EEPage() {
           />
 
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
-            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>{t.e2ee_demo_note}</span>
+            <span style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>{t.e2ee_crypto_note}</span>
             <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !plain.trim() || !resolvedIri}>
               {sending ? "…" : t.e2ee_send_cta}
             </button>
@@ -619,7 +669,7 @@ export default function E2EEPage() {
           data.conversations.map((c) => (
             <StatusCard
               key={c.conversation}
-              status={conversationToStatus(c, data.messages, data.me, t)}
+              status={conversationToStatus(c, data.messages, data.me, t, decryptedByMessage)}
               me={meForCards}
               hideActions
               forceDelete
@@ -643,7 +693,7 @@ export default function E2EEPage() {
           data.messages.map((m) => (
             <StatusCard
               key={`${m.recipientId}:${m.id}`}
-              status={messageToStatus(m, t)}
+              status={messageToStatus(m, t, decryptedByMessage.get(m.id) ?? null)}
               me={meForCards}
               hideActions
               forceDelete

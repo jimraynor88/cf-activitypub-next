@@ -19,6 +19,9 @@ interface MlsOutboxObject {
   id?: string;
   type?: string | string[];
   content?: string | null;
+  // Envelope re-sealed to the sender's own key package so the sender can read
+  // their own copy locally. Falls back to `content` when absent.
+  senderContent?: string | null;
   mediaType?: string | null;
   encoding?: string | null;
   ciphersuite?: string;
@@ -305,6 +308,9 @@ export async function POST(
       }
       // Keep a copy in the sender's own messages so the composer can see it
       // after sending (mirrors how the outbox page lists recent activity).
+      // Prefer the self-sealed copy when the client sent one, otherwise the
+      // plaintext would be sealed to the recipient's key and the sender could
+      // never decrypt their own sent message.
       await insertMlsMessage(env.DB, {
         id: activityId,
         type: activity.type!,
@@ -315,7 +321,7 @@ export async function POST(
         conversation: obj.conversation ?? null,
         mediaType: obj.mediaType ?? null,
         encoding: obj.encoding ?? null,
-        content: obj.content ?? null,
+        content: obj.senderContent ?? obj.content ?? null,
         raw: JSON.stringify(activity),
         published,
       });

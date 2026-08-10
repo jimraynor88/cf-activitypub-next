@@ -6,6 +6,7 @@ export type Bytes = Uint8Array;
 
 export const MLS10 = 1; // ProtocolVersion: mls10
 export const CIPHERSUITE_P256 = 0x0002; // MLS_128_DHKEMP256_AES128GCM_SHA256_P256
+export const WIRE_FORMAT_PRIVATE_MESSAGE = 0x0002; // mls_private_message
 export const WIRE_FORMAT_KEY_PACKAGE = 0x0005; // mls_key_package
 export const CREDENTIAL_BASIC = 0x0001;
 export const LEAF_SOURCE_KEY_PACKAGE = 0x01;
@@ -24,6 +25,31 @@ export function writeVarint(value: number): Bytes {
 // opaque<V>: length-prefixed bytes
 export function opaque(data: Bytes): Bytes {
   return concat(writeVarint(data.length), data);
+}
+
+export interface Cursor {
+  bytes: Bytes;
+  offset: number;
+}
+
+export function readVarintAt(bytes: Bytes, offset: number): { value: number; next: number } {
+  const prefix = bytes[offset]! >> 6;
+  const len = 1 << prefix;
+  if (offset + len > bytes.length) throw new Error("truncated varint");
+  let value = bytes[offset]! & 0x3f;
+  for (let i = 1; i < len; i++) value = (value << 8) + bytes[offset + i]!;
+  return { value, next: offset + len };
+}
+
+export function readOpaqueAt(bytes: Bytes, offset: number): { value: Bytes; next: number } {
+  const { value: len, next } = readVarintAt(bytes, offset);
+  if (next + len > bytes.length) throw new Error("truncated opaque");
+  return { value: bytes.slice(next, next + len), next: next + len };
+}
+
+export function readUint16At(bytes: Bytes, offset: number): { value: number; next: number } {
+  if (offset + 2 > bytes.length) throw new Error("truncated uint16");
+  return { value: (bytes[offset]! << 8) + bytes[offset + 1]!, next: offset + 2 };
 }
 
 // vector<V>: length-prefixed sequence of encoded elements

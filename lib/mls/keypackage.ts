@@ -30,6 +30,15 @@ import {
   type Bytes,
   wrapMlsMessage,
 } from "./wire";
+import {
+  frameAppMessage,
+  hpkeOpenBase,
+  hpkeSealBase,
+  unframeAppMessage,
+  parseKeyPackageObject,
+  parseKeyPackageMessage,
+  type ParsedKeyPackage,
+} from "./hpke";
 
 export const CIPHERSUITE_NAME = "MLS_128_DHKEMP256_AES128GCM_SHA256_P256";
 
@@ -99,7 +108,7 @@ function encodeLifetime(nowSec: bigint): Bytes {
 // RFC 9420 §17.5: P-256 public keys are UncompressedPointRepresentation,
 // which is exactly what WebCrypto's "raw" ECDH/ECDSA export produces (65
 // bytes: 0x04 || X || Y).
-async function buildKeyPackage(identity: string): Promise<Bytes> {
+async function buildKeyPackage(identity: string): Promise<{ message: Bytes; initEcdh: CryptoKeyPair }> {
   const nowSec = BigInt(Math.floor(Date.now() / 1000));
 
   // Three ephemeral P-256 keypairs: HPKE init key, leaf encryption key and
@@ -157,16 +166,93 @@ async function buildKeyPackage(identity: string): Promise<Bytes> {
   const keyPackage = concat(keyPackageTbs, opaque(keyPackageSignature));
 
   // MLSMessage wrapper: version(mls10) + wire_format(mls_key_package) + payload.
-  return wrapMlsMessage(keyPackage);
+  return { message: wrapMlsMessage(keyPackage), initEcdh };
 }
 
 /** Key package generation entrypoint used by the E2EE UI. */
-export async function generateKeyPackage(identity: string): Promise<{ ciphersuite: string; mediaType: string; encoding: string; content: string }> {
-  const message = await buildKeyPackage(identity);
+export async function generateKeyPackage(identity: string): Promise<{ ciphersuite: string; mediaType: string; encoding: string; content: string; session: () => CryptoKeyPair }> {
+  const { message, initEcdh } = await buildKeyPackage(identity);
   return {
     ciphersuite: CIPHERSUITE_NAME,
     mediaType: "message/mls",
     encoding: "base64",
     content: toBase64(message),
+    session: () => initEcdh,
   };
 }
+
+// ─── Session key store ──────────────────────────────────────────────────────
+// In this reference UI the private init key is kept in the page's memory keyed
+// by the KeyPackage objectId, so a message sealed to that key package can be
+// opened in the same browser. A real client would persist these alongside the
+// KeyPackage (e.g. in IndexedDB) — the draft requires holding the private half
+// of the init_key to later derive the ratchet / open application messages.
+
+const sessionInitKeys = new Map<string, CryptoKeyPair>();
+
+export function storeSessionInitKey(objectId: string, keypair: CryptoKeyPair): void {
+  sessionInitKeys.set(objectId, keypair);
+}
+
+export function getSessionInitKey(objectId: string): CryptoKeyPair | undefined {
+  return sessionInitKeys.get(objectId);
+}
+
+// ─── Real message sealing / opening ─────────────────────────────────────────
+// "Send" encrypts the plaintext to the recipient's KeyPackage init_key with
+// HPKE (RFC 9180) and wraps it as an MLSMessage. This is the same step a real
+// MLS client runs (SealBase) before delivering the envelope; only the MLS group
+// ratchet is out of scope for this reference UI.
+
+const ENCRYPT_LABEL = "MLS 1.0 PrivateMessage";
+
+/** Encrypt plaintext to a recipient KeyPackage object. */
+export async function sealToKeyPackage(
+  plaintext: string,
+  recipientKeyPackage: ParsedKeyPackage,
+  senderContext: Bytes
+): Promise<string> {
+  const info = encodeText(ENCRYPT_LABEL);
+  const { enc, ciphertext } = await hpkeSealBase(recipientKeyPackage.initKey, info, encodeText(plaintext));
+  return frameAppMessage(enc, ciphertext, senderContext);
+}
+
+/**
+ * Attempt to open an MLSMessage envelope using a session init key matched by
+ * the keyPackage objectId embedded in the sender context. Returns the
+ * plaintext and context, or null when the key package was never registered in
+ * this browser (e.g. published from another client) or parsing fails.
+ */
+export async function openEnvelope(content: string): Promise<{ plaintext: string; senderContext: Bytes } | null> {
+  try {
+    const { enc, ciphertext, senderContext } = unframeAppMessage(content);
+    const keyPackageId = parseSenderContextKeyPackage(senderContext);
+    const keypair = keyPackageId ? getSessionInitKey(keyPackageId) : undefined;
+    if (!keypair) return null;
+    const publicRaw = new Uint8Array(await crypto.subtle.exportKey("raw", keypair.publicKey));
+    const info = encodeText(ENCRYPT_LABEL);
+    const plaintextBytes = await hpkeOpenBase(keypair.privateKey, publicRaw, info, enc, ciphertext);
+    return { plaintext: new TextDecoder().decode(plaintextBytes), senderContext };
+  } catch {
+    return null;
+  }
+}
+
+// The sender context is a small JSON blob `{ keyPackage: "<objectId>" }` so the
+// recipient can find the matching session init key. Kept opaque on the wire.
+export function encodeSenderContext(keyPackageId: string): Bytes {
+  return encodeText(JSON.stringify({ keyPackage: keyPackageId }));
+}
+
+function parseSenderContextKeyPackage(senderContext: Bytes): string | null {
+  try {
+    const parsed = JSON.parse(new TextDecoder().decode(senderContext)) as { keyPackage?: unknown };
+    return typeof parsed.keyPackage === "string" ? parsed.keyPackage : null;
+  } catch {
+    return null;
+  }
+}
+
+// Re-export so the UI can extract a recipient's init_key from a KeyPackage object.
+export { parseKeyPackageObject, parseKeyPackageMessage };
+export type { ParsedKeyPackage };
