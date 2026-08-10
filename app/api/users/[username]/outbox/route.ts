@@ -73,6 +73,11 @@ export async function GET(
   const items = statuses
     .filter((s) => s.visibility === "public")
     .map((s) => {
+      // s.id is the full object IRI (https://{domain}/objects/{uuid}); buildNote
+      // expects the bare uuid and wraps it with objectIRI, so passing the full
+      // IRI would produce a double-prefixed id (https://{domain}/objects/https://…)
+      // and cause the remote instance to ingest the same post twice.
+      const objectUuid = s.id.split("/").pop() ?? s.id;
       const attachments = (attachmentMap.get(s.id) ?? []).map(toAPAttachment);
       let tags: APTag[] | undefined;
       let to: string[] | undefined;
@@ -83,7 +88,7 @@ export async function GET(
         if (Array.isArray(raw.to)) to = raw.to as string[];
         if (Array.isArray(raw.cc)) cc = raw.cc as string[];
       } catch { /* ignore parse errors */ }
-      const note = buildNote(baseUrl, s.id, {
+      const note = buildNote(baseUrl, objectUuid, {
         actorUsername: username,
         content: s.content ?? "",
         published: s.published,
@@ -99,7 +104,7 @@ export async function GET(
       if (attachments.length > 0) {
         note.attachment = attachments;
       }
-      return buildCreate(baseUrl, actorIRI(baseUrl, username), note, s.id + "-create");
+      return buildCreate(baseUrl, actorIRI(baseUrl, username), note, objectUuid + "-create");
     });
 
   const nextId =
