@@ -212,7 +212,18 @@ export async function POST(
   }
 
   const object = (activity.object ?? null) as MlsOutboxObject | string | null;
-  const objectId = typeof object === "string" ? object : (object?.id ?? null);
+  let objectId = typeof object === "string" ? object : (object?.id ?? null);
+  // Local MLS objects must live under https://{domain}/objects/{uuid} so the
+  // Mastodon API status-id encoding (encode/decodeStatusId) round-trips and
+  // status detail pages can resolve them. Actors may send actor-scoped IDs
+  // (`…/users/name/objects/…`); normalise them to the canonical form.
+  if (objectId && objectId.startsWith(`${actorIri}/objects/`)) {
+    const seg = objectId.split("/").pop();
+    if (seg) {
+      objectId = `${baseUrl}/objects/${seg}`;
+      if (object && typeof object === "object") object.id = objectId;
+    }
+  }
   const objectType = object && typeof object === "object"
     ? (Array.isArray(object.type) ? (object.type[0] ?? "") : (object.type ?? ""))
     : "";

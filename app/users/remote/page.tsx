@@ -7,8 +7,9 @@ import Image from "next/image";
 import { useSearchParams, usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
-import { Lightbox } from "@/components/Lightbox";
 import { useStartCallButton } from "@/components/CallOverlay";
+import { StatusCard } from "@/components/StatusCard";
+import type { Status as SharedStatus } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -87,14 +88,6 @@ interface Relationship {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  const diff = (Date.now() - d.getTime()) / 1000;
-  if (diff < 60) return `${Math.floor(diff)}s`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-  return d.toLocaleDateString();
-}
 
 function AvatarImg({ account, size = 42 }: { account: Account; size?: number }) {
   const [err, setErr] = useState(false);
@@ -117,45 +110,6 @@ function AvatarImg({ account, size = 42 }: { account: Account; size?: number }) 
   );
 }
 
-function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
-  const [lbIdx, setLbIdx] = useState<number | null>(null);
-  if (!attachments.length) return null;
-  const gridCols = attachments.length === 1 ? 1 : 2;
-  return (
-    <>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${gridCols}, 1fr)`, gap: "0.25rem", marginTop: "0.75rem", borderRadius: "var(--radius)", overflow: "hidden" }}>
-        {attachments.map((att, i) =>
-          att.type === "image" || att.type === "gifv" ? (
-            <button key={att.id} type="button" onClick={() => setLbIdx(i)}
-              title={att.description ?? undefined}
-              style={{ display: "block", position: "relative", aspectRatio: attachments.length === 1 ? "16/9" : "1/1", overflow: "hidden", border: "none", padding: 0, cursor: "zoom-in", background: "none" }}>
-              <Image src={att.preview_url ?? att.url} alt={att.description ?? ""} fill sizes="(max-width: 768px) 100vw, 600px" style={{ objectFit: "cover" }} />
-            </button>
-          ) : att.type === "video" ? (
-            <button key={att.id} type="button" onClick={() => setLbIdx(i)}
-              style={{ display: "block", aspectRatio: "16/9", overflow: "hidden", border: "none", padding: 0, cursor: "pointer", background: "var(--bg-elevated)", position: "relative" }}>
-              <video src={att.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>▶</div>
-            </button>
-          ) : att.type === "audio" ? (
-            <button key={att.id} type="button" onClick={() => setLbIdx(i)}
-              style={{ display: "block", aspectRatio: "3/1", overflow: "hidden", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: 0, cursor: "pointer", background: "var(--bg-elevated)", position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>🎵</div>
-            </button>
-          ) : null
-        )}
-      </div>
-      {lbIdx !== null && (
-        <Lightbox
-          media={attachments.map((a) => ({ url: a.url, preview_url: a.preview_url, description: a.description, type: a.type }))}
-          index={lbIdx}
-          onClose={() => setLbIdx(null)}
-          onNav={setLbIdx}
-        />
-      )}
-    </>
-  );
-}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -169,158 +123,6 @@ function AccountRow({ account }: { account: Account }) {
         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>@{account.acct}</div>
       </div>
     </a>
-  );
-}
-
-function StatusCard({ s, onFav, onReblog, me: meProp, onEdit, onDelete }: { s: Status; onFav: () => void; onReblog: () => void; me?: { id: string } | null; onEdit?: (s: Status) => void; onDelete?: (s: Status) => void }) {
-  const token = getToken();
-  const [expandedCw, setExpandedCw] = useState(false);
-  const [pollState, setPollState] = useState<Poll | null>(s.poll ?? null);
-  const [voting, setVoting] = useState(false);
-  const [selected, setSelected] = useState<number[]>([]);
-  const [translating, setTranslating] = useState(false);
-  const [translatedContent, setTranslatedContent] = useState<string | null>(null);
-  const [showTranslation, setShowTranslation] = useState(false);
-  const { t: i18n } = useLocale();
-
-  async function handleTranslate() {
-    if (translatedContent) {
-      setShowTranslation((v) => !v);
-      return;
-    }
-    const t = getToken();
-    if (!t) return;
-    setTranslating(true);
-    try {
-      const targetLang = navigator.language.slice(0, 2) || "en";
-      const res = await fetch(`/api/v1/statuses/${encodeURIComponent(s.id)}/translate`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${t}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ lang: targetLang }),
-      });
-      if (res.ok) {
-        const data = await res.json() as { content?: string };
-        if (data.content) {
-          setTranslatedContent(data.content);
-          setShowTranslation(true);
-        }
-      }
-    } catch {
-      // silently fail
-    } finally {
-      setTranslating(false);
-    }
-  }
-
-  const isRemote = s.account.acct.includes("@");
-  const profileHref = isRemote ? `/users/remote?url=${encodeURIComponent(s.account.id)}` : `/users/${s.account.username}`;
-  const threadHref = `/statuses/${encodeURIComponent(s.id)}`;
-
-  async function vote() {
-    if (!token || !pollState || voting || selected.length === 0) return;
-    setVoting(true);
-    try {
-      const res = await fetch(`/api/v1/polls/${pollState.id}/votes`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ choices: selected }),
-      });
-      if (res.ok) setPollState((await res.json()) as Poll);
-    } finally { setVoting(false); }
-  }
-
-  const poll = pollState;
-  const showResults = poll ? (poll.voted || poll.expired) : false;
-  const total = poll && poll.votes_count > 0 ? poll.votes_count : 1;
-
-  return (
-    <article style={{ display: "flex", gap: "0.875rem", padding: "1rem", borderBottom: "1px solid var(--border)" }}>
-      <a href={profileHref} style={{ flexShrink: 0 }}>
-        <AvatarImg account={s.account} size={42} />
-      </a>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: "0.4rem", marginBottom: "0.25rem", flexWrap: "wrap" }}>
-          <a href={profileHref} style={{ fontWeight: 600, fontSize: "0.9rem", color: "var(--text)", textDecoration: "none" }}>{s.account.display_name || s.account.username}</a>
-          <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>@{s.account.acct}</span>
-          <a href={threadHref} title={new Date(s.created_at).toLocaleString()} style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginLeft: "auto", textDecoration: "none" }}>{formatTime(s.created_at)}</a>
-        </div>
-        {s.spoiler_text && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0.375rem 0.625rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)", fontSize: "0.875rem", marginBottom: "0.4rem", color: "var(--text-secondary)", gap: "0.5rem" }}>
-            <span>⚠️ {s.spoiler_text}</span>
-            <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem", whiteSpace: "nowrap", flexShrink: 0 }} onClick={() => setExpandedCw((v) => !v)}>
-              {expandedCw ? "Ocultar" : "Mostrar"}
-            </button>
-          </div>
-        )}
-        {(!s.spoiler_text || expandedCw) && (
-          <div style={{ fontSize: "0.95rem", lineHeight: 1.55, overflowWrap: "break-word", wordBreak: "break-word", minWidth: 0 }} dangerouslySetInnerHTML={{ __html: showTranslation && translatedContent ? translatedContent : s.content }} />
-        )}
-        {(!s.spoiler_text || expandedCw) && <MediaGrid attachments={s.media_attachments ?? []} />}
-        {(!s.spoiler_text || expandedCw) && poll && (
-          <div style={{ marginTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            {poll.options.map((opt, i) => {
-              const pct = showResults && opt.votes_count != null ? Math.round((opt.votes_count / total) * 100) : 0;
-              const isOwn = poll.own_votes.includes(i) || selected.includes(i);
-              return (
-                <div key={i}>
-                  {showResults ? (
-                    <div style={{ position: "relative", borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--bg-elevated)", padding: "0.35rem 0.75rem" }}>
-                      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`, background: isOwn ? "var(--accent-bg)" : "color-mix(in srgb, var(--accent-bg) 40%, transparent)", transition: "width 0.4s" }} />
-                      <div style={{ position: "relative", display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
-                        <span style={{ fontWeight: isOwn ? 600 : 400 }}>{opt.title}{isOwn ? " ✓" : ""}</span>
-                        <span style={{ color: "var(--text-muted)" }}>{pct}%</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => { if (poll.multiple) setSelected((p) => p.includes(i) ? p.filter((x) => x !== i) : [...p, i]); else setSelected([i]); }} style={{ width: "100%", textAlign: "left", padding: "0.35rem 0.75rem", border: `1.5px solid ${selected.includes(i) ? "var(--accent)" : "var(--border)"}`, borderRadius: "var(--radius-sm)", background: selected.includes(i) ? "var(--accent-bg)" : "transparent", cursor: "pointer", fontSize: "0.875rem", color: "var(--text)" }}>
-                      {opt.title}
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-            <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
-              {!poll.voted && !poll.expired && token && (
-                <button type="button" className="btn btn-primary btn-sm" disabled={selected.length === 0 || voting} onClick={() => void vote()}>
-                  {voting ? "…" : "Votar"}
-                </button>
-              )}
-              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                {poll.votes_count} {poll.votes_count === 1 ? "voto" : "votos"}
-                {poll.expires_at && (<> · {poll.expired ? "Cerrada" : `Cierra ${new Date(poll.expires_at).toLocaleDateString()}`}</>)}
-                {poll.multiple && " · Opción múltiple"}
-              </span>
-            </div>
-          </div>
-        )}
-        <div style={{ display: "flex", gap: "1rem", marginTop: "0.625rem", color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "wrap" }}>
-          <a href={threadHref} className="btn btn-ghost btn-sm" style={{ padding: "0.15rem 0.35rem", gap: "0.25rem", textDecoration: "none", color: "var(--text-muted)" }}>💬 {s.replies_count}</a>
-          <button className="btn btn-ghost btn-sm" style={{ padding: "0.15rem 0.35rem", gap: "0.25rem", color: s.reblogged ? "var(--accent)" : "var(--text-muted)" }} onClick={onReblog}>🔁 {s.reblogs_count}</button>
-          <button className="btn btn-ghost btn-sm" style={{ padding: "0.15rem 0.35rem", gap: "0.25rem", color: s.favourited ? "var(--danger)" : "var(--text-muted)" }} onClick={onFav}>{s.favourited ? "❤️" : "🤍"} {s.favourites_count}</button>
-          {s.language && (
-            <button
-              className="btn btn-ghost btn-sm"
-              style={{ padding: "0.15rem 0.35rem", gap: "0.25rem", fontSize: "0.7rem", marginLeft: "auto" }}
-              onClick={() => void handleTranslate()}
-              disabled={translating}
-              title={s.language}
-            >
-              {translating ? "…" : showTranslation ? i18n.show_original : i18n.translate}
-            </button>
-          )}
-          {meProp && meProp.id === s.account.id && (
-            <>
-              {onEdit && (
-                <button className="btn btn-ghost btn-sm" style={{ padding: "0.15rem 0.35rem", marginLeft: "auto" }} onClick={() => onEdit(s)} title="Editar">✏️</button>
-              )}
-              {onDelete && (
-                <button className="btn btn-ghost btn-sm" style={{ padding: "0.15rem 0.35rem", color: "var(--danger)" }} onClick={() => onDelete(s)} title="Eliminar">🗑️</button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-    </article>
   );
 }
 
@@ -343,7 +145,7 @@ function RemoteProfileInner() {
   const [blockBusy, setBlockBusy] = useState(false);
   const [muteBusy, setMuteBusy] = useState(false);
   const [me, setMe] = useState<Account | null>(null);
-  const [editingStatus, setEditingStatus] = useState<Status | null>(null);
+  const [editingStatus, setEditingStatus] = useState<SharedStatus | null>(null);
   const [editText, setEditText] = useState("");
   const [editSpoiler, setEditSpoiler] = useState("");
   const [editBusy, setEditBusy] = useState(false);
@@ -463,47 +265,12 @@ function RemoteProfileInner() {
     }
   }
 
-  async function toggleFavourite(status: Status) {
-    if (!token) return;
-    const path = status.favourited ? "unfavourite" : "favourite";
-    const res = await fetch(`/api/v1/statuses/${status.id}/${path}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setStatuses((prev) => prev.map((s) =>
-        s.id === status.id
-          ? {
-              ...s,
-              favourited: !s.favourited,
-              favourites_count: s.favourites_count + (s.favourited ? -1 : 1),
-            }
-          : s
-      ));
-    }
+  function handleStatusUpdate(updated: SharedStatus) {
+    const applied = updated as Status;
+    setStatuses((prev) => prev.map((s) => (s.id === applied.id ? applied : s)));
   }
 
-  async function toggleReblog(status: Status) {
-    if (!token) return;
-    const path = status.reblogged ? "unreblog" : "reblog";
-    const res = await fetch(`/api/v1/statuses/${status.id}/${path}`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) {
-      setStatuses((prev) => prev.map((s) =>
-        s.id === status.id
-          ? {
-              ...s,
-              reblogged: !s.reblogged,
-              reblogs_count: s.reblogs_count + (s.reblogged ? -1 : 1),
-            }
-          : s
-      ));
-    }
-  }
-
-  function openEdit(s: Status) {
+  function openEdit(s: SharedStatus) {
     const div = typeof document !== "undefined" ? document.createElement("div") : null;
     if (div) {
       div.innerHTML = s.content.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n");
@@ -531,7 +298,7 @@ function RemoteProfileInner() {
     setEditBusy(false);
   }
 
-  async function handleDelete(s: Status) {
+  async function handleDelete(s: SharedStatus) {
     if (!token) return;
     if (!confirm("¿Eliminar este estado?")) return;
     const res = await fetch(`/api/v1/statuses/${encodeURIComponent(s.id)}`, {
@@ -733,9 +500,10 @@ function RemoteProfileInner() {
             {statuses.map((s) => (
               <StatusCard
                 key={s.id}
-                s={s}
-                onFav={() => void toggleFavourite(s)}
-                onReblog={() => void toggleReblog(s)}
+                status={s}
+                onFav={handleStatusUpdate}
+                onReblog={handleStatusUpdate}
+                onReply={(st) => router.push(`/statuses/${encodeURIComponent(st.id)}?reply=1`)}
                 me={me}
                 onEdit={openEdit}
                 onDelete={handleDelete}

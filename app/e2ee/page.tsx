@@ -415,7 +415,7 @@ export default function E2EEPage() {
     try {
       const actorIri = data.me.id;
       const envelope = makeEnvelope(plain || " ", { sender: actorIri, recipient: resolvedIri, objectType, keyPackage: null });
-      const objectId = `${actorIri}/objects/${uuid()}`;
+      const objectId = `${new URL(actorIri).origin}/objects/${uuid()}`;
       const to = objectType === "PublicMessage"
         ? ["https://www.w3.org/ns/activitystreams#Public", resolvedIri]
         : [resolvedIri];
