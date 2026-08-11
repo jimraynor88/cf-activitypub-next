@@ -614,9 +614,9 @@ export default function E2EEPage() {
       {/* Publicar key package */}
       <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>🗝️ {t.e2ee_publish_button}</h2>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 460 }}>{t.e2ee_publish_desc}</p>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_publish_desc}</p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={handlePublish} disabled={publishing}>
             {publishing ? "…" : `➕ ${t.e2ee_publish_button}`}
@@ -628,9 +628,9 @@ export default function E2EEPage() {
       {/* Copia de seguridad / restauración de claves */}
       <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
             <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>💾 {t.e2ee_keys_title}</h2>
-            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 520 }}>{t.e2ee_keys_desc}</p>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_keys_desc}</p>
             <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>{t.e2ee_keys_note}</p>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
