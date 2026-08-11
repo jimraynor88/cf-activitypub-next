@@ -291,7 +291,7 @@ export default function HomePage() {
               <input
                 type="text"
                 className="input"
-                placeholder="Advertencia de contenido…"
+                placeholder={`${t.cw_placeholder}…`}
                 value={cwText}
                 onChange={(e) => setCwText(e.target.value)}
                 maxLength={200}
@@ -345,7 +345,7 @@ export default function HomePage() {
                   </select>
                   <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.8rem", cursor: "pointer" }}>
                     <input type="checkbox" checked={pollMultiple} onChange={(e) => setPollMultiple(e.target.checked)} />
-                    Opción múltiple
+                    {t.poll_multiple}
                   </label>
                 </div>
               </div>
@@ -404,7 +404,7 @@ export default function HomePage() {
                     className="btn btn-ghost btn-sm"
                     style={{ fontSize: "1.15rem", padding: "0.3rem 0.5rem", background: emojiOpen ? "var(--accent-bg)" : undefined }}
                     onClick={() => setEmojiOpen((o) => !o)}
-                    title="Emoji"
+                    title={t.composer_emoji}
                   >
                     😊
                   </button>
@@ -439,7 +439,7 @@ export default function HomePage() {
                   className="btn btn-ghost btn-sm"
                   style={{ fontSize: "1rem", padding: "0.3rem 0.5rem", background: showCw ? "var(--accent-bg)" : undefined }}
                   onClick={() => setShowCw((v) => !v)}
-                  title="Advertencia de contenido"
+                  title={t.cw_placeholder}
                 >
                   ⚠️
                 </button>
@@ -450,7 +450,7 @@ export default function HomePage() {
                   style={{ fontSize: "1rem", padding: "0.3rem 0.5rem", background: pollMode ? "var(--accent-bg)" : undefined }}
                   onClick={() => setPollMode((v) => !v)}
                   disabled={mediaFiles.length > 0}
-                  title="Encuesta"
+                  title={t.composer_poll}
                 >
                   📊
                 </button>
@@ -460,7 +460,7 @@ export default function HomePage() {
                   className="btn btn-ghost btn-sm"
                   style={{ fontSize: "1rem", padding: "0.3rem 0.5rem", background: scheduling ? "var(--accent-bg)" : undefined }}
                   onClick={() => setScheduling((v) => !v)}
-                  title="Programar"
+                  title={t.composer_schedule}
                 >
                   🕐
                 </button>
@@ -549,7 +549,7 @@ export default function HomePage() {
         >
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: "1rem" }}>Editar estado</span>
+              <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
               <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
@@ -557,7 +557,7 @@ export default function HomePage() {
                 type="text"
                 value={editSpoiler}
                 onChange={(e) => setEditSpoiler(e.target.value)}
-                placeholder="Advertencia de contenido"
+                placeholder={t.cw_placeholder}
                 className="input"
                 style={{ width: "100%" }}
               />
@@ -566,7 +566,7 @@ export default function HomePage() {
               autoFocus
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              placeholder="Edita tu estado…"
+              placeholder={t.edit_status_placeholder}
               maxLength={500}
               className="input"
               style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
@@ -574,9 +574,9 @@ export default function HomePage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{editText.length}/500</span>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>{t.profile_cancel}</button>
                 <button type="button" className="btn btn-primary btn-sm" disabled={!editText.trim() || editBusy} onClick={() => void handleEditSave()}>
-                  {editBusy ? "…" : "Guardar"}
+                  {editBusy ? "…" : t.profile_save}
                 </button>
               </div>
             </div>

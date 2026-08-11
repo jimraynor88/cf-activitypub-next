@@ -34,6 +34,8 @@ const mockT = {
   nav_profile: "Profile",
   nav_settings: "Settings",
   nav_logout: "Log out",
+  nav_blocks: "Blocks",
+  nav_emojis: "Emojis",
   theme_light: "Light",
   theme_dark: "Dark",
 };

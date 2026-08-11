@@ -249,6 +249,7 @@ export function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
 // ─── PollView ─────────────────────────────────────────────────────────────────
 
 export function PollView({ poll: initialPoll }: { poll: Poll }) {
+  const { t } = useLocale();
   const [poll, setPoll] = useState<Poll>(initialPoll);
   const [voting, setVoting] = useState(false);
   const [selected, setSelected] = useState<number[]>([]);
@@ -304,13 +305,13 @@ export function PollView({ poll: initialPoll }: { poll: Poll }) {
       <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.25rem" }}>
         {canVote && (
           <button type="button" className="btn btn-primary btn-sm" disabled={selected.length === 0 || voting} onClick={() => void vote()}>
-            {voting ? "…" : "Votar"}
+            {voting ? "…" : t.poll_vote}
           </button>
         )}
         <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-          {poll.votes_count} {poll.votes_count === 1 ? "voto" : "votos"}
-          {poll.expires_at && <> · {poll.expired ? "Cerrada" : `Cierra ${new Date(poll.expires_at).toLocaleDateString()}`}</>}
-          {poll.multiple && " · Opción múltiple"}
+          {poll.votes_count} {poll.votes_count === 1 ? t.poll_votes_1 : t.poll_votes_n}
+          {poll.expires_at && <> · {poll.expired ? t.poll_closed : t.poll_closes.replace("{date}", new Date(poll.expires_at).toLocaleDateString())}</>}
+          {poll.multiple && ` · ${t.poll_multiple}`}
         </span>
       </div>
     </div>
@@ -367,7 +368,7 @@ export function StatusCard({
   const [showTranslation, setShowTranslation] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { t: i18n } = useLocale();
+  const { t } = useLocale();
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -587,7 +588,7 @@ export function StatusCard({
               style={{ fontSize: "0.75rem", padding: "0.15rem 0.5rem", whiteSpace: "nowrap", flexShrink: 0 }}
               onClick={() => setCwExpanded((v) => !v)}
             >
-              {cwExpanded ? "Ocultar" : "Mostrar"}
+              {cwExpanded ? t.cw_hide : t.cw_show}
             </button>
           </div>
         )}
@@ -607,7 +608,7 @@ export function StatusCard({
         {showContent && <MediaGrid attachments={status.media_attachments ?? []} />}
         {showContent && status.poll && <PollView poll={status.poll} />}
         {status.edited_at && (
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ editado</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ {t.status_edited}</div>
         )}
         {!hideActions && (
         <div className="flex gap-5 mt-3" style={{ color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "wrap" }}>
@@ -658,7 +659,7 @@ export function StatusCard({
             }}
             onClick={() => void handleBookmark()}
             disabled={!token}
-            title={bookmarked ? "Quitar marcador" : "Añadir marcador"}
+            title={bookmarked ? t.bookmark_remove : t.bookmark_add}
           >
             {bookmarked ? "🔖" : "🏷️"}
           </button>
@@ -670,7 +671,7 @@ export function StatusCard({
               disabled={translating}
               title={status.language}
             >
-              {translating ? "…" : showTranslation ? i18n.show_original : i18n.translate}
+              {translating ? "…" : showTranslation ? t.show_original : t.translate}
             </button>
           )}
           <div ref={menuRef} style={{ position: "relative", marginLeft: "auto" }}>
@@ -717,7 +718,7 @@ export function StatusCard({
                     }}
                     onClick={() => { setMenuOpen(false); void handlePin(); }}
                   >
-                    📌 {pinned ? "Desfijar" : "Fijar"}
+                    📌 {pinned ? t.pin_unpin : t.pin_pin}
                   </button>
                   <button
                     type="button"
@@ -729,7 +730,7 @@ export function StatusCard({
                     }}
                     onClick={() => { setMenuOpen(false); void handleMute(); }}
                   >
-                    🔇 {muted ? "Dejar de silenciar" : "Silenciar"}
+                    🔇 {muted ? t.mute_unmute : t.mute_mute}
                   </button>
                 </>
               )}
@@ -742,7 +743,7 @@ export function StatusCard({
                   className="btn btn-ghost btn-sm"
                   style={{ padding: "0.2rem 0.4rem" }}
                   onClick={() => onEdit(status)}
-                  title="Editar"
+                  title={t.action_edit}
                 >
                   ✏️
                 </button>
@@ -752,7 +753,7 @@ export function StatusCard({
                   className="btn btn-ghost btn-sm"
                   style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
                   onClick={() => onDelete(status)}
-                  title="Eliminar"
+                  title={t.action_delete}
                 >
                   🗑️
                 </button>
@@ -769,7 +770,7 @@ export function StatusCard({
                 className="btn btn-ghost btn-sm"
                 style={{ padding: "0.2rem 0.4rem", marginLeft: "auto" }}
                 onClick={() => onEdit(status)}
-                title="Editar"
+                title={t.action_edit}
               >
                 ✏️
               </button>
@@ -779,7 +780,7 @@ export function StatusCard({
                 className="btn btn-ghost btn-sm"
                 style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
                 onClick={() => onDelete(status)}
-                title="Eliminar"
+                title={t.action_delete}
               >
                 🗑️
               </button>

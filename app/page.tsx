@@ -5,9 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/client-api";
+import { useLocale } from "@/lib/i18n";
 
 export default function Home() {
   const { authenticated, loading } = useAuth();
+  const { t, locale, setLocale } = useLocale();
   const router = useRouter();
 
   useEffect(() => {
@@ -16,6 +18,20 @@ export default function Home() {
 
   if (loading) return null;
   if (authenticated) return null;
+
+  const features = [
+    { icon: "⚡", title: t.f_edge_title, desc: t.f_edge_desc },
+    { icon: "🌐", title: t.f_mastodon_title, desc: t.f_mastodon_desc },
+    { icon: "🔗", title: t.f_federation_title, desc: t.f_federation_desc },
+    { icon: "🔒", title: t.f_http_title, desc: t.f_http_desc },
+    { icon: "🔁", title: t.f_streaming_title, desc: t.f_streaming_desc },
+    { icon: "🔔", title: t.f_push_title, desc: t.f_push_desc },
+    { icon: "🤖", title: t.f_moderation_title, desc: t.f_moderation_desc },
+    { icon: "🎨", title: t.f_alttext_title, desc: t.f_alttext_desc },
+    { icon: "📞", title: t.f_webrtc_title, desc: t.f_webrtc_desc },
+    { icon: "🗄️", title: t.f_d1_title, desc: t.f_d1_desc },
+    { icon: "🛡️", title: t.f_mls_title, desc: t.f_mls_desc },
+  ];
 
   return (
     <main className="flex flex-col flex-1">
@@ -29,8 +45,34 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="btn btn-outline btn-sm">Sign in</Link>
-            <Link href="/register" className="btn btn-primary btn-sm">Join</Link>
+            <div className="flex gap-1" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "0.15rem" }}>
+              <button
+                onClick={() => setLocale("en")}
+                className="btn btn-ghost btn-sm"
+                style={{
+                  fontWeight: locale === "en" ? 700 : 400,
+                  background: locale === "en" ? "var(--accent-bg)" : undefined,
+                  color: locale === "en" ? "var(--accent)" : "var(--text-muted)",
+                  padding: "0.15rem 0.5rem",
+                }}
+              >
+                EN
+              </button>
+              <button
+                onClick={() => setLocale("es")}
+                className="btn btn-ghost btn-sm"
+                style={{
+                  fontWeight: locale === "es" ? 700 : 400,
+                  background: locale === "es" ? "var(--accent-bg)" : undefined,
+                  color: locale === "es" ? "var(--accent)" : "var(--text-muted)",
+                  padding: "0.15rem 0.5rem",
+                }}
+              >
+                ES
+              </button>
+            </div>
+            <Link href="/login" className="btn btn-outline btn-sm">{t.landing_signin}</Link>
+            <Link href="/register" className="btn btn-primary btn-sm">{t.landing_join}</Link>
           </div>
         </div>
       </nav>
@@ -47,21 +89,20 @@ export default function Home() {
         />
 
         <div className="animate-fade-in relative z-10 flex flex-col items-center gap-6 max-w-3xl">
-          <span className="badge badge-accent mb-2">Open · Federated · Edge-native</span>
+          <span className="badge badge-accent mb-2">{t.landing_badge}</span>
           <h1 style={{ fontSize: "clamp(2.5rem, 5vw, 4rem)", margin: 0 }}>
-            The{" "}
-            <span className="gradient-text">ActivityPub server</span>
+            {t.landing_hero_1}{" "}
+            <span className="gradient-text">{t.landing_hero_2}</span>
             <br />
-            for the modern web
+            {t.landing_hero_3}
           </h1>
           <p style={{ fontSize: "1.2rem", color: "var(--text-secondary)", maxWidth: 560, margin: 0 }}>
-            Mastodon-compatible, globally distributed, and deployed at the edge — all on Cloudflare
-            Workers with zero cold starts.
+            {t.landing_hero_desc}
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center mt-4">
             <Link href="/register" className="btn btn-primary btn-lg">
-              Create an account
+              {t.landing_register}
             </Link>
             <a
               href="https://github.com/manalejandro/cf-activitypub-next"
@@ -69,7 +110,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="btn btn-outline btn-lg"
             >
-              View on GitHub
+              {t.landing_github}
             </a>
           </div>
         </div>
@@ -78,7 +119,7 @@ export default function Home() {
       {/* Features */}
       <section className="container-wide py-24">
         <h2 className="text-center mb-14" style={{ fontSize: "1.8rem" }}>
-          Built for performance and openness
+          {t.landing_features_title}
         </h2>
         <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           {features.map((f) => (
@@ -94,7 +135,7 @@ export default function Home() {
       {/* Footer */}
       <footer style={{ borderTop: "1px solid var(--border)", color: "var(--text-muted)", fontSize: "0.85rem" }}>
         <div className="container-wide flex flex-wrap items-center justify-between gap-4 py-6">
-          <span>© {new Date().getFullYear()} CF ActivityPub — Open source & federated</span>
+          <span>© {new Date().getFullYear()} CF ActivityPub — {t.landing_footer}</span>
           <div className="flex gap-5">
             <a href="/.well-known/nodeinfo" style={{ color: "var(--text-muted)" }}>NodeInfo</a>
             <a href="https://github.com/manalejandro/cf-activitypub-next" target="_blank" rel="noopener noreferrer" style={{ color: "var(--text-muted)" }}>GitHub</a>
@@ -104,57 +145,3 @@ export default function Home() {
     </main>
   );
 }
-
-const features = [
-  {
-    icon: "⚡",
-    title: "Edge-native performance",
-    desc: "Runs on Cloudflare Workers in 300+ global locations with sub-millisecond cold starts.",
-  },
-  {
-    icon: "🌐",
-    title: "Mastodon compatible",
-    desc: "Full Mastodon REST API support — works with Ivory, Elk, Tusky, and any Mastodon client.",
-  },
-  {
-    icon: "🔗",
-    title: "ActivityPub federation",
-    desc: "Federation with any Mastodon, Pleroma, Misskey, or ActivityPub-compatible server.",
-  },
-  {
-    icon: "🔒",
-    title: "HTTP Signatures",
-    desc: "All federated activities are cryptographically signed and verified using RFC 9421.",
-  },
-  {
-    icon: "🔁",
-    title: "Real-time streaming",
-    desc: "Home and public timelines stream live to clients via Durable Objects WebSockets.",
-  },
-  {
-    icon: "🔔",
-    title: "Web Push notifications",
-    desc: "Native push to mobile and desktop via VAPID with AES-128-GCM encrypted payloads.",
-  },
-  {
-    icon: "🤖",
-    title: "AI moderation (Guardian)",
-    desc: "An autonomous moderator screens posts, accounts, and reports — with a full audit trail.",
-  },
-  {
-    icon: "🎨",
-    title: "AI alt-text",
-    desc: "Media uploads without a description get automatic image alt-text via Workers AI (LLaVA).",
-  },
-  {
-    icon: "📞",
-    title: "WebRTC calling",
-    desc: "Voice and video calls between users — same instance or across the fediverse.",
-  },
-  {
-    icon: "🗄️",
-    title: "D1 + KV + R2",
-    desc: "Persistent data on Cloudflare D1 (SQLite), KV for cache and sessions, R2 for media.",
-  },
-];
-

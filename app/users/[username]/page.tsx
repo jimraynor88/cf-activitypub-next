@@ -758,25 +758,25 @@ export default function ProfilePage() {
                       style={{ border: "1px solid var(--border)", color: relationship?.blocking ? "var(--danger)" : "var(--text-muted)" }}
                       onClick={() => void toggleBlock()}
                       disabled={blockBusy}
-                      title={relationship?.blocking ? "Desbloquear" : "Bloquear"}
+                      title={relationship?.blocking ? t.action_unblock : t.action_block}
                     >
-                      {blockBusy ? "…" : relationship?.blocking ? "🚫 Bloqueado" : "🚫"}
+                      {blockBusy ? "…" : relationship?.blocking ? `🚫 ${t.status_blocked}` : "🚫"}
                     </button>
                     <button
                       className="btn btn-ghost btn-sm"
                       style={{ border: "1px solid var(--border)", color: relationship?.muting ? "var(--danger)" : "var(--text-muted)" }}
                       onClick={() => void toggleMute()}
                       disabled={muteBusy}
-                      title={relationship?.muting ? "Dejar de silenciar" : "Silenciar"}
+                      title={relationship?.muting ? t.mute_unmute : t.mute_mute}
                     >
-                      {muteBusy ? "…" : relationship?.muting ? "🤫 Silenciado" : "🤫"}
+                      {muteBusy ? "…" : relationship?.muting ? `🤫 ${t.status_muted}` : "🤫"}
                     </button>
                     {!relationship?.blocking && (
                       <button
                         className="btn btn-ghost btn-sm"
                         style={{ border: "1px solid var(--border)" }}
                         onClick={() => router.push("/messages")}
-                        title="Mensaje directo"
+                        title={t.messages_title}
                       >
                         💬
                       </button>
@@ -794,7 +794,7 @@ export default function ProfilePage() {
                       className="btn btn-ghost btn-sm"
                       style={{ border: "1px solid var(--border)" }}
                       onClick={() => setNoteOpen(true)}
-                      title="Nota"
+                      title={t.ap_type_note}
                     >
                       📝
                     </button>
@@ -1331,20 +1331,20 @@ export default function ProfilePage() {
             }}
           >
             <div style={{ fontWeight: 700, fontSize: "1rem", marginBottom: "0.75rem" }}>
-              Nota sobre @{account.username}
+              {t.note_about.replace("{username}", `@${account.username}`)}
             </div>
             <textarea
               className="input"
               style={{ width: "100%", minHeight: 80, resize: "none", fontFamily: "inherit", marginBottom: "0.75rem" }}
-              placeholder="Escribe una nota personal…"
+              placeholder={t.note_placeholder}
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               maxLength={500}
             />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem" }}>
-              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNoteOpen(false)}>Cancelar</button>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setNoteOpen(false)}>{t.profile_cancel}</button>
               <button type="button" className="btn btn-primary btn-sm" disabled={noteBusy} onClick={() => void handleSaveNote()}>
-                {noteBusy ? "…" : "Guardar"}
+                {noteBusy ? "…" : t.profile_save}
               </button>
             </div>
           </div>
@@ -1361,7 +1361,7 @@ export default function ProfilePage() {
         >
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: "1rem" }}>Editar estado</span>
+              <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
               <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
@@ -1369,7 +1369,7 @@ export default function ProfilePage() {
                 type="text"
                 value={editSpoiler}
                 onChange={(e) => setEditSpoiler(e.target.value)}
-                placeholder="Advertencia de contenido"
+                placeholder={t.cw_placeholder}
                 className="input"
                 style={{ width: "100%" }}
               />
@@ -1378,7 +1378,7 @@ export default function ProfilePage() {
               autoFocus
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              placeholder="Edita tu estado…"
+              placeholder={t.edit_status_placeholder}
               maxLength={500}
               className="input"
               style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
@@ -1386,9 +1386,9 @@ export default function ProfilePage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{editText.length}/500</span>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>{t.profile_cancel}</button>
                 <button type="button" className="btn btn-primary btn-sm" disabled={!editText.trim() || editBusy} onClick={() => void handleStatusEditSave()}>
-                  {editBusy ? "…" : "Guardar"}
+                  {editBusy ? "…" : t.profile_save}
                 </button>
               </div>
             </div>

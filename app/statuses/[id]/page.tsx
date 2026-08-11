@@ -111,7 +111,7 @@ function ReplyBox({
   onPosted: (newStatus: Status) => void;
 }) {
   const token = getToken();
-  const { locale } = useLocale();
+  const { t, locale } = useLocale();
   const [text, setText] = useState("");
   const [visibility, setVisibility] = useState<"public" | "unlisted" | "followers" | "direct">(
     (["public", "unlisted", "followers", "direct"].includes(replyTo.visibility ?? "public") ? replyTo.visibility ?? "public" : "public") as "public" | "unlisted" | "followers" | "direct"
@@ -282,7 +282,7 @@ function ReplyBox({
               type="text"
               value={cwText}
               onChange={(e) => setCwText(e.target.value)}
-              placeholder="Advertencia de contenido…"
+              placeholder={`${t.cw_placeholder}…`}
               maxLength={500}
               style={{ width: "100%", marginBottom: "0.4rem", padding: "0.4rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.9rem", fontFamily: "inherit" }}
             />
@@ -326,7 +326,7 @@ function ReplyBox({
                 </select>
                 <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.82rem", cursor: "pointer" }}>
                   <input type="checkbox" checked={pollMultiple} onChange={(e) => setPollMultiple(e.target.checked)} />
-                  Opción múltiple
+                  {t.poll_multiple}
                 </label>
               </div>
             </div>
@@ -370,7 +370,7 @@ function ReplyBox({
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
               <div ref={emojiRef} style={{ position: "relative" }}>
-                <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: emojiOpen ? "var(--accent-bg)" : undefined }} onClick={() => setEmojiOpen((o) => !o)} title="Emoji">😊</button>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: emojiOpen ? "var(--accent-bg)" : undefined }} onClick={() => setEmojiOpen((o) => !o)} title={t.composer_emoji}>😊</button>
                 <EmojiPicker
                   onInsert={insertEmoji}
                   open={emojiOpen}
@@ -379,10 +379,10 @@ function ReplyBox({
                   direction="up"
                 />
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem" }} onClick={() => fileInputRef.current?.click()} disabled={mediaFiles.length >= 4 || uploadingMedia || pollMode} title="Adjuntar">{uploadingMedia ? "⏳" : "📎"}</button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem" }} onClick={() => fileInputRef.current?.click()} disabled={mediaFiles.length >= 4 || uploadingMedia || pollMode} title={t.composer_attach}>{uploadingMedia ? "⏳" : "📎"}</button>
               <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" multiple style={{ display: "none" }} onChange={handleFileChange} />
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: showCw ? "var(--accent-bg)" : undefined }} onClick={() => setShowCw((v) => !v)} title="Advertencia de contenido">⚠️</button>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: pollMode ? "var(--accent-bg)" : undefined }} onClick={() => setPollMode((v) => !v)} disabled={mediaFiles.length > 0} title="Encuesta">📊</button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: showCw ? "var(--accent-bg)" : undefined }} onClick={() => setShowCw((v) => !v)} title={t.cw_placeholder}>⚠️</button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: pollMode ? "var(--accent-bg)" : undefined }} onClick={() => setPollMode((v) => !v)} disabled={mediaFiles.length > 0} title={t.composer_poll}>📊</button>
               <select
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value as typeof visibility)}
@@ -414,6 +414,7 @@ function ReplyBox({
 export default function ThreadPage() {
   const params = useParams();
   const router = useRouter();
+  const { t } = useLocale();
   const rawId = typeof params.id === "string" ? params.id : Array.isArray(params.id) ? params.id[0] : "";
   const statusId = decodeURIComponent(rawId);
 
@@ -744,7 +745,7 @@ export default function ThreadPage() {
           >
             <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 700, fontSize: "1rem" }}>Editar estado</span>
+                <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
                 <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
               </div>
               {editSpoiler !== "" || editingStatus.spoiler_text ? (
@@ -752,7 +753,7 @@ export default function ThreadPage() {
                   type="text"
                   value={editSpoiler}
                   onChange={(e) => setEditSpoiler(e.target.value)}
-                  placeholder="Advertencia de contenido"
+                  placeholder={t.cw_placeholder}
                   className="input"
                   style={{ width: "100%" }}
                 />
@@ -761,7 +762,7 @@ export default function ThreadPage() {
                 autoFocus
                 value={editText}
                 onChange={(e) => setEditText(e.target.value)}
-                placeholder="Edita tu estado…"
+                placeholder={t.edit_status_placeholder}
                 maxLength={500}
                 className="input"
                 style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
@@ -769,9 +770,9 @@ export default function ThreadPage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{editText.length}/500</span>
                 <div style={{ display: "flex", gap: "0.5rem" }}>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>Cancelar</button>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>{t.profile_cancel}</button>
                   <button type="button" className="btn btn-primary btn-sm" disabled={!editText.trim() || editBusy} onClick={() => void handleEditSave()}>
-                    {editBusy ? "…" : "Guardar"}
+                    {editBusy ? "…" : t.profile_save}
                   </button>
                 </div>
               </div>

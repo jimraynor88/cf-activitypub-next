@@ -252,6 +252,60 @@ export async function hydrateSessionInitKeys(): Promise<void> {
   await Promise.all(jobs);
 }
 
+// ─── Cross-browser key backup / restore ─────────────────────────────────────
+// The private init keys are what let a browser open messages sealed to its
+// key packages. Exporting them to a file and importing that file in another
+// browser lets the user encrypt/decrypt without staying on one device. The
+// exported bundle carries the same JWK payload the keys are persisted with,
+// so `importSessionInitKeys` round-trips with what the page already stores.
+
+export interface SessionInitKeyBundle {
+  format: "cf-ap-mls-session-init-keys";
+  version: 1;
+  exportedAt: string;
+  keys: { objectId: string; publicJwk: JsonWebKey; privateJwk: JsonWebKey }[];
+}
+
+/** Serialize every session init key currently held by this browser. */
+export async function exportSessionInitKeys(): Promise<SessionInitKeyBundle> {
+  const keys: SessionInitKeyBundle["keys"] = [];
+  for (const [objectId, keypair] of sessionInitKeys) {
+    const [publicJwk, privateJwk] = await Promise.all([
+      crypto.subtle.exportKey("jwk", keypair.publicKey),
+      crypto.subtle.exportKey("jwk", keypair.privateKey),
+    ]);
+    keys.push({ objectId, publicJwk, privateJwk });
+  }
+  return { format: "cf-ap-mls-session-init-keys", version: 1, exportedAt: new Date().toISOString(), keys };
+}
+
+/**
+ * Import a bundle previously exported from another browser. Each valid key is
+ * imported into memory AND persisted to localStorage, so messages sealed to it
+ * can be opened immediately and after reloads. Returns the number of keys
+ * imported; throws when the payload is not a valid backup bundle.
+ */
+export async function importSessionInitKeys(bundle: unknown): Promise<number> {
+  if (!bundle || typeof bundle !== "object") throw new Error("invalid bundle");
+  const b = bundle as Partial<SessionInitKeyBundle>;
+  if (b.format !== "cf-ap-mls-session-init-keys" || b.version !== 1 || !Array.isArray(b.keys)) {
+    throw new Error("invalid bundle");
+  }
+  let count = 0;
+  for (const item of b.keys) {
+    if (!item || typeof item.objectId !== "string" || !item.publicJwk || !item.privateJwk) continue;
+    try {
+      const publicKey = await crypto.subtle.importKey("jwk", item.publicJwk, { name: "ECDH", namedCurve: "P-256" }, true, []);
+      const privateKey = await crypto.subtle.importKey("jwk", item.privateJwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]);
+      storeSessionInitKey(item.objectId, { publicKey, privateKey });
+      count++;
+    } catch {
+      /* skip malformed entry */
+    }
+  }
+  return count;
+}
+
 // ─── Real message sealing / opening ─────────────────────────────────────────
 // "Send" encrypts the plaintext to the recipient's KeyPackage init_key with
 // HPKE (RFC 9180) and wraps it as an MLSMessage. This is the same step a real

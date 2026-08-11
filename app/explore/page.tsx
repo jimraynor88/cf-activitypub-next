@@ -294,7 +294,7 @@ export default function ExplorePage() {
         >
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontWeight: 700, fontSize: "1rem" }}>Editar estado</span>
+              <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
               <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
@@ -302,7 +302,7 @@ export default function ExplorePage() {
                 type="text"
                 value={editSpoiler}
                 onChange={(e) => setEditSpoiler(e.target.value)}
-                placeholder="Advertencia de contenido"
+                placeholder={t.cw_placeholder}
                 className="input"
                 style={{ width: "100%" }}
               />
@@ -311,7 +311,7 @@ export default function ExplorePage() {
               autoFocus
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
-              placeholder="Edita tu estado…"
+              placeholder={t.edit_status_placeholder}
               maxLength={500}
               className="input"
               style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
@@ -319,9 +319,9 @@ export default function ExplorePage() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{editText.length}/500</span>
               <div style={{ display: "flex", gap: "0.5rem" }}>
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>Cancelar</button>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditingStatus(null)}>{t.profile_cancel}</button>
                 <button type="button" className="btn btn-primary btn-sm" disabled={!editText.trim() || editBusy} onClick={() => void handleEditSave()}>
-                  {editBusy ? "…" : "Guardar"}
+                  {editBusy ? "…" : t.profile_save}
                 </button>
               </div>
             </div>

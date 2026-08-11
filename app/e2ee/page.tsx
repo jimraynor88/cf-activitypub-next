@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -12,6 +12,8 @@ import {
   storeSessionInitKey,
   forgetSessionInitKey,
   hydrateSessionInitKeys,
+  exportSessionInitKeys,
+  importSessionInitKeys,
   sealToKeyPackage,
   openEnvelope,
   encodeSenderContext,
@@ -375,6 +377,69 @@ export default function E2EEPage() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deleteMsg, setDeleteMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  // ── Backup / restore session init keys ─────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [keysBusy, setKeysBusy] = useState(false);
+  const [keysMsg, setKeysMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  async function handleExportKeys() {
+    if (!data) return;
+    setKeysBusy(true);
+    setKeysMsg(null);
+    try {
+      const bundle = await exportSessionInitKeys();
+      if (bundle.keys.length === 0) {
+        setKeysMsg({ ok: false, text: t.e2ee_export_empty });
+        return;
+      }
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `cf-ap-mls-keys-${data.me.username}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setKeysMsg({ ok: true, text: t.e2ee_export_ok });
+    } catch {
+      setKeysMsg({ ok: false, text: t.e2ee_export_err });
+    } finally {
+      setKeysBusy(false);
+    }
+  }
+
+  async function handleImportKeysFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setKeysBusy(true);
+    setKeysMsg(null);
+    try {
+      const text = await file.text();
+      let bundle: unknown;
+      try {
+        bundle = JSON.parse(text);
+      } catch {
+        setKeysMsg({ ok: false, text: t.e2ee_import_invalid });
+        return;
+      }
+      const count = await importSessionInitKeys(bundle);
+      if (count === 0) {
+        setKeysMsg({ ok: false, text: t.e2ee_import_invalid });
+        return;
+      }
+      setKeysMsg({ ok: true, text: t.e2ee_import_ok.replace("{count}", String(count)) });
+      // Reload so messages sealed to the freshly imported keys can be decrypted.
+      const reloaded = await load();
+      if (reloaded) setData(reloaded);
+    } catch {
+      setKeysMsg({ ok: false, text: t.e2ee_import_err });
+    } finally {
+      setKeysBusy(false);
+    }
+  }
+
   async function handleDelete(target: "key-package" | "message" | "conversation", id: string) {
     if (!data) return;
     setDeleting(id);
@@ -558,6 +623,33 @@ export default function E2EEPage() {
           </button>
         </div>
         {publishMsg && <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: publishMsg.ok ? "var(--success)" : "var(--danger)" }}>{publishMsg.text}</p>}
+      </section>
+
+      {/* Copia de seguridad / restauración de claves */}
+      <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>💾 {t.e2ee_keys_title}</h2>
+            <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 520 }}>{t.e2ee_keys_desc}</p>
+            <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>{t.e2ee_keys_note}</p>
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
+            <button className="btn btn-outline btn-sm" onClick={handleExportKeys} disabled={keysBusy}>
+              {keysBusy ? "…" : `⬇️ ${t.e2ee_export_button}`}
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={() => fileInputRef.current?.click()} disabled={keysBusy}>
+              {`⬆️ ${t.e2ee_import_button}`}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: "none" }}
+              onChange={handleImportKeysFile}
+            />
+          </div>
+        </div>
+        {keysMsg && <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: keysMsg.ok ? "var(--success)" : "var(--danger)" }}>{keysMsg.text}</p>}
       </section>
 
       {/* Enviar mensaje cifrado */}

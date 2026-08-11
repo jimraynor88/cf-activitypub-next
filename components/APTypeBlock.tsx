@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useLocale, type Translations } from "@/lib/i18n";
 
 /**
  * ActivityStreams type-specific renderer.
@@ -29,19 +30,26 @@ export interface APBlockMedia {
   description?: string | null;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  Article: "Artículo",
-  Audio: "Audio",
-  Document: "Documento",
-  Event: "Evento",
-  Image: "Imagen",
-  Page: "Página",
-  Place: "Lugar",
-  Video: "Vídeo",
-  Question: "Encuesta",
-  Note: "Nota",
-  PublicMessage: "Mensaje MLS",
+// Maps an ActivityStreams type to its i18n dictionary key. Note is omitted
+// because it never renders a badge; unknown types fall back to the raw type.
+const TYPE_LABEL_KEYS: Record<string, keyof Translations> = {
+  Article: "ap_type_article",
+  Audio: "ap_type_audio",
+  Document: "ap_type_document",
+  Event: "ap_type_event",
+  Image: "ap_type_image",
+  Page: "ap_type_page",
+  Place: "ap_type_place",
+  Video: "ap_type_video",
+  Question: "ap_type_question",
+  Note: "ap_type_note",
+  PublicMessage: "ap_type_public_message",
 };
+
+function typeLabel(t: Translations, apType: string): string {
+  const key = TYPE_LABEL_KEYS[apType];
+  return key ? t[key] : apType;
+}
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "";
@@ -93,8 +101,9 @@ function isMediaUrl(url: string): boolean {
 }
 
 export function TypeBadge({ apType }: { apType?: string | null }) {
+  const { t } = useLocale();
   if (!apType || apType === "Note") return null;
-  return <span style={badgeStyle()}>{TYPE_LABELS[apType] ?? apType}</span>;
+  return <span style={badgeStyle()}>{typeLabel(t, apType)}</span>;
 }
 
 export function APTypeBlock({
@@ -106,6 +115,7 @@ export function APTypeBlock({
   apMeta?: APMeta | null;
   mediaAttachments?: APBlockMedia[];
 }) {
+  const { t } = useLocale();
   if (!apType || apType === "Note") return null;
 
   // ── Event ────────────────────────────────────────────────────────────────
@@ -125,7 +135,7 @@ export function APTypeBlock({
             ⏱ {formatDuration(apMeta.duration)}
           </span>
         )}
-        {apMeta?.url && <Link href={apMeta.url} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>Abrir evento →</Link>}
+        {apMeta?.url && <Link href={apMeta.url} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>{t.ap_open_event}</Link>}
       </div>
     );
   }
@@ -138,15 +148,15 @@ export function APTypeBlock({
       : undefined;
     return (
       <div style={cardStyle()}>
-        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>📍 {apMeta?.name ?? "Lugar"}</span>
+        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>📍 {apMeta?.name ?? t.ap_type_place}</span>
         {hasCoords && (
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{apMeta!.latitude!.toFixed(5)}, {apMeta!.longitude!.toFixed(5)}</span>
         )}
         {mapsUrl && (
-          <Link href={mapsUrl} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>Ver en el mapa →</Link>
+          <Link href={mapsUrl} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>{t.ap_view_map}</Link>
         )}
         {apMeta?.url && !mapsUrl && (
-          <Link href={apMeta.url} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>Abrir lugar →</Link>
+          <Link href={apMeta.url} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>{t.ap_open_place}</Link>
         )}
       </div>
     );
@@ -181,7 +191,7 @@ export function APTypeBlock({
               rel="nofollow noopener noreferrer"
               style={{ fontSize: "0.8rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all", minWidth: 0 }}
             >
-              {title ? "Ir al original →" : target}
+              {title ? t.ap_open_original : target}
             </Link>
             {hostname && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>· {hostname}</span>}
           </div>
