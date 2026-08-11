@@ -12,6 +12,7 @@ import {
   storeSessionInitKey,
   forgetSessionInitKey,
   hydrateSessionInitKeys,
+  listSessionInitKeys,
   exportSessionInitKeys,
   importSessionInitKeys,
   sealToKeyPackage,
@@ -720,46 +721,77 @@ export default function E2EEPage() {
             {t.e2ee_key_packages_title} <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{t.e2ee_key_packages_sub}</span>
           </h2>
         </div>
-        {data.keyPackages.length === 0 ? (
-          <EmptyState icon="🗝️" title={t.e2ee_no_key_packages} sub={t.e2ee_no_key_packages_sub} />
-        ) : (
-          data.keyPackages.map((kp) => (
-            <div
-              key={kp.id}
-              className="status-card"
-              style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "1rem", flexWrap: "wrap" }}
-            >
-              <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🗝️</span>
-              <div className="flex-1" style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                  <span
-                    className={kp.isActive ? "badge badge-success" : "badge"}
-                    style={!kp.isActive ? { background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border)" } : undefined}
-                  >
-                    {kp.isActive ? t.e2ee_kp_active : t.e2ee_kp_retired}
-                  </span>
-                  <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
-                    {kp.ciphersuite ?? "MLS"}
-                  </span>
-                  <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{formatRelativeTime(kp.createdAt)}</span>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
-                      onClick={() => void handleDelete("key-package", kp.objectId)}
-                      disabled={deleting === kp.objectId}
-                      title={t.e2ee_delete}
-                    >
-                      🗑️
-                    </button>
-                  </span>
+        {(() => {
+          const serverIds = new Set(data.keyPackages.map((kp) => kp.objectId));
+          const localOnlyIds = listSessionInitKeys().filter((id) => !serverIds.has(id));
+          const isEmpty = data.keyPackages.length === 0 && localOnlyIds.length === 0;
+          if (isEmpty) {
+            return <EmptyState icon="🗝️" title={t.e2ee_no_key_packages} sub={t.e2ee_no_key_packages_sub} />;
+          }
+          return (
+            <>
+              {data.keyPackages.map((kp) => (
+                <div
+                  key={kp.id}
+                  className="status-card"
+                  style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "1rem", flexWrap: "wrap" }}
+                >
+                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🗝️</span>
+                  <div className="flex-1" style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <span
+                        className={kp.isActive ? "badge badge-success" : "badge"}
+                        style={!kp.isActive ? { background: "var(--bg-elevated)", color: "var(--text-muted)", border: "1px solid var(--border)" } : undefined}
+                      >
+                        {kp.isActive ? t.e2ee_kp_active : t.e2ee_kp_retired}
+                      </span>
+                      <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                        {kp.ciphersuite ?? "MLS"}
+                      </span>
+                      <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{formatRelativeTime(kp.createdAt)}</span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
+                          onClick={() => void handleDelete("key-package", kp.objectId)}
+                          disabled={deleting === kp.objectId}
+                          title={t.e2ee_delete}
+                        >
+                          🗑️
+                        </button>
+                      </span>
+                    </div>
+                    <EnvelopePreview text={envelopePreview(kp.content, t.e2ee_envelope_empty)} />
+                  </div>
                 </div>
-                <EnvelopePreview text={envelopePreview(kp.content, t.e2ee_envelope_empty)} />
-              </div>
-            </div>
-          ))
-        )}
+              ))}
+              {localOnlyIds.map((objectId) => (
+                <div
+                  key={objectId}
+                  className="status-card"
+                  style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "1rem", flexWrap: "wrap" }}
+                >
+                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🗝️</span>
+                  <div className="flex-1" style={{ minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                        {t.e2ee_kp_local}
+                      </span>
+                      <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-secondary)" }}>
+                        MLS
+                      </span>
+                      <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginLeft: "auto" }}>
+                        {t.e2ee_kp_local_note}
+                      </span>
+                    </div>
+                    <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)", wordBreak: "break-all" }}>{objectId}</div>
+                  </div>
+                </div>
+              ))}
+            </>
+          );
+        })()}
       </section>
 
       {/* Conversaciones */}

@@ -213,6 +213,11 @@ export function forgetSessionInitKey(objectId: string): void {
   }
 }
 
+/** ObjectIds of every init key currently held by this browser (memory or store). */
+export function listSessionInitKeys(): string[] {
+  return Array.from(sessionInitKeys.keys());
+}
+
 async function persistSessionInitKey(objectId: string, keypair: CryptoKeyPair): Promise<void> {
   try {
     if (typeof localStorage === "undefined") return;
