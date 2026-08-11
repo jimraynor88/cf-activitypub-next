@@ -157,16 +157,6 @@ interface E2eeData {
   conversations: { conversation: string; last: string }[];
 }
 
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const sec = Math.floor(diff / 1000);
-  if (sec < 60) return `${sec}s`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h`;
-  const d = new Date(iso);
-  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
-}
-
 function envelopePreview(content: string | null, emptyLabel: string): string {
   if (!content) return emptyLabel;
   const flat = content.replace(/\s+/g, "");
@@ -764,7 +754,6 @@ export default function E2EEPage() {
                         {kp.ciphersuite ?? "MLS"}
                       </span>
                       <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{formatRelativeTime(kp.createdAt)}</span>
                         <button
                           type="button"
                           className="btn btn-ghost btn-sm"
