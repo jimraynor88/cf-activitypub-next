@@ -466,6 +466,19 @@ export default function E2EEPage() {
     }
   }
 
+  async function handleDeleteLocalKey(objectId: string) {
+    setDeleting(objectId);
+    setDeleteMsg(null);
+    try {
+      forgetSessionInitKey(objectId);
+      setDeleteMsg({ ok: true, text: t.e2ee_delete_ok });
+    } catch {
+      setDeleteMsg({ ok: false, text: t.e2ee_delete_err });
+    } finally {
+      setDeleting(null);
+    }
+  }
+
   async function handleResolve() {
     if (!recipient.trim() || !data) return;
     try {
@@ -489,7 +502,9 @@ export default function E2EEPage() {
       // Envelope para el destinatario: HPKE al init_key de su key package activo.
       const kpRes = await fetch(`/api/v1/e2ee/keypackage?iri=${encodeURIComponent(resolvedIri)}`);
       if (!kpRes.ok) {
-        setSendMsg({ ok: false, text: t.e2ee_no_key_recipient });
+        let detail: string | null = null;
+        try { detail = ((await kpRes.json()) as { error?: string }).error ?? null; } catch { /* ignore */ }
+        setSendMsg({ ok: false, text: detail ?? t.e2ee_no_key_recipient });
         return;
       }
       const recipientKp = await kpRes.json() as RecipientKeyPackage;
@@ -784,6 +799,16 @@ export default function E2EEPage() {
                       <span style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginLeft: "auto" }}>
                         {t.e2ee_kp_local_note}
                       </span>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
+                        onClick={() => void handleDeleteLocalKey(objectId)}
+                        disabled={deleting === objectId}
+                        title={t.e2ee_kp_delete_local}
+                      >
+                        🗑️
+                      </button>
                     </div>
                     <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)", wordBreak: "break-all" }}>{objectId}</div>
                   </div>
