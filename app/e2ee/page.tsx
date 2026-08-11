@@ -10,6 +10,8 @@ import { StatusCard, type Status, type Account, type Me } from "@/components/Sta
 import {
   generateKeyPackage,
   storeSessionInitKey,
+  forgetSessionInitKey,
+  hydrateSessionInitKeys,
   sealToKeyPackage,
   openEnvelope,
   encodeSenderContext,
@@ -314,9 +316,14 @@ export default function E2EEPage() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    load(ctrl.signal).then((d) => {
-      if (d) { setData(d); setAuthed(true); }
-    }).catch(() => { if (!ctrl.signal.aborted) setAuthed(false); });
+    // Las claves privadas se persistieron en localStorage al publicar; vuelve a
+    // cargarlas para poder descifrar los mensajes aunque la página se recargue.
+    hydrateSessionInitKeys()
+      .then(() => load(ctrl.signal))
+      .then((d) => {
+        if (d) { setData(d); setAuthed(true); }
+      })
+      .catch(() => { if (!ctrl.signal.aborted) setAuthed(false); });
     return () => ctrl.abort();
   }, []);
 
@@ -373,6 +380,11 @@ export default function E2EEPage() {
     setDeleting(id);
     setDeleteMsg(null);
     try {
+      if (target === "key-package") {
+        // El servidor borra el key package y sus mensajes; aquí olvidamos la
+        // copia privada persistida para que no quede una clave huérfana.
+        forgetSessionInitKey(id);
+      }
       const res = await fetch(`/api/v1/e2ee?target=${target}&id=${encodeURIComponent(id)}`, {
         method: "DELETE",
         credentials: "include",

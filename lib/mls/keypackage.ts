@@ -182,20 +182,74 @@ export async function generateKeyPackage(identity: string): Promise<{ ciphersuit
 }
 
 // ─── Session key store ──────────────────────────────────────────────────────
-// In this reference UI the private init key is kept in the page's memory keyed
-// by the KeyPackage objectId, so a message sealed to that key package can be
-// opened in the same browser. A real client would persist these alongside the
-// KeyPackage (e.g. in IndexedDB) — the draft requires holding the private half
-// of the init_key to later derive the ratchet / open application messages.
+// The private init key is kept in the page's memory keyed by the KeyPackage
+// objectId so a message sealed to that key package can be opened in the same
+// browser. To survive reloads (and so messages keep showing their plaintext in
+// the message list), the key pair is also mirrored into localStorage — the
+// objectId already embeds the owning actor IRI, so keys never leak across
+// accounts. A real client would use IndexedDB + a secure TS, but this mirrors
+// the draft: the client must hold the private half of the init_key to open
+// application messages sealed to its KeyPackage.
 
 const sessionInitKeys = new Map<string, CryptoKeyPair>();
+const STORAGE_PREFIX = "cf-ap-mls:session-init:v1:";
 
 export function storeSessionInitKey(objectId: string, keypair: CryptoKeyPair): void {
   sessionInitKeys.set(objectId, keypair);
+  void persistSessionInitKey(objectId, keypair);
 }
 
 export function getSessionInitKey(objectId: string): CryptoKeyPair | undefined {
   return sessionInitKeys.get(objectId);
+}
+
+/** Drop the in-memory and persisted copy of a key pair (e.g. on delete). */
+export function forgetSessionInitKey(objectId: string): void {
+  sessionInitKeys.delete(objectId);
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem(STORAGE_PREFIX + objectId);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function persistSessionInitKey(objectId: string, keypair: CryptoKeyPair): Promise<void> {
+  try {
+    if (typeof localStorage === "undefined") return;
+    const [publicJwk, privateJwk] = await Promise.all([
+      crypto.subtle.exportKey("jwk", keypair.publicKey),
+      crypto.subtle.exportKey("jwk", keypair.privateKey),
+    ]);
+    localStorage.setItem(STORAGE_PREFIX + objectId, JSON.stringify({ publicJwk, privateJwk }));
+  } catch {
+    /* non-fatal: the in-memory copy still decodes this page session */
+  }
+}
+
+/** Restore the init key pairs this browser previously published. */
+export async function hydrateSessionInitKeys(): Promise<void> {
+  if (typeof localStorage === "undefined") return;
+  const jobs: Promise<void>[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key?.startsWith(STORAGE_PREFIX)) continue;
+    const objectId = key.slice(STORAGE_PREFIX.length);
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const { publicJwk, privateJwk } = JSON.parse(raw) as { publicJwk: JsonWebKey; privateJwk: JsonWebKey };
+      jobs.push(
+        (async () => {
+          const publicKey = await crypto.subtle.importKey("jwk", publicJwk, { name: "ECDH", namedCurve: "P-256" }, true, []);
+          const privateKey = await crypto.subtle.importKey("jwk", privateJwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveKey", "deriveBits"]);
+          sessionInitKeys.set(objectId, { publicKey, privateKey });
+        })()
+      );
+    } catch {
+      localStorage.removeItem(key);
+    }
+  }
+  await Promise.all(jobs);
 }
 
 // ─── Real message sealing / opening ─────────────────────────────────────────
