@@ -21,10 +21,10 @@ import {
   parseKeyPackageObject,
 } from "@/lib/mls/keypackage";
 
-// /e2ee — vista del usuario autenticado sobre sus mensajes MLS y key packages.
-// El cifrado y el descifrado ocurren en el navegador: este servidor nunca ve el
-// texto plano, solo los envoltorios. La publicación de key packages y el envío
-// se hacen contra el outbox del actor.
+// /e2ee — the authenticated user's view of their MLS messages and key packages.
+// Encryption and decryption happen in the browser: this server never sees the
+// plaintext, only the envelopes. Publishing key packages and sending messages
+// go through the actor's outbox.
 
 function uuid(): string {
   return crypto.randomUUID();
@@ -284,7 +284,7 @@ export default function E2EEPage() {
   const { t } = useLocale();
   const [data, setData] = useState<E2eeData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
-  // plaintext por mensaje, descifrado en el navegador (null = no descifrable aquí)
+  // plaintext per message, decrypted in the browser (null = not decryptable here)
   const [decryptedByMessage, setDecryptedByMessage] = useState<Map<string, string | null>>(new Map());
 
   const load = (signal?: AbortSignal) =>
@@ -309,8 +309,8 @@ export default function E2EEPage() {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    // Las claves privadas se persistieron en localStorage al publicar; vuelve a
-    // cargarlas para poder descifrar los mensajes aunque la página se recargue.
+    // Private keys were persisted to localStorage when published; reload them so
+    // messages stay decryptable across page reloads.
     hydrateSessionInitKeys()
       .then(() => load(ctrl.signal))
       .then((d) => {
@@ -332,8 +332,8 @@ export default function E2EEPage() {
       const actorIri = data.me.id;
       const objectId = `${actorIri}/keyPackages/${uuid()}`;
       const kp = await generateKeyPackage(actorIri);
-      // Guardar la mitad privada en esta sesión: permite descifrar mensajes
-      // sellados a este key package (equivalente a persistirla en un cliente real).
+      // Keep the private half in this session: allows decrypting messages sealed
+      // to this key package (equivalent to persisting it in a real client).
       storeSessionInitKey(objectId, kp.session());
       const activity = {
         "@context": ["https://www.w3.org/ns/activitystreams", "https://purl.archive.org/socialweb/mls"],
@@ -437,8 +437,8 @@ export default function E2EEPage() {
     setDeleteMsg(null);
     try {
       if (target === "key-package") {
-        // El servidor borra el key package y sus mensajes; aquí olvidamos la
-        // copia privada persistida para que no quede una clave huérfana.
+        // The server deletes the key package and its messages; here we forget the
+        // persisted private copy so no orphaned key is left behind.
         forgetSessionInitKey(id);
       }
       const res = await fetch(`/api/v1/e2ee?target=${target}&id=${encodeURIComponent(id)}`, {
@@ -489,7 +489,7 @@ export default function E2EEPage() {
     setSendMsg(null);
     try {
       const actorIri = data.me.id;
-      // Envelope para el destinatario: HPKE al init_key de su key package activo.
+      // Envelope for the recipient: HPKE to the init_key of their active key package.
       const kpRes = await fetch(`/api/v1/e2ee/keypackage?iri=${encodeURIComponent(resolvedIri)}`);
       if (!kpRes.ok) {
         let detail: string | null = null;
@@ -504,10 +504,9 @@ export default function E2EEPage() {
         objectType,
         keyPackage: recipientKp,
       });
-      // Copia para el remitente: se sella el mismo texto a su PROPIO key package
-      // activo para que pueda volver a descifrarlo en la lista de mensajes. Sin
-      // esto, su copia quedaría sellada a la clave del destinatario y no sería
-      // legible para él.
+      // Copy for the sender: the same text is sealed to their OWN active key
+      // package so they can re-decrypt it in the message list. Without this,
+      // their copy would be sealed to the recipient's key and unreadable.
       let senderContent: string | null = null;
       const selfKpRes = await fetch(`/api/v1/e2ee/keypackage?iri=${encodeURIComponent(actorIri)}`);
       if (selfKpRes.ok) {

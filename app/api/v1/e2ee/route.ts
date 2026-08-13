@@ -13,8 +13,8 @@ import type { NextRequest } from "next/server";
 
 // GET /api/v1/e2ee
 //
-// View de la pantalla E2EE: mensajes MLS (envelopes cifrados), key packages y
-// conversaciones del actor autenticado. Nunca descifra contenido.
+// View for the E2EE screen: MLS messages (encrypted envelopes), key packages and
+// conversations of the authenticated actor. Never decrypts content.
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
@@ -85,8 +85,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
 // DELETE /api/v1/e2ee?target=key-package|message|conversation&id=<id>
 //
-// Borra el recurso MLS del actor autenticado: un key package (por objectId), un
-// mensaje recibido (por id) o una conversación entera (por conversation).
+// Deletes the authenticated actor's MLS resource: a key package (by objectId), a
+// received message (by id) or a whole conversation (by conversation).
 
 export async function DELETE(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();

@@ -452,7 +452,7 @@ const EN = {
 };
 
 const ES: typeof EN = {
-  // Navegación
+  // Navigation
   nav_home: "Inicio",
   nav_explore: "Explorar",
   nav_notifications: "Notificaciones",
@@ -460,19 +460,19 @@ const ES: typeof EN = {
   nav_logout: "Cerrar sesión",
   theme_light: "Claro",
   theme_dark: "Oscuro",
-  // Redactar
+  // Compose
   compose_placeholder: "¿Qué está pasando?",
   compose_posting: "Publicando…",
   compose_post: "Publicar",
   compose_attach: "Adjuntar imagen o video (máx 4)",
-  // Responder
+  // Reply
   reply_to: "Respondiendo a",
   reply_placeholder: "Escribe tu respuesta…",
   reply_button: "Responder",
-  // Cronología
+  // Home timeline
   timeline_empty: "Tu cronología está vacía.",
   timeline_empty_sub: "Sigue a personas para ver sus publicaciones aquí.",
-  // Notificaciones
+  // Notifications
   notif_follow_requests_title: "Solicitudes de seguimiento",
   notif_empty: "Sin notificaciones",
   notif_empty_sub: "Cuando alguien te siga o interactúe contigo, aparecerá aquí.",
@@ -483,7 +483,7 @@ const ES: typeof EN = {
   notif_liked: "le gustó tu publicación",
   notif_poll: "Una encuesta en la que votaste ha terminado",
   notif_edited: "editó una publicación",
-  // Explorar
+  // Explore
   explore_search_ph: "Personas, #etiquetas, posts… @user@domain para cuentas remotas",
   explore_searching: "Buscando…",
   explore_no_results: "Sin resultados para",
@@ -505,14 +505,14 @@ const ES: typeof EN = {
   explore_join: "Únete",
   explore_create: "Crear cuenta",
   explore_signin: "Iniciar sesión",
-  // Acciones de cuenta
+  // Account actions
   account_follow: "Seguir",
   account_following: "Siguiendo",
   account_requested: "Solicitado",
   account_view_profile: "Perfil",
   notif_accept: "Aceptar",
   notif_reject: "Rechazar",
-  // Iniciar sesión
+  // Login
   login_title: "Bienvenido de vuelta",
   login_sub: "Inicia sesión en tu cuenta",
   login_email: "Correo electrónico",
@@ -524,7 +524,7 @@ const ES: typeof EN = {
   login_unverified: "Por favor, verifica tu correo electrónico antes de iniciar sesión.",
   login_verified_banner: "¡Correo verificado! Ya puedes iniciar sesión.",
   login_verify_error: "El enlace de verificación es inválido o ha expirado.",
-  // Registro
+  // Register
   register_title: "Crear cuenta",
   register_sub: "Únete a la web social abierta",
   register_username: "Nombre de usuario",
@@ -537,7 +537,7 @@ const ES: typeof EN = {
   register_submitting: "Creando cuenta…",
   register_have_account: "¿Ya tienes cuenta?",
   register_signin: "Iniciar sesión",
-  // Recuperar / Restablecer contraseña
+  // Forgot / Reset password
   forgot_password: "¿Olvidaste tu contraseña?",
   forgot_password_title: "Restablecer tu contraseña",
   forgot_password_sub: "Ingresa tu correo y te enviaremos un enlace de recuperación",
@@ -549,7 +549,7 @@ const ES: typeof EN = {
   reset_password_submit: "Restablecer contraseña",
   reset_password_success: "¡Contraseña restablecida! Ahora puedes iniciar sesión.",
   reset_password_invalid: "Este enlace de recuperación es inválido o ha expirado.",
-  // Flujo de verificación de correo
+  // Email verification flow
   verify_email_title: "Verifica tu correo",
   verify_email_sub: "Enviamos un enlace de verificación a",
   verify_email_resend: "Reenviar correo de verificación",
@@ -557,7 +557,7 @@ const ES: typeof EN = {
   verify_email_resent: "¡Correo enviado! Revisa tu bandeja de entrada.",
   // Turnstile
   turnstile_error: "Verificación de seguridad fallida. Inténtalo de nuevo.",
-  // Perfil
+  // Profile
   profile_posts: "Publicaciones",
   profile_media: "Multimedia",
   profile_followers: "Seguidores",
@@ -573,23 +573,23 @@ const ES: typeof EN = {
   profile_avatar: "Avatar",
   profile_header: "Imagen de cabecera",
   profile_follow_requests_manual: "Aprobar manualmente solicitudes de seguimiento",
-  // Cronologías
+  // Timelines
   nav_timelines: "Cronologías",
   timeline_local: "Local",
   timeline_federated: "Federado",
   timeline_new_posts: "nuevos posts",
   timeline_public_empty: "Aún no hay posts locales.",
   timeline_federated_empty: "Aún no hay posts federados.",
-  // Visibilidad
+  // Visibility
   compose_visibility: "Visibilidad",
   vis_public: "Público",
   vis_unlisted: "Sin listar",
   vis_followers: "Solo seguidores",
   vis_direct: "Directo",
-  // Cronología de etiquetas
+  // Hashtag timeline
   hashtag_timeline: "Publicaciones con",
   hashtag_empty: "Aún no hay publicaciones con esta etiqueta.",
-  // Perfil
+  // Profile
   profile_posts_label: "Publicaciones",
   profile_following_label: "Siguiendo",
   profile_followers_label: "Seguidores",
@@ -624,22 +624,22 @@ const ES: typeof EN = {
   profile_no_pinned: "Sin publicaciones fijadas",
   profile_edit_placeholder_name: "Tu nombre",
   profile_edit_placeholder_bio: "Cuéntale al mundo sobre ti…",
-  // Tendencias
+  // Explore trends
   explore_trending_tags: "Etiquetas del momento",
   explore_trending_statuses: "Posts del momento",
   explore_trending_empty: "Aún no hay contenido del momento.",
   explore_trending_uses: "publicaciones",
   explore_tab_trending_tags: "Etiquetas",
   explore_tab_trending_all: "Tendencias",
-  // Marcadores
+  // Bookmarks
   bookmarks_title: "Marcadores",
   bookmarks_empty: "Sin marcadores",
   bookmarks_empty_sub: "Marca publicaciones para encontrarlas después.",
-  // Favoritos
+  // Favourites
   favourites_title: "Favoritos",
   favourites_empty: "Sin favoritos",
   favourites_empty_sub: "Las publicaciones que te gusten aparecerán aquí.",
-  // Mensajes / Conversaciones
+  // Messages / Conversations
   messages_title: "Mensajes directos",
   messages_empty: "Sin conversaciones",
   messages_empty_sub: "Envía un mensaje directo para iniciar una conversación.",
@@ -647,7 +647,7 @@ const ES: typeof EN = {
   messages_delete: "Eliminar conversación",
   messages_send: "Enviar",
   messages_placeholder: "Escribe tu mensaje…",
-  // Listas
+  // Lists
   lists_title: "Listas",
   lists_create: "Nueva lista",
   lists_edit: "Editar lista",
@@ -665,21 +665,21 @@ const ES: typeof EN = {
   lists_no_accounts: "Sin cuentas en esta lista",
   lists_name_ph: "Nombre de la lista",
   lists_confirm_delete: "¿Estás seguro de que quieres eliminar esta lista?",
-  // Silenciados
+  // Mutes
   mutes_title: "Usuarios silenciados",
   mutes_empty: "Sin usuarios silenciados",
   mutes_empty_sub: "Los usuarios silenciados no podrán notificarte.",
   mutes_unmute: "Silenciar",
-  // Listas - pestaña miembros
+  // Lists members tab
   lists_members: "Miembros",
   lists_timeline: "Cronología",
-  // Posts programados
+  // Scheduled posts
   scheduled_title: "Posts programados",
   scheduled_empty: "Sin posts programados",
   scheduled_empty_sub: "Programa publicaciones para publicarlas después.",
   scheduled_cancel: "Cancelar",
   scheduled_reschedule: "Reprogramar",
-  // Ajustes / Preferencias
+  // Settings / Preferences
   settings_title: "Preferencias",
   settings_visibility: "Visibilidad por defecto",
   settings_sensitive: "Marcar contenido multimedia como sensible por defecto",
@@ -690,12 +690,12 @@ const ES: typeof EN = {
   settings_expand_media_hide: "Ocultar todo",
   settings_expand_spoilers: "Expandir siempre las advertencias de contenido",
   settings_saved: "Preferencias guardadas",
-  // Etiquetas seguidas
+  // Followed Tags
   followed_tags_title: "Etiquetas seguidas",
   followed_tags_empty: "No sigues ninguna etiqueta",
   followed_tags_empty_sub: "Sigue etiquetas para ver publicaciones sobre temas que te interesen.",
   followed_tags_unfollow: "Dejar de seguir",
-  // Navegación
+  // Navigation
   nav_bookmarks: "Marcadores",
   nav_messages: "Mensajes",
   nav_e2ee: "Mensajes E2EE",
@@ -771,7 +771,7 @@ const ES: typeof EN = {
   e2ee_signed_out_body: "Esta pantalla muestra los mensajes y key packages MLS de tu cuenta. Inicia sesión para verlos.",
   e2ee_sign_in: "Inicia sesión",
   e2ee_footer: "Este servidor solo almacena y reenvía envoltorios de cifrado. El descifrado ocurre íntegramente en tu cliente MLS.",
-  // Reportes
+  // Reports
   reports_title: "Reportes",
   reports_empty: "No has enviado ningún reporte",
   reports_new: "Nuevo Reporte",
@@ -788,11 +788,11 @@ const ES: typeof EN = {
   reports_dismissed: "Descartado",
   reports_report: "Reportar",
   reports_reported_status: "Publicación reportada",
-  // Traducir
+  // Translate
   translate: "Traducir",
   translating: "Traduciendo…",
   show_original: "Mostrar original",
-  // Etiquetas de tipos ActivityPub (badges en estados que no son Note)
+  // ActivityPub type labels (badges shown on non-Note statuses)
   ap_type_article: "Artículo",
   ap_type_audio: "Audio",
   ap_type_document: "Documento",
@@ -813,7 +813,7 @@ const ES: typeof EN = {
   ap_view_map: "Ver en el mapa →",
   ap_open_place: "Abrir lugar →",
   ap_open_original: "Ir al original →",
-  // Tarjetas de estado (encuestas, CW, acciones)
+  // Status card (polls, CW, actions)
   poll_vote: "Votar",
   poll_votes_1: "voto",
   poll_votes_n: "votos",
@@ -840,12 +840,12 @@ const ES: typeof EN = {
   cw_placeholder: "Advertencia de contenido",
   edit_status_title: "Editar estado",
   edit_status_placeholder: "Edita tu estado…",
-  // Tooltips del editor
+  // Composer tooltips
   composer_emoji: "Emoji",
   composer_poll: "Encuesta",
   composer_schedule: "Programar",
   composer_attach: "Adjuntar",
-  // Página de aterrizaje
+  // Landing page
   landing_badge: "Abierto · Federado · Edge-native",
   landing_signin: "Iniciar sesión",
   landing_join: "Únete",
@@ -880,7 +880,7 @@ const ES: typeof EN = {
   f_d1_desc: "Datos persistentes en Cloudflare D1 (SQLite), KV para caché y sesiones, R2 para multimedia.",
   f_mls_title: "Cifrado de extremo a extremo MLS",
   f_mls_desc: "Mensajes directos cifrados de extremo a extremo con MLS (RFC 9420) — el servidor solo reenvía texto cifrado.",
-  // Copia de seguridad / restauración de claves E2EE
+  // E2EE key backup / restore
   e2ee_keys_title: "Copia de seguridad de tus claves",
   e2ee_keys_desc:
     "Descarga tus claves MLS init e impórtalas en otro navegador o dispositivo, para poder cifrar y descifrar tus mensajes sin tener que estar en este navegador. El archivo contiene tus claves privadas — consérvalo a salvo.",
@@ -893,7 +893,7 @@ const ES: typeof EN = {
   e2ee_import_err: "No se pudieron importar las claves",
   e2ee_import_invalid: "El archivo seleccionado no es una copia de seguridad de claves MLS válida",
   e2ee_keys_note: "Importar claves permite a este navegador descifrar mensajes cifrados para key packages que publicaste en otro lugar.",
-  // Común
+  // Common
   loading: "Cargando…",
   network_error: "Error de red. Por favor, inténtalo de nuevo.",
 };

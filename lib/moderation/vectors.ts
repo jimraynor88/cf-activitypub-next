@@ -110,8 +110,22 @@ export function precedentText(matches: AbuseMatch[]): string | null {
     .slice(0, 3);
   if (used.length === 0) return null;
   return used
-    .map((m) => `- [similitud ${m.score.toFixed(2)}] ${m.kind}/${m.action}${m.reason ? ` — ${m.reason}` : ""}`)
+    .map((m) => `- [similarity ${m.score.toFixed(2)}] ${m.kind}/${m.action}${m.reason ? ` — ${sanitizePrecedentReason(m.reason)}` : ""}`)
     .join("\n");
+}
+
+/**
+ * Sanitize a stored precedent reason before it is rendered into an AI prompt.
+ * Reasons may embed user-controlled text that could carry prompt-injection
+ * payloads; strip control characters, delimiter tokens and length-cap the result.
+ */
+function sanitizePrecedentReason(reason: string): string {
+  return (reason ?? "")
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, " ")
+    .replace(/<{3}|>{3}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 160);
 }
 
 // ── Runtime (AI + Vectorize) ───────────────────────────────────────────────
