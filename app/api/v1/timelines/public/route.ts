@@ -4,6 +4,41 @@ import { getPublicTimeline, getActorById, getAttachmentsByObjectIds, getPollsByO
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
+import type { LocalActor } from "@/lib/types";
+
+/**
+ * Minimal placeholder account for a remote status whose author could not be
+ * resolved at render time. Keeps the federated timeline complete: a public
+ * federated post is never dropped just because its origin server is unreachable.
+ */
+function placeholderActor(actorId: string): LocalActor {
+  const hostname = new URL(actorId).hostname;
+  const username = actorId.split("/").pop() ?? "unknown";
+  return {
+    id: actorId,
+    username,
+    domain: hostname,
+    displayName: username,
+    summary: null,
+    avatarUrl: null,
+    headerUrl: null,
+    publicKeyPem: "",
+    privateKeyPem: null,
+    isLocal: false,
+    isBot: false,
+    manuallyApprovesFollowers: false,
+    discoverable: false,
+    followersCount: 0,
+    followingCount: 0,
+    statusesCount: 0,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    email: null,
+    passwordHash: null,
+    emailVerified: false,
+    autoDeleteAfter: null,
+  };
+}
 
 // GET /api/v1/timelines/public
 export async function GET(request: NextRequest): Promise<Response> {
@@ -50,7 +85,11 @@ export async function GET(request: NextRequest): Promise<Response> {
           }
         } catch { /* ignore */ }
       }
-      if (!author) return null;
+      // A stored public federated status must still appear even when its remote
+      // author cannot be resolved right now (server unreachable, actor deleted).
+      // Serialize it against a minimal placeholder account so the timeline is
+      // complete rather than silently dropping the post.
+      if (!author) author = placeholderActor(obj.actorId);
       const pollEntry = pollMap.get(obj.id);
       const poll = pollEntry ? serializePoll(pollEntry.poll, pollEntry.options, false, []) : null;
       return serializeStatus(obj, author, domain, {
