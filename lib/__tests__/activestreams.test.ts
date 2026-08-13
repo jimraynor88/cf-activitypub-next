@@ -100,8 +100,11 @@ describe("extractAPMeta", () => {
     expect(meta?.duration).toBe(63);
   });
 
-  it("returns null when there is no type-specific metadata", () => {
-    expect(extractAPMeta(makeObject("Note", { content: "hi" }))).toBeNull();
+  it("returns only the url fallback when there is no other type-specific metadata", () => {
+    const meta = extractAPMeta(makeObject("Note", { content: "hi" }));
+    // The stored object URL is always resolved, so the meta still carries a
+    // usable url instead of being null.
+    expect(meta).toMatchObject({ url: "https://remote.example/objects/1" });
   });
 });
 
@@ -116,14 +119,31 @@ describe("serializeStatus type passthrough", () => {
     expect(status.ap_meta?.location).toBe("Aula 3");
   });
 
+  it("falls back to the stored object url for a Page without a raw url field", () => {
+    const obj = makeObject("Page", { name: "Mi artículo", content: "<p>texto</p>" });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.ap_type).toBe("Page");
+    expect(status.ap_meta?.name).toBe("Mi artículo");
+    // No raw `url` on the object → the DB column (object id here) is used so
+    // the rendered header never produces a dead link.
+    expect(status.ap_meta?.url).toBe("https://remote.example/objects/1");
+  });
+
   it("falls back to Non-typeless for a plain Note", () => {
     const status = serializeStatus(makeObject("Note", { content: "hola" }), author, "local.example");
     expect(status.ap_type).toBe("Note");
   });
 
-  it("does not set ap_type for non-content object types", () => {
-    const status = serializeStatus(makeObject("Tombstone"), author, "local.example");
+  it("does not set ap_type for non-renderable object types", () => {
+    const status = serializeStatus(makeObject("Object", { content: "hi" }), author, "local.example");
     expect(status.ap_type).toBeNull();
     expect(status.ap_meta).toBeNull();
+  });
+
+  it("surfaces ap_type + ap_meta for Tombstone objects", () => {
+    const status = serializeStatus(makeObject("Tombstone", { formerType: "Note", deleted: "2026-01-02T00:00:00Z" }), author, "local.example");
+    expect(status.ap_type).toBe("Tombstone");
+    expect(status.ap_meta?.formerType).toBe("Note");
+    expect(status.ap_meta?.deleted).toBe("2026-01-02T00:00:00Z");
   });
 });

@@ -148,10 +148,29 @@ export const MEDIA_OBJECT_TYPES = ["Audio", "Image", "Video"] as const;
 /** Object types with a scheduled time dimension (Event). */
 export const TIME_OBJECT_TYPES = ["Event"] as const;
 
+/**
+ * Object types the UI can render as a dedicated block (APTypeBlock). Broader
+ * than CONTENT_OBJECT_TYPES: includes social-graph and structural types that
+ * occasionally surface as standalone objects (Profile, Relationship,
+ * Tombstone, Collection) but still need a meaningful presentation.
+ */
+export const RENDERABLE_OBJECT_TYPES = [
+  ...CONTENT_OBJECT_TYPES,
+  "Profile",
+  "Relationship",
+  "Tombstone",
+  "Collection",
+  "OrderedCollection",
+  "PublicMessage",
+] as const;
+
+export type RenderableObjectType = (typeof RENDERABLE_OBJECT_TYPES)[number];
+
 const ACTIVITY_SET = new Set<string>(ACTIVITY_TYPES);
 const ACTOR_SET = new Set<string>(ACTOR_TYPES);
 const OBJECT_SET = new Set<string>(OBJECT_TYPES);
 const CONTENT_SET = new Set<string>(CONTENT_OBJECT_TYPES);
+const RENDERABLE_SET = new Set<string>(RENDERABLE_OBJECT_TYPES);
 
 export function isActivityType(type: string): boolean {
   return ACTIVITY_SET.has(type);
@@ -168,6 +187,11 @@ export function isObjectType(type: string): boolean {
 /** Whether a remote object type should be ingested and rendered as a status. */
 export function isContentObjectType(type: string): boolean {
   return CONTENT_SET.has(type);
+}
+
+/** Whether the UI has a dedicated renderer block for the given object type. */
+export function isRenderableObjectType(type: string): boolean {
+  return RENDERABLE_SET.has(type);
 }
 
 /** Full Mastodon-compatible context — required for PropertyValue fields,

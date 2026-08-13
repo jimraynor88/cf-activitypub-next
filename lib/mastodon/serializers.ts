@@ -26,7 +26,7 @@ import type {
 } from "@/lib/types";
 import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub/sanitize";
-import { isContentObjectType } from "@/lib/activitypub/vocab";
+import { isRenderableObjectType } from "@/lib/activitypub/vocab";
 
 // ─────────────────────────────────────────
 // Account serializer
@@ -279,6 +279,41 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     if (typeof href === "string") url = href;
   }
 
+  // Fallback: the stored objects.url column is always resolved (falls back to
+  // the object id via resolveObjectUrl), so a Page/Article without a raw `url`
+  // still links to its canonical object URL instead of rendering a dead link.
+  if (!url && typeof obj.url === "string" && obj.url) url = obj.url;
+
+  // Relationship (as:subject / as:object / as:relationship)
+  const subject = typeof raw.subject === "string" ? raw.subject : null;
+  let relationshipObject: string | null = null;
+  const rawRObject = raw.object;
+  if (typeof rawRObject === "string") relationshipObject = rawRObject;
+  else if (rawRObject && typeof rawRObject === "object") {
+    const roId = (rawRObject as Record<string, unknown>).id;
+    if (typeof roId === "string") relationshipObject = roId;
+  }
+  let relationship: string | null = null;
+  const rawRel = raw.relationship;
+  if (typeof rawRel === "string") relationship = rawRel;
+  else if (rawRel && typeof rawRel === "object") {
+    const relId = (rawRel as Record<string, unknown>).id;
+    if (typeof relId === "string") relationship = relId;
+  }
+
+  // Tombstone (as:formerType / as:deleted)
+  const formerType = typeof raw.formerType === "string" ? raw.formerType : null;
+  const deleted = typeof raw.deleted === "string" ? raw.deleted : null;
+
+  // Collection (as:totalItems)
+  let totalItems: number | null = null;
+  if (typeof raw.totalItems === "number" && Number.isFinite(raw.totalItems)) {
+    totalItems = raw.totalItems;
+  }
+
+  // Profile (as:describes)
+  const describes = typeof raw.describes === "string" ? raw.describes : null;
+
   const meta: APObjectMeta = {
     name: name ?? null,
     startTime: startTime ?? null,
@@ -288,6 +323,13 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     latitude,
     longitude,
     url,
+    subject,
+    relationshipObject,
+    relationship,
+    formerType,
+    deleted,
+    totalItems,
+    describes,
   };
   const hasData = Object.values(meta).some((v) => v != null);
   return hasData ? meta : null;
@@ -299,7 +341,7 @@ function buildTypeMeta(obj: LocalObject): { ap_type: string | null; ap_meta: APO
   // Public MLS messages appear on the public timeline as encrypted-envelope
   // posts; surface their type so the UI can render the MLS/PublicMessage badge.
   if (type === "PublicMessage") return { ap_type: type, ap_meta: extractAPMeta(obj) };
-  if (!isContentObjectType(type)) return { ap_type: null, ap_meta: null };
+  if (!isRenderableObjectType(type)) return { ap_type: null, ap_meta: null };
   return { ap_type: type, ap_meta: extractAPMeta(obj) };
 }
 

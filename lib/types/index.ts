@@ -25,6 +25,20 @@ export interface APObjectMeta {
   longitude?: number | null;
   /** Author-facing display URL (resolved from obj.url or AP object id). */
   url?: string | null;
+  /** Relationship: subject actor IRI (as:subject). */
+  subject?: string | null;
+  /** Relationship: object actor IRI (as:object). */
+  relationshipObject?: string | null;
+  /** Relationship: verb/relationship type IRI (as:relationship). */
+  relationship?: string | null;
+  /** Tombstone: former type of the deleted object (as:formerType). */
+  formerType?: string | null;
+  /** Tombstone: deletion timestamp (as:deleted). */
+  deleted?: string | null;
+  /** Collection: totalItems (as:totalItems). */
+  totalItems?: number | null;
+  /** Profile: the actor/entity the profile describes (as:describes). */
+  describes?: string | null;
 }
 
 export interface APActor extends APObject {

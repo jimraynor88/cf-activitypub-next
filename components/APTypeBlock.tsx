@@ -20,6 +20,13 @@ export interface APMeta {
   latitude?: number | null;
   longitude?: number | null;
   url?: string | null;
+  subject?: string | null;
+  relationshipObject?: string | null;
+  relationship?: string | null;
+  formerType?: string | null;
+  deleted?: string | null;
+  totalItems?: number | null;
+  describes?: string | null;
 }
 
 export interface APBlockMedia {
@@ -35,11 +42,16 @@ export interface APBlockMedia {
 const TYPE_LABEL_KEYS: Record<string, keyof Translations> = {
   Article: "ap_type_article",
   Audio: "ap_type_audio",
+  Collection: "ap_type_collection",
   Document: "ap_type_document",
   Event: "ap_type_event",
   Image: "ap_type_image",
+  OrderedCollection: "ap_type_collection",
   Page: "ap_type_page",
   Place: "ap_type_place",
+  Profile: "ap_type_profile",
+  Relationship: "ap_type_relationship",
+  Tombstone: "ap_type_tombstone",
   Video: "ap_type_video",
   Question: "ap_type_question",
   Note: "ap_type_note",
@@ -174,14 +186,9 @@ export function APTypeBlock({
     return (
       <header style={{ marginBottom: "0.15rem" }}>
         {title && (
-          <Link
-            href={target ?? "#"}
-            target={target ? "_blank" : undefined}
-            rel={target ? "nofollow noopener noreferrer" : undefined}
-            style={{ display: "block", fontWeight: 650, fontSize: "1.05rem", lineHeight: 1.35, color: "var(--text)", textDecoration: "none" }}
-          >
+          <span style={{ display: "block", fontWeight: 650, fontSize: "1.05rem", lineHeight: 1.35, color: "var(--text)" }}>
             {title}
-          </Link>
+          </span>
         )}
         {target && (
           <div style={{ marginTop: title ? "0.15rem" : 0, display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
@@ -197,6 +204,90 @@ export function APTypeBlock({
           </div>
         )}
       </header>
+    );
+  }
+
+  // ── Profile: describes an actor/entity ──────────────────────────────────
+  if (apType === "Profile") {
+    const name = apMeta?.name;
+    const target = apMeta?.url;
+    const describes = apMeta?.describes;
+    const href = target ?? describes ?? null;
+    if (!name && !href) return null;
+    return (
+      <div style={cardStyle()}>
+        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>👤 {name ?? t.ap_type_profile}</span>
+        {href && (
+          <Link href={href} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
+            {href}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // ── Relationship: subject — relationship → object ───────────────────────
+  if (apType === "Relationship") {
+    const subject = apMeta?.subject;
+    const relationship = apMeta?.relationship;
+    const object = apMeta?.relationshipObject;
+    if (!subject && !relationship && !object) return null;
+    return (
+      <div style={cardStyle()}>
+        <span style={{ fontSize: "0.9rem", color: "var(--text)", wordBreak: "break-all" }}>
+          {[subject, relationship, object].filter(Boolean).join("  →  ")}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Tombstone: a deleted object ─────────────────────────────────────────
+  if (apType === "Tombstone") {
+    const formerType = apMeta?.formerType ?? t.ap_type_tombstone;
+    const deleted = apMeta?.deleted ? formatDateTime(apMeta.deleted) : null;
+    return (
+      <div style={cardStyle()}>
+        <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
+          🗑 {t.ap_tombstone_deleted} {formerType}{deleted ? ` · ${deleted}` : ""}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Collection / OrderedCollection ──────────────────────────────────────
+  if (apType === "Collection" || apType === "OrderedCollection") {
+    const name = apMeta?.name;
+    const totalItems = apMeta?.totalItems;
+    const target = apMeta?.url;
+    return (
+      <div style={cardStyle()}>
+        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>
+          📚 {name ?? t.ap_type_collection}{totalItems != null ? ` · ${totalItems}` : ""}
+        </span>
+        {target && (
+          <Link href={target} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
+            {target}
+          </Link>
+        )}
+      </div>
+    );
+  }
+
+  // ── Question: polls are rendered by PollView; fall back to the question
+  //    text + link for bare questions without stored poll options ─────────
+  if (apType === "Question") {
+    const name = apMeta?.name;
+    const target = apMeta?.url;
+    if (!name && !target) return null;
+    return (
+      <div style={cardStyle()}>
+        {name && <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>❓ {name}</span>}
+        {target && (
+          <Link href={target} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
+            {t.ap_open_original}
+          </Link>
+        )}
+      </div>
     );
   }
 
