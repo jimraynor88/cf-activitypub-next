@@ -15,16 +15,16 @@ export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-ne
 export { TimelineStreamDO } from "../lib/streaming/timeline-do";
 // Export the call signaling Durable Object
 export { CallSignalingDO } from "../lib/streaming/call-signaling-do";
-// @ts-expect-error: generated at build time
 import openNextDefault from "../.open-next/worker.js";
 
-import type { MessageBatch, ScheduledEvent, DurableObjectNamespace } from "@cloudflare/workers-types";
+import type { MessageBatch, ScheduledEvent } from "@cloudflare/workers-types";
 import type { APDeliveryMessage } from "../lib/activitypub/queue";
 import { signRequest } from "../lib/activitypub/security";
 import { buildDelete, buildNote, generateId } from "../lib/activitypub/utils";
 import { collectFollowerInboxes, validateOutboundUrl } from "../lib/activitypub/federation";
 import { enqueueDeliveries } from "../lib/activitypub/queue";
 import { broadcastDelete, broadcastHomeDelete } from "../lib/streaming/broadcast";
+import type { DONamespace } from "../lib/streaming/broadcast";
 import { encodeStatusId } from "../lib/mastodon/statusId";
 import { getActorById } from "../lib/db";
 import { runModerationCycle } from "../lib/moderation/cycle";
@@ -36,13 +36,21 @@ interface Env {
   R2: R2Bucket;
   DELIVERY_QUEUE: Queue;
   ASSETS: Fetcher;
-  TIMELINE_STREAM: DurableObjectNamespace;
-  CALL_SIGNALING: DurableObjectNamespace;
+  TIMELINE_STREAM: DONamespace;
+  CALL_SIGNALING: CallSignalingNamespace;
   CALLS_TURN_KEY_ID?: string;
   CALLS_API_TOKEN?: string;
   NODE_ENV?: string;
   [key: string]: unknown;
 }
+
+/** Structural type for the call signaling Durable Object binding (avoids
+ *  @cloudflare/workers-types version mismatches — same shape as broadcast's
+ *  DONamespace). */
+type CallSignalingNamespace = {
+  idFromName(name: string): unknown;
+  get(id: unknown): { fetch(input: string | URL, init?: RequestInit): Promise<Response> };
+};
 
 // ─── Streaming WebSocket helper ───────────────────────────────────────────────
 
@@ -309,7 +317,10 @@ function forwardToTimelineDO(env: Env, request: Request, channel: string, authed
   const doId = env.TIMELINE_STREAM.idFromName("timeline");
   const stub = env.TIMELINE_STREAM.get(doId);
   const doUrl = `https://timeline-do/connect?channel=${encodeURIComponent(channel)}&authed=${authed ? 1 : 0}`;
-  return stub.fetch(new Request(doUrl, request));
+  // Forward the upgrade request to the Durable Object. Rebuilding the request
+  // from its method + headers (instead of reusing the original Request object)
+  // keeps the DOM/workers-types globals from colliding in type checking.
+  return stub.fetch(doUrl, { method: request.method, headers: request.headers }) as Promise<Response>;
 }
 
 const AP_CONTENT_TYPE = "application/activity+json";
@@ -383,7 +394,7 @@ async function handleCallSignalingUpgrade(
 ): Promise<Response> {
   const doId = env.CALL_SIGNALING.idFromName(callId);
   const stub = env.CALL_SIGNALING.get(doId);
-  return stub.fetch(new Request(`https://call-do/connect`, request));
+  return stub.fetch("https://call-do/connect", { method: request.method, headers: request.headers }) as Promise<Response>;
 }
 
 async function publishDueScheduled(env: Env): Promise<{ published: number; failed: number }> {

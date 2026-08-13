@@ -59,7 +59,7 @@ export async function GET(request: NextRequest): Promise<Response> {
               const cached = await fetchAndCacheRemoteActor(env.DB, selfLink.href);
               if (cached) {
                 const actor = await getActorById(env.DB, cached.id);
-                if (actor) {
+                if (actor && !actor.suspended && !actor.silenced) {
                   results.accounts.push(serializeAccount(actor, domain));
                 }
               }
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     const like = `%${q.replace(/[%_]/g, "\\$&")}%`;
     const rows = await env.DB
       .prepare(
-        `SELECT * FROM actors WHERE (username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\') AND is_local = 1 LIMIT ? OFFSET ?`
+        `SELECT * FROM actors WHERE (username LIKE ? ESCAPE '\\' OR display_name LIKE ? ESCAPE '\\') AND is_local = 1 AND suspended = 0 AND silenced = 0 LIMIT ? OFFSET ?`
       )
       .bind(like, like, limit, offset)
       .all<Record<string, unknown>>();
@@ -93,6 +93,7 @@ export async function GET(request: NextRequest): Promise<Response> {
          JOIN actors a ON a.id = o.actor_id
          WHERE o.content LIKE ? ESCAPE '\\'
            AND o.visibility IN ('public', 'unlisted')
+           AND a.suspended = 0 AND a.silenced = 0
          ORDER BY o.published DESC
          LIMIT ? OFFSET ?`
       )
@@ -148,6 +149,7 @@ export async function GET(request: NextRequest): Promise<Response> {
         `SELECT content, raw FROM objects
          WHERE (content LIKE ? ESCAPE '\\' OR raw LIKE ? ESCAPE '\\')
            AND visibility IN ('public', 'unlisted')
+           AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = objects.actor_id AND (a.silenced = 1 OR a.suspended = 1))
          LIMIT 200`
       )
       .bind(contentLike, rawLike)
@@ -208,6 +210,7 @@ async function getTagHistory(
        WHERE (content LIKE ? ESCAPE '\\' OR raw LIKE ? ESCAPE '\\')
          AND published >= datetime('now', '-7 days')
          AND visibility IN ('public', 'unlisted')
+         AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = objects.actor_id AND (a.silenced = 1 OR a.suspended = 1))
        GROUP BY day_bucket
        ORDER BY day_bucket`
     )

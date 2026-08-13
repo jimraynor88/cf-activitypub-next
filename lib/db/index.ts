@@ -29,6 +29,16 @@ import type {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
+/** Parse a JSON-array column defensively (e.g. actors.also_known_as). */
+function safeJsonParseArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface EmailVerification {
   id: string;
   actorId: string;
@@ -69,7 +79,10 @@ function rowToActor(r: Row): LocalActor {
     emailVerified: Boolean(r.email_verified),
     role: r.role ?? undefined,
     suspended: r.suspended === undefined ? undefined : Boolean(r.suspended),
+    silenced: r.silenced === undefined ? undefined : Boolean(r.silenced),
     reserved: r.reserved === undefined ? undefined : Boolean(r.reserved),
+    alsoKnownAs: r.also_known_as ? safeJsonParseArray(r.also_known_as) : null,
+    movedTo: r.moved_to ?? null,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
     inbox: r.inbox ?? null,
@@ -328,6 +341,7 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
   const username = (actor.preferredUsername ?? "").toLowerCase();
   const displayName = sanitizeFediversePlain(actor.name ?? null);
   const summary = sanitizeRemoteActorSummary(actor.summary ?? null);
+  const alsoKnownAs = actor.alsoKnownAs?.length ? JSON.stringify(actor.alsoKnownAs) : null;
   try {
     await db
       .prepare(
@@ -335,8 +349,8 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
           id, username, domain, display_name, summary, avatar_url, header_url,
           public_key_pem, private_key_pem, is_local, is_bot,
           manually_approves_followers, discoverable,
-          followers_count, following_count, statuses_count, inbox
-        ) VALUES (?,?,?,?,?,?,?,?,NULL,0,?,?,?,0,0,0,?)
+          followers_count, following_count, statuses_count, inbox, also_known_as
+        ) VALUES (?,?,?,?,?,?,?,?,NULL,0,?,?,?,0,0,0,?,?)
         ON CONFLICT(id) DO UPDATE SET
           display_name = excluded.display_name,
           summary = excluded.summary,
@@ -347,6 +361,7 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
           manually_approves_followers = excluded.manually_approves_followers,
           discoverable = excluded.discoverable,
           inbox = excluded.inbox,
+          also_known_as = excluded.also_known_as,
           updated_at = datetime('now')`
       )
       .bind(
@@ -361,7 +376,8 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
         actor.type === "Service" ? 1 : 0,
         actor.manuallyApprovesFollowers ? 1 : 0,
         actor.discoverable !== false ? 1 : 0,
-        actor.inbox
+        actor.inbox,
+        alsoKnownAs
       )
       .run();
   } catch {
@@ -373,7 +389,7 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
           `UPDATE actors SET
             id = ?, display_name = ?, summary = ?, avatar_url = ?, header_url = ?,
             public_key_pem = ?, is_bot = ?, manually_approves_followers = ?,
-            discoverable = ?, inbox = ?, updated_at = datetime('now')
+            discoverable = ?, inbox = ?, also_known_as = ?, updated_at = datetime('now')
           WHERE username = ? AND domain = ?`
         )
         .bind(
@@ -387,6 +403,7 @@ export async function upsertRemoteActor(db: D1Database, actor: APActor): Promise
           actor.manuallyApprovesFollowers ? 1 : 0,
           actor.discoverable !== false ? 1 : 0,
           actor.inbox,
+          alsoKnownAs,
           username,
           domain
         )
@@ -950,6 +967,8 @@ export async function updateActor(
     discoverable: "discoverable",
     manuallyApprovesFollowers: "manually_approves_followers",
     autoDeleteAfter: "auto_delete_after",
+    alsoKnownAs: "also_known_as",
+    movedTo: "moved_to",
   };
 
   const setClauses: string[] = [];
@@ -959,7 +978,9 @@ export async function updateActor(
     if (jsKey in fields) {
       setClauses.push(`${sqlKey} = ?`);
       const v = (fields as Record<string, unknown>)[jsKey];
-      values.push(typeof v === "boolean" ? (v ? 1 : 0) : v);
+      // JSON columns (arrays) are stored as TEXT; D1 binds arrays directly but
+      // stringifying keeps the round-trip through rowToActor consistent.
+      values.push(Array.isArray(v) ? JSON.stringify(v) : typeof v === "boolean" ? (v ? 1 : 0) : v);
     }
   }
 
@@ -1066,6 +1087,8 @@ export async function getPublicTimeline(
   let localFilter = local ? "AND o.is_local = 1" : "";
   if (remote) localFilter = "AND o.is_local = 0";
   const mediaFilter = onlyMedia ? "AND EXISTS (SELECT 1 FROM attachments a WHERE a.object_id = o.id)" : "";
+  // Silenced (limited) and suspended accounts never appear on public timelines.
+  const stateFilter = "AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = o.actor_id AND (a.silenced = 1 OR a.suspended = 1))";
   if (sinceId || minId) {
     const pivot = sinceId ?? minId!;
     const pivotRow = await db
@@ -1076,7 +1099,7 @@ export async function getPublicTimeline(
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
-         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
+         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter} ${stateFilter}
            AND o.published > ?
          ORDER BY o.published DESC LIMIT ?`
       )
@@ -1088,7 +1111,7 @@ export async function getPublicTimeline(
     const rows = await db
       .prepare(
         `SELECT o.* FROM objects o
-         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
+         WHERE o.visibility = 'public' ${localFilter} ${mediaFilter} ${stateFilter}
            AND o.published < (SELECT published FROM objects WHERE id = ?)
          ORDER BY o.published DESC LIMIT ?`
       )
@@ -1099,7 +1122,7 @@ export async function getPublicTimeline(
   const rows = await db
     .prepare(
       `SELECT o.* FROM objects o
-       WHERE o.visibility = 'public' ${localFilter} ${mediaFilter}
+       WHERE o.visibility = 'public' ${localFilter} ${mediaFilter} ${stateFilter}
        ORDER BY o.published DESC LIMIT ?`
     )
     .bind(limit)
@@ -1174,6 +1197,8 @@ export async function getHashtagTimeline(
   // Search the raw AP JSON for Hashtag tag entries matching the given hashtag name.
   // LIKE is case-insensitive for ASCII in SQLite, so #test matches #Test etc.
   const likePattern = `%"name":"#${hashtag.toLowerCase()}"%`;
+  // Silenced (limited) and suspended accounts never appear on hashtag timelines.
+  const stateFilter = "AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = o.actor_id AND (a.silenced = 1 OR a.suspended = 1))";
   if (sinceId) {
     // Newer-than cursor — used for live polling. Returns the newest posts newer
     // than the reference post (exclusive), newest first to match timeline order.
@@ -1191,6 +1216,7 @@ export async function getHashtagTimeline(
          WHERE o.visibility IN ('public', 'unlisted')
            AND o.raw LIKE ?
            AND o.published > ?
+           ${stateFilter}
          ORDER BY o.published DESC LIMIT ?`
       )
       .bind(likePattern, pivot.published, limit)
@@ -1204,6 +1230,7 @@ export async function getHashtagTimeline(
          WHERE o.visibility IN ('public', 'unlisted')
            AND o.raw LIKE ?
            AND o.published < (SELECT published FROM objects WHERE id = ?)
+           ${stateFilter}
          ORDER BY o.published DESC LIMIT ?`
       )
       .bind(likePattern, maxId, limit)
@@ -1215,6 +1242,7 @@ export async function getHashtagTimeline(
       `SELECT o.* FROM objects o
        WHERE o.visibility IN ('public', 'unlisted')
          AND o.raw LIKE ?
+         ${stateFilter}
        ORDER BY o.published DESC LIMIT ?`
     )
     .bind(likePattern, limit)

@@ -33,5 +33,16 @@ export async function GET(
 
   const fields = await getActorFields(env.DB, actor.id);
   const lastStatusAt = await getLastStatusAt(env.DB, actor.id);
-  return json(serializeAccount(actor, domain, { fields, supportsCalls, lastStatusAt }));
+
+  // Populate `moved` (the account this one migrated to) when set.
+  let movedAccount: ReturnType<typeof serializeAccount> | null = null;
+  if (actor.movedTo) {
+    const moved = await getActorById(env.DB, actor.movedTo);
+    if (moved) {
+      const movedFields = await getActorFields(env.DB, moved.id);
+      movedAccount = serializeAccount(moved, domain, { fields: movedFields });
+    }
+  }
+
+  return json(serializeAccount(actor, domain, { fields, supportsCalls, lastStatusAt, moved: movedAccount }));
 }

@@ -56,6 +56,7 @@ export async function GET(
          AND json_extract(t.value, '$.type') = 'Hashtag'
          AND o.visibility IN ('public', 'unlisted')
          AND o.published >= datetime('now', '-7 days')
+         AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = o.actor_id AND (a.silenced = 1 OR a.suspended = 1))
        GROUP BY day
        ORDER BY day DESC`
     )

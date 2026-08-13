@@ -63,7 +63,7 @@ function serializeEmoji(e: LocalCustomEmoji): { shortcode: string; url: string; 
 export function serializeAccount(
   actor: LocalActor,
   localDomain: string,
-  opts: { isCurrentUser?: boolean; fields?: ActorField[]; emojis?: LocalCustomEmoji[]; supportsCalls?: boolean; role?: string; lastStatusAt?: string | null } = {}
+  opts: { isCurrentUser?: boolean; fields?: ActorField[]; emojis?: LocalCustomEmoji[]; supportsCalls?: boolean; role?: string; lastStatusAt?: string | null; moved?: MastodonAccount | null } = {}
 ): MastodonAccount {
   const isLocal = actor.isLocal;
   const acct = isLocal
@@ -104,6 +104,11 @@ export function serializeAccount(
   };
 
   account.supports_calls = opts.supportsCalls ?? isLocal;
+
+  // Moderation state — Mastodon clients use these to render silence/suspension.
+  if (actor.suspended) account.suspended = true;
+  if (actor.silenced) account.limited = true;
+  if (opts.moved) account.moved = opts.moved;
 
   if (opts.isCurrentUser) {
     account.source = {

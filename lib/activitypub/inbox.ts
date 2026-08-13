@@ -34,10 +34,12 @@ import {
 } from "@/lib/db";
 import {
   buildAccept,
+  buildFollow,
   generateId,
 } from "./utils";
 import { upsertCustomEmoji } from "@/lib/db";
 import { deliverToInbox, fetchRemoteObject } from "./federation";
+import { fetchAndCacheRemoteActor } from "./remote";
 import { broadcastNotificationEvent, broadcastPublicStatus, broadcastHomeStatus, broadcastCallEvent } from "@/lib/streaming/broadcast";
 import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
@@ -168,6 +170,9 @@ export async function processInboxActivity(
         break;
       case "update":
         await handleUpdate(activity, ctx);
+        break;
+      case "move":
+        await handleMove(activity, ctx);
         break;
       case "calloffer":
         await handleCallOffer(activity, ctx);
@@ -461,6 +466,9 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
   // Broadcast to timeline streaming clients (fire-and-forget)
   if (ctx.timelineStream) {
     const statusVisibility = resolveVisibility(obj.to, obj.cc);
+    // Silenced (limited) and suspended authors are hidden from the public
+    // streams, but their followers still receive posts on their home feeds.
+    const authorVisibleOnPublic = !author.silenced && !author.suspended;
     if (statusVisibility === "public" || statusVisibility === "unlisted") {
       const domain = new URL(ctx.baseUrl).hostname;
       const published = toUtcIso(obj.published);
@@ -485,9 +493,10 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
         domain,
         { attachments: storedAttachments, emojis: allEmojis, poll }
       );
-      const broadcastTasks: Promise<void>[] = [
-        broadcastPublicStatus(ctx.timelineStream, serializedStatus, false),
-      ];
+      const broadcastTasks: Promise<void>[] = [];
+      if (authorVisibleOnPublic) {
+        broadcastTasks.push(broadcastPublicStatus(ctx.timelineStream, serializedStatus, false));
+      }
 
       // Broadcast to home feeds of local followers
       try {
@@ -667,6 +676,89 @@ async function handleUndo(activity: APActivity, ctx: InboxContext): Promise<void
   } else if (innerType === "announce") {
     const objectId = typeof obj.object === "string" ? obj.object : (obj.object as APNote)?.id;
     if (objectId) await deleteAnnounce(ctx.db, actorId, objectId);
+  }
+}
+
+/** Handle an inbound Move activity (remote account migrated to a new account). */
+async function handleMove(activity: APActivity, ctx: InboxContext): Promise<void> {
+  const sourceId = typeof activity.actor === "string" ? activity.actor : activity.actor.id;
+  const targetId = typeof activity.object === "string" ? activity.object : (activity.object as APActor)?.id;
+  if (!targetId) return;
+
+  // The source account must be the one moving away. Only handle moves of
+  // remote accounts — local accounts never issue Move to our own inbox.
+  const source = await getActorById(ctx.db, sourceId);
+  if (!source || source.isLocal) return;
+
+  // Ensure the target account is cached so we can verify the alias and update follows.
+  const target = await ensureActorCached(ctx.db, targetId);
+  if (!target) return;
+
+  // Verify the alias: the target must declare the source in its alsoKnownAs
+  // (Mastodon's AccountMigrationService check). Without a verifiable alias the
+  // Move is dropped — this prevents hijacking follows of unrelated accounts.
+  const aliases = target.alsoKnownAs ?? [];
+  if (!aliases.includes(sourceId)) {
+    // Some servers only set alsoKnownAs on the target after a fresh fetch.
+    const refreshed = await fetchAndCacheRemoteActor(ctx.db, targetId);
+    if (refreshed) {
+      const refetched = await getActorById(ctx.db, targetId);
+      if (!refetched?.alsoKnownAs?.includes(sourceId)) return;
+    } else {
+      return;
+    }
+  }
+
+  // Record the move on the source account (clients show a "moved" notice).
+  await updateActor(ctx.db, sourceId, { movedTo: targetId });
+
+  // Re-point every accepted local follow from the old account to the new one.
+  const followerRows = await ctx.db
+    .prepare("SELECT actor_id FROM follows WHERE target_id = ? AND state = 'accepted'")
+    .bind(sourceId)
+    .all<{ actor_id: string }>();
+
+  const signingKey = ctx.signingKey ??
+    (ctx.recipient ? { id: ctx.recipient.id, privateKeyPem: ctx.recipient.privateKeyPem } : null);
+
+  let migratedCount = 0;
+  for (const row of followerRows.results) {
+    const followerId = row.actor_id;
+    const follower = await getActorById(ctx.db, followerId);
+    if (!follower?.isLocal) continue;
+
+    // If the follower already follows the target, just drop the old follow.
+    const existingTarget = await getFollow(ctx.db, followerId, targetId);
+    await deleteFollow(ctx.db, followerId, sourceId);
+    migratedCount++;
+
+    if (!existingTarget) {
+      await createFollow(ctx.db, {
+        id: generateId(),
+        actorId: followerId,
+        targetId,
+        state: target.manuallyApprovesFollowers ? "pending" : "accepted",
+        activityId: null,
+        createdAt: new Date().toISOString(),
+      });
+      // Notify the new account so it registers the follower.
+      if (!target.manuallyApprovesFollowers && target.inbox && signingKey?.privateKeyPem) {
+        const followActivity = buildFollow(ctx.baseUrl, followerId, targetId, generateId());
+        await deliverToInbox(target.inbox, followActivity, signingKey.id, signingKey.privateKeyPem).catch(() => {});
+      }
+    }
+  }
+
+  // Adjust follower counts: decrement source by migrated, bump target by same.
+  if (migratedCount > 0) {
+    await ctx.db
+      .prepare("UPDATE actors SET followers_count = MAX(COALESCE(followers_count, 0) - ?, 0) WHERE id = ?")
+      .bind(migratedCount, sourceId)
+      .run();
+    await ctx.db
+      .prepare("UPDATE actors SET followers_count = COALESCE(followers_count, 0) + ? WHERE id = ?")
+      .bind(migratedCount, targetId)
+      .run();
   }
 }
 
@@ -1044,6 +1136,7 @@ async function handleUpdate(activity: APActivity, ctx: InboxContext): Promise<vo
       headerUrl: actor.image?.url ?? null,
       discoverable: actor.discoverable ?? true,
       manuallyApprovesFollowers: actor.manuallyApprovesFollowers ?? false,
+      alsoKnownAs: actor.alsoKnownAs?.length ? actor.alsoKnownAs : undefined,
     });
   }
 }

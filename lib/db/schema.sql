@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS actors (
   auto_delete_after  INTEGER,                   -- auto-delete posts after N seconds (null = disabled)
   role               TEXT NOT NULL DEFAULT 'user', -- user, moderator, admin
   suspended          INTEGER NOT NULL DEFAULT 0,
+  silenced           INTEGER NOT NULL DEFAULT 0,   -- 1 = posts hidden from public timelines, still visible to followers
   reserved           INTEGER NOT NULL DEFAULT 0,
+  also_known_as      TEXT,                          -- JSON array of alias actor IRIs (account migration)
+  moved_to           TEXT,                          -- actor IRI the account migrated to
   created_at         TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at         TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE (username, domain)

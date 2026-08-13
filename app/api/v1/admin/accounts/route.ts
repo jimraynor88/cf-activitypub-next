@@ -28,6 +28,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     sql += " AND email_verified = 0";
   } else if (status === "suspended") {
     sql += " AND suspended = 1";
+  } else if (status === "silenced") {
+    sql += " AND silenced = 1";
   }
 
   if (role !== "all") {
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     rows = result.results;
     const totalRow = await env.DB.prepare(
       "SELECT COUNT(*) as count FROM actors WHERE 1=1" +
-      (status !== "all" ? (status === "active" ? " AND email_verified = 1" : status === "pending" ? " AND email_verified = 0" : " AND suspended = 1") : "") +
+      (status !== "all" ? (status === "active" ? " AND email_verified = 1" : status === "pending" ? " AND email_verified = 0" : status === "suspended" ? " AND suspended = 1" : " AND silenced = 1") : "") +
       (role !== "all" ? " AND role = ?" : "") +
       (q ? " AND (username LIKE ? OR display_name LIKE ?)" : "")
     ).bind(...(role !== "all" ? [role] : []), ...(q ? [`%${q}%`, `%${q}%`] : [])).first<{ count: number }>();
@@ -70,6 +72,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       role: String(r.role ?? "user"),
       confirmed: actor.emailVerified,
       suspended: Boolean(r.suspended),
+      silenced: Boolean(r.silenced),
       approved: true,
       account: serializeAccount(actor, domain),
     };

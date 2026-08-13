@@ -126,6 +126,7 @@ export async function fetchAndCacheRemoteActor(
 
     // Upsert — update if already exists (in case profile changed).
     // Falls back to UPDATE by username+domain when the actor migrated to a new URL.
+    const alsoKnownAs = Array.isArray(p.alsoKnownAs) ? JSON.stringify(p.alsoKnownAs.filter((x) => typeof x === "string")) : null;
     try {
       await db
         .prepare(
@@ -133,8 +134,8 @@ export async function fetchAndCacheRemoteActor(
            (id, username, domain, display_name, summary, avatar_url, header_url,
             public_key_pem, private_key_pem, is_local, is_bot,
             manually_approves_followers, discoverable,
-            followers_count, following_count, statuses_count, inbox)
-           VALUES (?,?,?,?,?,?,?,?,NULL,0,?,?,1,?,?,?,?)
+            followers_count, following_count, statuses_count, inbox, also_known_as)
+           VALUES (?,?,?,?,?,?,?,?,NULL,0,?,?,1,?,?,?,?,?)
            ON CONFLICT(id) DO UPDATE SET
              display_name = excluded.display_name,
              summary = excluded.summary,
@@ -147,6 +148,7 @@ export async function fetchAndCacheRemoteActor(
              following_count = CASE WHEN excluded.following_count > 0 THEN excluded.following_count ELSE actors.following_count END,
              statuses_count = CASE WHEN excluded.statuses_count > 0 THEN excluded.statuses_count ELSE actors.statuses_count END,
              inbox = excluded.inbox,
+             also_known_as = excluded.also_known_as,
              updated_at = datetime('now')`
         )
         .bind(
@@ -162,6 +164,7 @@ export async function fetchAndCacheRemoteActor(
           followingCount,
           statusesCount,
           inbox,
+          alsoKnownAs,
         )
         .run();
     } catch {
@@ -176,7 +179,7 @@ export async function fetchAndCacheRemoteActor(
                followers_count = CASE WHEN ? > 0 THEN ? ELSE followers_count END,
                following_count = CASE WHEN ? > 0 THEN ? ELSE following_count END,
                statuses_count  = CASE WHEN ? > 0 THEN ? ELSE statuses_count  END,
-               discoverable = ?, inbox = ?, updated_at = datetime('now')
+               discoverable = ?, inbox = ?, also_known_as = ?, updated_at = datetime('now')
              WHERE username = ? AND domain = ?`
           )
           .bind(
@@ -195,6 +198,7 @@ export async function fetchAndCacheRemoteActor(
             statusesCount,
             1,
             inbox,
+            alsoKnownAs,
             usernameNorm,
             domain,
           )

@@ -471,7 +471,8 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Broadcast to streaming clients — collect tasks and await all together
   const broadcastTasks: Promise<void>[] = [];
-  if (visibility === "public" || visibility === "unlisted") {
+  // Silenced/suspended local accounts are hidden from the public streams too.
+  if ((visibility === "public" || visibility === "unlisted") && !actor.silenced && !actor.suspended) {
     broadcastTasks.push(broadcastPublicStatus(env.TIMELINE_STREAM, serializedStatus, /* isLocal */ true));
   }
   broadcastTasks.push(broadcastHomeStatus(env.TIMELINE_STREAM, actor.id, serializedStatus));

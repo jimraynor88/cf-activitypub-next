@@ -61,6 +61,7 @@ export interface APActor extends APObject {
   indexable?: boolean;
   published?: string;
   alsoKnownAs?: string[];
+  movedTo?: string;
   attachment?: APPropertyValue[];
   tag?: APTag[];
 }
@@ -191,7 +192,11 @@ export interface LocalActor {
   // moderation — populated when the query selects these columns
   role?: string;
   suspended?: boolean;
+  silenced?: boolean;
   reserved?: boolean;
+  // account migration
+  alsoKnownAs?: string[] | null;
+  movedTo?: string | null;
   // federation — stored for remote actors; computed for local
   inbox?: string;
   outbox?: string;

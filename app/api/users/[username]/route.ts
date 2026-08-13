@@ -36,6 +36,8 @@ export async function GET(
     isBot: actor.isBot,
     published: actor.createdAt,
     fields: fields.map((f) => ({ name: f.name, value: f.value })),
+    alsoKnownAs: actor.alsoKnownAs ?? undefined,
+    movedTo: actor.movedTo ?? undefined,
   });
 
   return activityJson({

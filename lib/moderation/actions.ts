@@ -289,6 +289,58 @@ export async function unsuspendAccount(env: ModerationEnv, opts: ActionBase & { 
   return { action: "unsuspended", applied: true, emailSent: false };
 }
 
+/** Limit (silence) an account: hide its posts from public timelines/search. */
+export async function silenceAccount(env: ModerationEnv, opts: ActionBase & { actorId: string }): Promise<ActionResult> {
+  const { actorId, reason } = opts;
+  const actor = await getActorById(env.DB, actorId);
+  if (!actor) return { action: "silenced", applied: false, emailSent: false };
+  if (actor.silenced) return { action: "silenced", applied: false, emailSent: false };
+
+  await env.DB.prepare("UPDATE actors SET silenced = 1, updated_at = datetime('now') WHERE id = ?").bind(actorId).run();
+  const m = meta(opts, SYSTEM);
+  await recordModeration(env, {
+    id: generateId(),
+    source: m.source,
+    targetType: "account",
+    targetId: actorId,
+    action: "silenced",
+    reason: reason ?? "Cuenta silenciada.",
+    confidence: opts.confidence ?? null,
+    model: m.model,
+    details: opts.details ?? {},
+    emailSent: false,
+    emailTo: null,
+    relatedId: opts.relatedId ?? null,
+  });
+  return { action: "silenced", applied: true, emailSent: false };
+}
+
+/** Reinstate a silenced account (posts appear on public timelines again). */
+export async function unsilenceAccount(env: ModerationEnv, opts: ActionBase & { actorId: string }): Promise<ActionResult> {
+  const { actorId, reason } = opts;
+  const actor = await getActorById(env.DB, actorId);
+  if (!actor) return { action: "unsilenced", applied: false, emailSent: false };
+  if (!actor.silenced) return { action: "unsilenced", applied: false, emailSent: false };
+
+  await env.DB.prepare("UPDATE actors SET silenced = 0, updated_at = datetime('now') WHERE id = ?").bind(actorId).run();
+  const m = meta(opts, SYSTEM);
+  await recordModeration(env, {
+    id: generateId(),
+    source: m.source,
+    targetType: "account",
+    targetId: actorId,
+    action: "unsilenced",
+    reason: reason ?? "Cuenta des-silenciada.",
+    confidence: opts.confidence ?? null,
+    model: m.model,
+    details: opts.details ?? {},
+    emailSent: false,
+    emailTo: null,
+    relatedId: opts.relatedId ?? null,
+  });
+  return { action: "unsilenced", applied: true, emailSent: false };
+}
+
 /** Soft-delete a status (content stripped, flagged sensitive) and notify owner. */
 export async function deleteStatus(env: ModerationEnv, opts: ActionBase & { objectId: string }): Promise<ActionResult> {
   const { objectId, reason } = opts;

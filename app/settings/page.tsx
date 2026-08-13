@@ -116,6 +116,24 @@ export default function SettingsPage() {
           >
             🏷️ Featured Tags
           </Link>
+          <Link
+            href="/settings/import-export"
+            style={{
+              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
+              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
+            }}
+          >
+            ⇄ Import &amp; Export
+          </Link>
+          <Link
+            href="/settings/migration"
+            style={{
+              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
+              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
+            }}
+          >
+            ⇱ Account migration
+          </Link>
         </div>
         {saved && (
           <div style={{ padding: "0.5rem 1rem", background: "var(--accent-bg)", color: "var(--accent)", fontSize: "0.875rem" }}>

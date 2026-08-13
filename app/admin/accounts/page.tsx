@@ -13,6 +13,7 @@ interface AdminAccount {
   role: string;
   confirmed: boolean;
   suspended: boolean;
+  silenced: boolean;
   approved: boolean;
   account: {
     id: string;
@@ -122,6 +123,7 @@ export default function AdminAccountsPage() {
           <option value="all">All status</option>
           <option value="active">Active</option>
           <option value="pending">Pending</option>
+          <option value="silenced">Silenced</option>
           <option value="suspended">Suspended</option>
         </select>
       </div>
@@ -144,7 +146,7 @@ export default function AdminAccountsPage() {
             </thead>
             <tbody>
               {accounts.map((a) => {
-                const isBusy = actionLoading === `${a.id}:approve` || actionLoading === `${a.id}:suspend` || actionLoading === `${a.id}:unsuspend` || actionLoading === `${a.id}:promote` || actionLoading === `${a.id}:demote`;
+                const isBusy = actionLoading === `${a.id}:approve` || actionLoading === `${a.id}:suspend` || actionLoading === `${a.id}:unsuspend` || actionLoading === `${a.id}:silence` || actionLoading === `${a.id}:unsilence` || actionLoading === `${a.id}:promote` || actionLoading === `${a.id}:demote`;
                 return (
                   <tr key={a.id} style={{ borderBottom: "1px solid var(--border)", transition: "background 0.1s" }}
                     onMouseOver={(e) => (e.currentTarget as HTMLElement).style.background = "var(--accent-bg)"}
@@ -170,6 +172,8 @@ export default function AdminAccountsPage() {
                     <td style={{ padding: "0.625rem 0.75rem" }}>
                       {a.suspended ? (
                         <span className="badge" style={{ background: "rgba(248,113,113,0.12)", color: "var(--danger)" }}>Suspended</span>
+                      ) : a.silenced ? (
+                        <span className="badge" style={{ background: "rgba(251,191,36,0.12)", color: "var(--warning)" }}>Silenced</span>
                       ) : !a.confirmed ? (
                         <span className="badge" style={{ background: "rgba(251,191,36,0.12)", color: "var(--warning)" }}>Pending</span>
                       ) : (
@@ -190,10 +194,19 @@ export default function AdminAccountsPage() {
                           <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "unsuspend")}>
                             {isBusy && actionLoading === `${a.id}:unsuspend` ? "..." : "Unsuspend"}
                           </button>
-                        ) : a.confirmed && (
-                          <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "suspend")} style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
-                            {isBusy && actionLoading === `${a.id}:suspend` ? "..." : "Suspend"}
+                        ) : a.silenced ? (
+                          <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "unsilence")}>
+                            {isBusy && actionLoading === `${a.id}:unsilence` ? "..." : "Unsilence"}
                           </button>
+                        ) : a.confirmed && (
+                          <>
+                            <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "silence")} style={{ color: "var(--warning)", borderColor: "var(--warning)" }}>
+                              {isBusy && actionLoading === `${a.id}:silence` ? "..." : "Silence"}
+                            </button>
+                            <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "suspend")} style={{ color: "var(--danger)", borderColor: "var(--danger)" }}>
+                              {isBusy && actionLoading === `${a.id}:suspend` ? "..." : "Suspend"}
+                            </button>
+                          </>
                         )}
                         {a.role === "user" && (
                           <button className="btn btn-outline btn-sm" disabled={isBusy} onClick={() => performAction(a.id, "promote")}>

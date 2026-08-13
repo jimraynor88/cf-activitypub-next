@@ -25,7 +25,17 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (row?.role) role = row.role;
   } catch {} // column may not exist until migration runs
 
-  return json(serializeAccount(actor, domain, { isCurrentUser: true, fields, role, lastStatusAt }));
+  // Emit `moved` (the account this one migrated to) when set.
+  let movedAccount: ReturnType<typeof serializeAccount> | null = null;
+  if (actor.movedTo) {
+    const moved = await getActorById(env.DB, actor.movedTo);
+    if (moved) {
+      const movedFields = await getActorFields(env.DB, moved.id);
+      movedAccount = serializeAccount(moved, domain, { fields: movedFields });
+    }
+  }
+
+  return json(serializeAccount(actor, domain, { isCurrentUser: true, fields, role, lastStatusAt, moved: movedAccount }));
 }
 
 // PATCH /api/v1/accounts/update_credentials
@@ -178,6 +188,8 @@ export async function PATCH(request: NextRequest): Promise<Response> {
       statusesCount: updated.statusesCount,
       published: updated.createdAt,
       fields: fields.map((f) => ({ name: f.name, value: f.value })),
+      alsoKnownAs: updated.alsoKnownAs ?? undefined,
+      movedTo: updated.movedTo ?? undefined,
     });
     const updateActivity = buildUpdateActor(baseUrl, apActor, generateId());
     const followerRows = await env.DB

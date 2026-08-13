@@ -66,6 +66,8 @@ export function buildActor(
     statusesCount?: number;
     published?: string;
     fields?: { name: string; value: string }[];
+    alsoKnownAs?: string[];
+    movedTo?: string;
   }
 ): APActor {
   const id = actorIRI(baseUrl, username);
@@ -110,6 +112,12 @@ export function buildActor(
       name: f.name,
       value: f.value,
     }));
+  }
+  if (options.alsoKnownAs && options.alsoKnownAs.length > 0) {
+    actor.alsoKnownAs = options.alsoKnownAs;
+  }
+  if (options.movedTo) {
+    actor.movedTo = options.movedTo;
   }
 
   return actor;
@@ -219,6 +227,25 @@ export function buildFollow(baseUrl: string, actorId: string, targetId: string, 
     actor: actorId,
     object: targetId,
     to: [targetId],
+  };
+}
+
+/** Move activity for account migration: actor moves to object (target). */
+export function buildMove(
+  baseUrl: string,
+  actorId: string,
+  targetId: string,
+  id: string,
+  followerIds: string[]
+): APActivity {
+  return {
+    "@context": DEFAULT_CONTEXT,
+    id: activityIRI(baseUrl, id),
+    type: "Move",
+    actor: actorId,
+    object: targetId,
+    target: targetId,
+    to: followerIds,
   };
 }
 

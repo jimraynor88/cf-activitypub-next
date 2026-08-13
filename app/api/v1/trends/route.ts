@@ -12,6 +12,7 @@ export async function GET(request: NextRequest): Promise<Response> {
        WHERE json_valid(raw)
          AND visibility IN ('public', 'unlisted')
          AND published >= datetime('now', '-7 days')
+         AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = objects.actor_id AND (a.silenced = 1 OR a.suspended = 1))
        LIMIT 500`
     )
     .all<{ raw: string }>();

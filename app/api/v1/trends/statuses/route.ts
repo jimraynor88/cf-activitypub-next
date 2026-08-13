@@ -53,6 +53,7 @@ export async function GET(request: NextRequest): Promise<Response> {
        WHERE o.visibility IN ('public', 'unlisted')
          AND o.type = 'Note'
          AND o.published >= datetime('now', '-7 days')
+         AND NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = o.actor_id AND (a.silenced = 1 OR a.suspended = 1))
        ORDER BY (o.favourites_count + o.reblogs_count + o.replies_count) DESC,
                 o.published DESC
        LIMIT ?`
