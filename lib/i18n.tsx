@@ -18,6 +18,10 @@ const EN = {
   compose_posting: "Posting…",
   compose_post: "Post",
   compose_attach: "Attach image or video (max 4)",
+  // Reply
+  reply_to: "Replying to",
+  reply_placeholder: "Post your reply…",
+  reply_button: "Reply",
   // Home timeline
   timeline_empty: "Your timeline is empty.",
   timeline_empty_sub: "Follow people to see their posts here.",
@@ -456,6 +460,10 @@ const ES: typeof EN = {
   compose_posting: "Publicando…",
   compose_post: "Publicar",
   compose_attach: "Adjuntar imagen o video (máx 4)",
+  // Responder
+  reply_to: "Respondiendo a",
+  reply_placeholder: "Escribe tu respuesta…",
+  reply_button: "Responder",
   // Cronología
   timeline_empty: "Tu cronología está vacía.",
   timeline_empty_sub: "Sigue a personas para ver sus publicaciones aquí.",

@@ -266,7 +266,7 @@ function ReplyBox({
   return (
     <div style={{ borderBottom: "1px solid var(--border)", padding: "0.75rem 1rem", background: "var(--bg-elevated)" }}>
       <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>
-        Replying to <strong>@{replyTo.account.acct}</strong>
+        {t.reply_to} <strong>@{replyTo.account.acct}</strong>
       </div>
       <div style={{ display: "flex", gap: "0.75rem" }}>
         {me && (
@@ -291,7 +291,7 @@ function ReplyBox({
             ref={textareaRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Post your reply..."
+            placeholder={t.reply_placeholder}
             rows={3}
             style={{ width: "100%", resize: "vertical", padding: "0.5rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.95rem", fontFamily: "inherit" }}
           />
@@ -388,18 +388,18 @@ function ReplyBox({
                 onChange={(e) => setVisibility(e.target.value as typeof visibility)}
                 style={{ fontSize: "0.78rem", padding: "0.25rem 0.4rem", cursor: "pointer", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text)" }}
               >
-                <option value="public">🌍 Public</option>
-                <option value="unlisted">🔓 Unlisted</option>
-                <option value="followers">👥 Followers</option>
-                <option value="direct">📩 Direct</option>
+                <option value="public">🌍 {t.vis_public}</option>
+                <option value="unlisted">🔓 {t.vis_unlisted}</option>
+                <option value="followers">👥 {t.vis_followers}</option>
+                <option value="direct">📩 {t.vis_direct}</option>
               </select>
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={submitting}>
-                Cancel
+                {t.profile_cancel}
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || (!text.trim() && mediaFiles.length === 0 && !pollMode)}>
-                {submitting ? "Posting\u2026" : "Reply"}
+                {submitting ? t.compose_posting : t.reply_button}
               </button>
             </div>
           </div>
