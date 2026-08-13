@@ -67,7 +67,20 @@ export function processStatusContent(
     }
   }
 
-  // 1. Remote mentions: @user@domain.
+  // 1. URLs (plain http/https links) — processed before mentions and hashtags
+  // so that any `@account` (and `#fragment` / trailing `#`) inside a link is
+  // reserved as part of the URL and never misparsed as a mention or hashtag.
+  const urlPattern = /\bhttps?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+  for (const m of text.matchAll(urlPattern)) {
+    const [url] = m;
+    add(
+      m.index!,
+      m.index! + url.length,
+      `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(url)}</a>`
+    );
+  }
+
+  // 2. Remote mentions: @user@domain.
   // Display only the username (@user), keeping the full handle as the link
   // target and as an accessible hover title.
   const remotePattern = /@([a-zA-Z0-9_.-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g;
@@ -82,7 +95,7 @@ export function processStatusContent(
     );
   }
 
-  // 2. Local mentions: @user (not followed by @domain)
+  // 3. Local mentions: @user (not followed by @domain)
   const localDomain = baseUrl ? new URL(baseUrl).hostname : undefined;
   const localPattern = /(?<![a-zA-Z0-9_.-])@([a-zA-Z0-9_]+)(?![@a-zA-Z0-9_.-])/g;
   for (const m of text.matchAll(localPattern)) {
@@ -94,19 +107,6 @@ export function processStatusContent(
       m.index! + full.length,
       `<a href="${href}" class="u-url mention">@<span>${escapeHtml(user)}</span></a>`,
       { type: "Mention", href, name }
-    );
-  }
-
-  // 3. URLs (plain http/https links) — processed before hashtags so that any
-  // `#fragment` (or URL with a trailing #) inside a link is reserved as part of
-  // the URL and never misparsed as a #hashtag.
-  const urlPattern = /\bhttps?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-  for (const m of text.matchAll(urlPattern)) {
-    const [url] = m;
-    add(
-      m.index!,
-      m.index! + url.length,
-      `<a href="${url}" target="_blank" rel="nofollow noopener noreferrer">${escapeHtml(url)}</a>`
     );
   }
 

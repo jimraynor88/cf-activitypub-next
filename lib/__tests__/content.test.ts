@@ -38,4 +38,19 @@ describe("processStatusContent URL vs hashtag handling", () => {
     expect(html).toContain('title="@alice@example.com"');
     expect(tags).toContainEqual({ type: "Mention", href: "https://example.com/@alice", name: "@alice@example.com" });
   });
+
+  it("linkifies a URL containing an @ before resolving it as a mention", () => {
+    const url = "https://example.com/@alice";
+    const { html, tags } = processStatusContent(`mira ${url} y luego @bob@example.com`);
+
+    // The whole URL stays a single link; the @ inside it must not become a mention.
+    expect(html).toContain(`href="${url}"`);
+    expect(html).toContain(`>${url}</a>`);
+    expect(html).not.toContain(`/@alice" class="u-url mention"`);
+    expect(tags.some((t) => t.type === "Mention" && t.href === url)).toBe(false);
+
+    // Mentions outside the URL are still resolved normally.
+    expect(html).toContain('href="https://example.com/@bob"');
+    expect(tags).toContainEqual({ type: "Mention", href: "https://example.com/@bob", name: "@bob@example.com" });
+  });
 });
