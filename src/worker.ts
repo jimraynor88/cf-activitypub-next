@@ -108,6 +108,87 @@ function extractToken(request: Request, url: URL): string | null {
   return null;
 }
 
+// ─── WebSocket abuse protection (Origin + per-IP connect limits) ─────────────
+//
+// Protects the streaming endpoint against unauthenticated external connections:
+//  1. Cross-Site WebSocket Hijacking — browsers always send an `Origin` header
+//     on a WebSocket handshake. Connections from a foreign Origin are rejected
+//     unless they carry an explicit credential (Bearer/query/Sec-WebSocket-
+//     Protocol token) that a cross-site script could never obtain. The web UI's
+//     own connections are same-origin (or localhost), so they pass untouched.
+//  2. Per-IP connection churn — anonymous/public sockets are capped by the DO,
+//     but nothing stops an IP from hammering the upgrade endpoint. A KV-backed
+//     sliding window rate-limits upgrade attempts; an IP that exceeds the limit
+//     is temporarily blocked so its requests are rejected before reaching the DO.
+
+const WS_CONNECT_WINDOW_SEC = 60;
+const WS_MAX_CONNECTS_PER_WINDOW = 30;
+const WS_BLOCK_TTL_SEC = 5 * 60;
+
+/** True when the request carries an explicit (non-cookie) credential. */
+function hasExplicitCredential(request: Request, url: URL): boolean {
+  const authHeader = request.headers.get("Authorization") ?? "";
+  if (authHeader.startsWith("Bearer ")) return true;
+  if (url.searchParams.get("access_token")) return true;
+  const proto = request.headers.get("Sec-WebSocket-Protocol") ?? "";
+  if (proto && !proto.includes(",")) return true;
+  return false;
+}
+
+/**
+ * Validate the WebSocket handshake's Origin header. Returns an error message to
+ * reject with, or null when the connection may proceed. Cross-origin browser
+ * connections are only allowed when an explicit token credential is present.
+ */
+function validateWsOrigin(request: Request, url: URL): string | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null; // non-browser client (native app, curl, …)
+
+  let originHost: string;
+  try {
+    originHost = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return "Malformed Origin header";
+  }
+
+  const devHosts = new Set(["localhost", "127.0.0.1", "::1"]);
+  if (devHosts.has(originHost)) return null;
+
+  const hostHeader = request.headers.get("Host") ?? url.host;
+  const expectedHost = (hostHeader.split(":")[0] || "").toLowerCase();
+  if (originHost === expectedHost) return null;
+
+  // Cross-origin: only trust it when an explicit credential proves intent.
+  if (hasExplicitCredential(request, url)) return null;
+  return "Cross-origin WebSocket connections are not allowed";
+}
+
+/** Whether the given IP is currently blocked from opening WebSockets. */
+async function isWsIpBlocked(kv: KVNamespace, ip: string): Promise<boolean> {
+  return (await kv.get(`ws_block:${ip}`)) !== null;
+}
+
+/**
+ * Record a WebSocket upgrade attempt from this IP. Returns false (and blocks the
+ * IP) once the IP exceeds the allowed connection-attempt rate. Uses a sliding
+ * window keyed on `floor(now/window)` with a TTL slightly longer than the window
+ * so the counter is always present for the whole window it covers.
+ */
+async function enforceWsConnectRateLimit(
+  kv: KVNamespace,
+  ip: string
+): Promise<{ allowed: boolean; blocked: boolean }> {
+  const now = Math.floor(Date.now() / 1000);
+  const windowKey = `ws_conn:${ip}:${Math.floor(now / WS_CONNECT_WINDOW_SEC)}`;
+  const count = parseInt((await kv.get(windowKey)) ?? "0", 10);
+  if (count >= WS_MAX_CONNECTS_PER_WINDOW) {
+    await kv.put(`ws_block:${ip}`, "1", { expirationTtl: WS_BLOCK_TTL_SEC });
+    return { allowed: false, blocked: true };
+  }
+  await kv.put(windowKey, String(count + 1), { expirationTtl: WS_CONNECT_WINDOW_SEC + 5 });
+  return { allowed: true, blocked: false };
+}
+
 /** Resolve a token to a DB row, returning null for expired/missing tokens. */
 async function resolveToken(
   db: D1Database,
@@ -135,6 +216,30 @@ async function handleStreamingUpgrade(request: Request, env: Env): Promise<Respo
   const streamParam = url.searchParams.get("stream");
   const tag         = url.searchParams.get("tag");
   const listId      = url.searchParams.get("list");
+
+  // ── Abuse protection (blocked IPs, cross-site hijacking, churn) ─────────────
+  // Runs on every upgrade attempt, before any auth resolution or DO hop.
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (await isWsIpBlocked(env.KV, ip)) {
+    return new Response(JSON.stringify({ error: "Source IP temporarily blocked" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const originError = validateWsOrigin(request, url);
+  if (originError) {
+    return new Response(JSON.stringify({ error: originError }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  const rl = await enforceWsConnectRateLimit(env.KV, ip);
+  if (!rl.allowed) {
+    return new Response(
+      JSON.stringify({ error: rl.blocked ? "Source IP temporarily blocked" : "Too many connection attempts" }),
+      { status: rl.blocked ? 403 : 429, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   // ── Multiplex connection (no stream param) ────────────────────────────────
   // Client will subscribe to streams via JSON messages after connecting.

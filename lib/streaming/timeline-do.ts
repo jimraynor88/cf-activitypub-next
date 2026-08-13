@@ -144,19 +144,27 @@ export class TimelineStreamDO extends CFDurableObject {
         const allowed = await this.enforceConnectionCap(ipKey, socketId, isAnon);
         if (!allowed) {
           try { server.close(1013, "too many concurrent connections"); } catch { /* already closed */ }
+          return;
+        }
+
+        // Time-box anonymous public streams so an unauthenticated socket cannot
+        // idle forever and read the instance without limit. The DO exposes one
+        // alarm slot, so schedule the *earliest* of this socket's expiry and any
+        // already-pending expiry — never blindly overwrite, which would extend
+        // earlier sockets' lives (alarm() re-arms to the nearest remaining expiry
+        // once it fires). Best-effort: a failed alarm write is not fatal.
+        if (isAnon) {
+          const expiry = Date.now() + ANON_SOCKET_TTL_MS;
+          const existing = await this.state.storage.getAlarm();
+          const existingMs = existing == null ? Infinity : Number(existing);
+          if (expiry < existingMs) {
+            await this.state.storage.setAlarm(expiry).catch(() => {});
+          }
         }
       } catch (err) {
         console.error("[TimelineStreamDO] connection cap enforcement failed:", err);
       }
     });
-
-    // Time-box anonymous public streams so an unauthenticated socket cannot
-    // idle forever and read the instance without limit.
-    if (isAnon) {
-      this.state.storage
-        .setAlarm(Date.now() + ANON_SOCKET_TTL_MS)
-        .catch(() => { /* best-effort */ });
-    }
 
     return new Response(null, { status: 101, webSocket: client });
   }
