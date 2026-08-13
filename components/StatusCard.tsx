@@ -457,6 +457,15 @@ export function StatusCard({
   const threadHref = `/statuses/${encodeURIComponent(status.id)}`;
   const showContent = !status.spoiler_text || cwExpanded;
 
+  const visibilityInfo = (() => {
+    switch (status.visibility) {
+      case "unlisted": return { icon: "🔓", label: t.vis_unlisted };
+      case "followers": return { icon: "🔒", label: t.vis_followers };
+      case "direct": return { icon: "✉️", label: t.vis_direct };
+      default: return { icon: "🌐", label: t.vis_public };
+    }
+  })();
+
   async function handleFav() {
     if (!token) return;
     const wasFav = favourited;
@@ -561,7 +570,13 @@ export function StatusCard({
           </Link>
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>@{status.account.acct}</span>
           {pinned && <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "0.25rem" }}>📌</span>}
-          <Link href={threadHref} title={new Date(status.created_at).toLocaleString()} style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginLeft: "auto", textDecoration: "none" }}>
+          <span
+            title={visibilityInfo.label}
+            style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "auto", whiteSpace: "nowrap" }}
+          >
+            {visibilityInfo.icon} {visibilityInfo.label}
+          </span>
+          <Link href={threadHref} title={new Date(status.created_at).toLocaleString()} style={{ fontSize: "0.78rem", color: "var(--text-muted)", textDecoration: "none" }}>
             {formatTime(status.created_at)}
           </Link>
         </div>

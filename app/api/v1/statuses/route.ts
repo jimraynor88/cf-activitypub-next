@@ -13,6 +13,7 @@ import {
   getAttachmentsByObjectId,
   getAllCustomEmojis,
   createScheduledStatus,
+  upsertDirectConversation,
 } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
@@ -286,6 +287,23 @@ export async function POST(request: NextRequest): Promise<Response> {
     local: true,
     raw: JSON.stringify(note),
   });
+
+  // Direct messages become conversations for every local participant. The
+  // sender gets a read copy; each local recipient gets an unread one.
+  if (visibility === "direct") {
+    const localRecipientIds: string[] = [];
+    for (const iri of mentionedIRIs) {
+      if (!iri.startsWith(baseUrl + "/")) continue;
+      const m = iri.match(/\/users\/([a-zA-Z0-9_]+)$/);
+      if (!m) continue;
+      const mentioned = await getActorByUsername(env.DB, m[1], domain);
+      if (mentioned?.isLocal && mentioned.id !== actor.id) localRecipientIds.push(mentioned.id);
+    }
+    await upsertDirectConversation(env.DB, actor.id, mentionedIRIs, note.id, false);
+    for (const rid of localRecipientIds) {
+      await upsertDirectConversation(env.DB, rid, [actor.id], note.id, true);
+    }
+  }
 
   // Store idempotency mapping so a retried submission returns the same status.
   if (idempotencyKey) {

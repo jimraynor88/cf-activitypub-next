@@ -62,6 +62,7 @@ export default function ConversationDetailPage() {
       body: JSON.stringify({
         status: text,
         visibility: "direct",
+        in_reply_to_id: conv.last_status?.id ?? undefined,
       }),
     });
     if (res.ok) {

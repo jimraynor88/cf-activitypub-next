@@ -650,6 +650,35 @@ export async function markConversationRead(db: D1Database, id: string): Promise<
   await db.prepare("UPDATE conversations SET unread = 0, updated_at = datetime('now') WHERE id = ?").bind(id).run();
 }
 
+/**
+ * Upsert a direct-message conversation row for one local participant. The
+ * conversation id is derived from the owning actor and the sorted "other"
+ * participants so it is stable across messages in the same thread. unread
+ * marks whether the owner has not yet seen the latest message.
+ */
+export async function upsertDirectConversation(
+  db: D1Database,
+  ownerActorId: string,
+  otherActorIds: string[],
+  lastStatusId: string,
+  unread: boolean
+): Promise<void> {
+  const others = [...new Set(otherActorIds)].filter((id) => id && id !== ownerActorId).sort();
+  if (others.length === 0) return;
+  const id = `dm:${ownerActorId}::${others.join("+")}`;
+  await db
+    .prepare(
+      `INSERT INTO conversations (id, actor_id, last_status_id, unread, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(id) DO UPDATE SET
+         last_status_id = excluded.last_status_id,
+         unread = excluded.unread,
+         updated_at = datetime('now')`
+    )
+    .bind(id, ownerActorId, lastStatusId, unread ? 1 : 0)
+    .run();
+}
+
 // ─────────────────────────────────────────
 // Filters v2
 // ─────────────────────────────────────────

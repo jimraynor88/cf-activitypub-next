@@ -4,6 +4,33 @@ import { getAuthenticatedActor } from "@/lib/auth";
 import { getConversations, getObjectById, getActorById } from "@/lib/db";
 import { serializeStatus, serializeAccount } from "@/lib/mastodon/serializers";
 
+// IRIs of the other participants of a direct object: everyone addressed in
+// to/cc/mentions except the viewer. Public/collection recipients are skipped.
+function otherParticipantIds(raw: string, ownerId: string): string[] {
+  const seen = new Set<string>();
+  const add = (v: unknown) => {
+    if (typeof v !== "string" || !v.startsWith("http")) return;
+    if (v === ownerId || v.includes("/followers") || v.includes("#Public") || v.includes("#public")) return;
+    seen.add(v);
+  };
+  try {
+    const o = JSON.parse(raw) as { to?: unknown; cc?: unknown; tag?: unknown };
+    for (const key of ["to", "cc"] as const) {
+      const v = o[key];
+      if (Array.isArray(v)) v.forEach(add);
+      else add(v);
+    }
+    if (Array.isArray(o.tag)) {
+      for (const tag of o.tag) {
+        if (tag && typeof tag === "object" && (tag as { type?: string }).type === "Mention") {
+          add((tag as { href?: unknown }).href);
+        }
+      }
+    }
+  } catch { /* ignore malformed raw */ }
+  return [...seen];
+}
+
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
   const domain = new URL(request.url).hostname;
@@ -26,9 +53,17 @@ export async function GET(request: NextRequest): Promise<Response> {
           const author = await getActorById(env.DB, obj.actorId);
           if (author) {
             lastStatus = serializeStatus(obj, author, domain);
-            // For direct messages, the other participant is the author
             if (obj.visibility === "direct") {
-              accounts = [serializeAccount(author, domain)];
+              // The conversation is "with" everyone addressed except the viewer;
+              // fall back to the last author when no other participant resolves.
+              const others = otherParticipantIds(obj.raw, actor.id);
+              let other = null;
+              for (const oid of others) {
+                const oa = await getActorById(env.DB, oid);
+                if (oa) { other = oa; break; }
+              }
+              if (other) accounts = [serializeAccount(other, domain)];
+              else if (author.id !== actor.id) accounts = [serializeAccount(author, domain)];
             }
           }
         }

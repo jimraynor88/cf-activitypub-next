@@ -52,6 +52,7 @@ import {
   deleteMlsKeyPackageByObjectId,
   deleteMlsMessagesByObjectId,
   insertMlsMessage,
+  upsertDirectConversation,
 } from "@/lib/db";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -322,6 +323,8 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     obj.sensitive ?? false
   );
 
+  const visibility = resolveVisibility(obj.to, obj.cc);
+
   await createObject(ctx.db, {
     id: obj.id,
     type: objType,
@@ -329,7 +332,7 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     content,
     contentWarning,
     sensitive: obj.sensitive ?? false,
-    visibility: resolveVisibility(obj.to, obj.cc),
+    visibility,
     inReplyToId: obj.inReplyTo ?? null,
     language: obj.contentMap ? Object.keys(obj.contentMap)[0] : null,
     url: resolveObjectUrl(obj.url, obj.id),
@@ -340,6 +343,11 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     local: false,
     raw: JSON.stringify(obj),
   });
+
+  // Direct messages create an unread conversation for the local recipient.
+  if (visibility === "direct" && ctx.recipient) {
+    await upsertDirectConversation(ctx.db, ctx.recipient.id, [actorId], obj.id, true);
+  }
 
   // ── Federated poll ingestion ──────────────────────────────────────────────
   // Mastodon/poll servers send a Question with the choices in `oneOf` (single
