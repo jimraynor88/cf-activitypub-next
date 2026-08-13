@@ -40,14 +40,21 @@ export async function broadcastToChannel(
 }
 
 /**
- * Broadcast a new public status to the federated timeline and, if the status
- * is from a local actor, also to the local-only public timeline.
+ * Broadcast a new status to the federated timeline and, if the status is from
+ * a local actor, also to the local-only public timeline.
+ *
+ * Only `public` statuses appear on the public/federated timelines — `unlisted`
+ * statuses stay out of them (they are still visible on profiles and to
+ * followers, via the home timeline). The REST endpoints already filter on
+ * `visibility = 'public'`, so broadcasting unlisted here would show a status
+ * that disappears on reload. Guard on visibility so the streaming path matches.
  */
 export async function broadcastPublicStatus(
   ns: DONamespace,
   status: unknown,
   isLocal: boolean
 ): Promise<void> {
+  if ((status as { visibility?: string }).visibility !== "public") return;
   const payload = JSON.stringify(status);
   const tasks: Promise<void>[] = [
     broadcastToChannel(ns, "public", "update", payload),
@@ -153,7 +160,7 @@ export async function broadcastStatusUpdate(
   const payload = JSON.stringify(status);
   const visibility = (status as { visibility?: string }).visibility;
   const tasks: Promise<void>[] = [];
-  if (visibility === "public" || visibility === "unlisted") {
+  if (visibility === "public") {
     tasks.push(broadcastToChannel(ns, "public", "status.update", payload));
     if (isLocal) {
       tasks.push(broadcastToChannel(ns, "public:local", "status.update", payload));
