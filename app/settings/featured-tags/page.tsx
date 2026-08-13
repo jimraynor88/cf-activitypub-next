@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import { getToken } from "@/lib/client-api";
 
 interface FeaturedTag {
@@ -105,9 +106,7 @@ export default function FeaturedTagsPage() {
 
   return (
     <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
-        <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-          <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Featured Tags</h1>
-        </div>
+        <SettingsHeader />
 
         {/* Create form */}
         <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>

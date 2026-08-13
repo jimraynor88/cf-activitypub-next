@@ -243,6 +243,10 @@ const EN = {
   settings_expand_media_hide: "Hide all",
   settings_expand_spoilers: "Always expand content warnings",
   settings_saved: "Preferences saved",
+  settings_tab_push: "Push notifications",
+  settings_tab_tags: "Featured tags",
+  settings_tab_import: "Import & Export",
+  settings_tab_migration: "Account migration",
   // Followed Tags
   followed_tags_title: "Followed hashtags",
   followed_tags_empty: "You're not following any hashtags",
@@ -690,6 +694,10 @@ const ES: typeof EN = {
   settings_expand_media_hide: "Ocultar todo",
   settings_expand_spoilers: "Expandir siempre las advertencias de contenido",
   settings_saved: "Preferencias guardadas",
+  settings_tab_push: "Notificaciones push",
+  settings_tab_tags: "Etiquetas destacadas",
+  settings_tab_import: "Importar y exportar",
+  settings_tab_migration: "Migración de cuenta",
   // Followed Tags
   followed_tags_title: "Etiquetas seguidas",
   followed_tags_empty: "No sigues ninguna etiqueta",

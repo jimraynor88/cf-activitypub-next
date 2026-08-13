@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import { getToken } from "@/lib/client-api";
 
 interface PushSubscriptionData {
@@ -169,9 +170,7 @@ export default function PushNotificationsPage() {
   if (!browserSupport) {
     return (
       <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
-        <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-          <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Push Notifications</h1>
-        </div>
+        <SettingsHeader />
         <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
           Push notifications require a Web Push compatible browser. Your browser does not appear to support this feature.
         </div>
@@ -181,9 +180,7 @@ export default function PushNotificationsPage() {
 
   return (
     <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
-        <div style={{ position: "sticky", top: 0, background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-          <h1 style={{ fontWeight: 700, fontSize: "1.25rem" }}>Push Notifications</h1>
-        </div>
+        <SettingsHeader />
 
         <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)", fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
           Push notifications require a Web Push compatible browser. Your browser must support the Push API and Service Workers to receive notifications even when the tab is closed.

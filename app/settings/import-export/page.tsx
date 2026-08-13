@@ -2,9 +2,9 @@
 
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -81,21 +81,7 @@ export default function ImportExportPage() {
 
   return (
     <PageLayout sidebar={<Sidebar me={null} currentPath="/settings/import-export" />}>
-      <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-        <h1 className="text-lg font-bold">Import &amp; Export</h1>
-      </div>
-
-      <div style={{ display: "flex", gap: "0.5rem", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-        <Link href="/settings" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          {t.settings_title}
-        </Link>
-        <Link href="/settings/push" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          🔔 Push Notifications
-        </Link>
-        <Link href="/settings/featured-tags" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          🏷️ Featured Tags
-        </Link>
-      </div>
+      <SettingsHeader />
 
       <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: 560 }}>
         <div>

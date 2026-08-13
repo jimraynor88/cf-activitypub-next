@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -89,58 +89,9 @@ export default function SettingsPage() {
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/settings" />}>
-        <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <h1 className="text-lg font-bold">{t.settings_title}</h1>
-          <button className="btn btn-primary btn-sm" onClick={() => void handleSave()} disabled={saving}>
-            {saving ? "…" : saved ? "✓" : t.profile_save}
-          </button>
-        </div>
+        <SettingsHeader />
 
-        {/* Settings sub-navigation */}
-        <div style={{ display: "flex", gap: "0.5rem", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-          <Link
-            href="/settings/push"
-            style={{
-              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
-              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
-            }}
-          >
-            🔔 Push Notifications
-          </Link>
-          <Link
-            href="/settings/featured-tags"
-            style={{
-              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
-              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
-            }}
-          >
-            🏷️ Featured Tags
-          </Link>
-          <Link
-            href="/settings/import-export"
-            style={{
-              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
-              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
-            }}
-          >
-            ⇄ Import &amp; Export
-          </Link>
-          <Link
-            href="/settings/migration"
-            style={{
-              padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem",
-              background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none",
-            }}
-          >
-            ⇱ Account migration
-          </Link>
-        </div>
-        {saved && (
-          <div style={{ padding: "0.5rem 1rem", background: "var(--accent-bg)", color: "var(--accent)", fontSize: "0.875rem" }}>
-            {t.settings_saved}
-          </div>
-        )}
-        <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+        <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 560 }}>
           <div>
             <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>{t.settings_visibility}</label>
             <select
@@ -188,6 +139,13 @@ export default function SettingsPage() {
               onChange={(e) => update("reading:expand:spoilers", e.target.checked)}
             />
             <label htmlFor="spoilers" style={{ fontSize: "0.875rem" }}>{t.settings_expand_spoilers}</label>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            <button className="btn btn-primary btn-sm" onClick={() => void handleSave()} disabled={saving}>
+              {saving ? "…" : t.profile_save}
+            </button>
+            {saved && <span style={{ color: "var(--success)", fontSize: "0.875rem" }}>{t.settings_saved}</span>}
           </div>
         </div>
     </PageLayout>

@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
-import { useLocale } from "@/lib/i18n";
+import { SettingsHeader } from "@/components/SettingsHeader";
 import { getToken } from "@/lib/client-api";
 
 interface Me {
@@ -20,7 +19,6 @@ interface Me {
 export default function MigrationPage() {
   const router = useRouter();
   const token = getToken();
-  const { t } = useLocale();
   const [me, setMe] = useState<Me | null>(null);
   const [targetAcct, setTargetAcct] = useState("");
   const [migrating, setMigrating] = useState(false);
@@ -65,24 +63,7 @@ export default function MigrationPage() {
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/settings/migration" />}>
-      <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "1rem", zIndex: 10 }}>
-        <h1 className="text-lg font-bold">Account migration</h1>
-      </div>
-
-      <div style={{ display: "flex", gap: "0.5rem", padding: "0.75rem 1rem", borderBottom: "1px solid var(--border)", flexWrap: "wrap" }}>
-        <Link href="/settings" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          {t.settings_title}
-        </Link>
-        <Link href="/settings/push" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          🔔 Push Notifications
-        </Link>
-        <Link href="/settings/featured-tags" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          🏷️ Featured Tags
-        </Link>
-        <Link href="/settings/import-export" style={{ padding: "0.35rem 0.75rem", borderRadius: "var(--radius)", fontSize: "0.85rem", background: "var(--bg-elevated)", color: "var(--text)", textDecoration: "none" }}>
-          ⇄ Import &amp; Export
-        </Link>
-      </div>
+      <SettingsHeader />
 
       <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 560 }}>
         {me?.moved ? (
