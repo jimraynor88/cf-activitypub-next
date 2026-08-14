@@ -116,6 +116,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
     { label: t.nav_settings, icon: "⚙️", href: "/settings", badge: 0 },
     { label: t.nav_blocks, icon: "🚫", href: "/blocks", badge: 0 },
     { label: t.nav_emojis, icon: "😊", href: "/emojis", badge: 0 },
+    { label: t.nav_announcements, icon: "📢", href: "/announcements", badge: 0 },
   ];
 
   return (
