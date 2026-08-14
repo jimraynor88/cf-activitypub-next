@@ -22,12 +22,18 @@ interface Me {
   acct: string;
   display_name: string;
   avatar: string;
+  locked: boolean;
+  source?: {
+    auto_delete_after?: number | null;
+  };
 }
 
 export default function SettingsPage() {
   const router = useRouter();
   const [me, setMe] = useState<Me | null>(null);
   const [prefs, setPrefs] = useState<Preferences | null>(null);
+  const [locked, setLocked] = useState(false);
+  const [autoDelete, setAutoDelete] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -40,7 +46,12 @@ export default function SettingsPage() {
       const res = await fetch("/api/v1/accounts/verify_credentials", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) setMe(await res.json() as Me);
+      if (res.ok) {
+        const data = await res.json() as Me;
+        setMe(data);
+        setLocked(Boolean(data.locked));
+        setAutoDelete(data.source?.auto_delete_after ?? 0);
+      }
     }
 
     async function fetchPrefs() {
@@ -59,15 +70,22 @@ export default function SettingsPage() {
   }, []);
 
   async function handleSave() {
-    if (!token || !prefs) return;
+    if (!token) return;
     setSaving(true);
-    const res = await fetch("/api/v1/preferences", {
+    // Save the account-level settings (locked + auto-delete) via the profile
+    // update endpoint, which persists them on the actors table.
+    const form = new FormData();
+    form.append("locked", locked ? "true" : "false");
+    form.append("auto_delete_after", autoDelete > 0 ? String(autoDelete) : "");
+    const res = await fetch("/api/v1/accounts/verify_credentials", {
       method: "PATCH",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(prefs),
+      headers: { Authorization: `Bearer ${token}` },
+      body: form,
     });
     if (res.ok) {
-      setPrefs(await res.json() as Preferences);
+      const updated = await res.json() as Me;
+      setLocked(Boolean(updated.locked));
+      setAutoDelete(updated.source?.auto_delete_after ?? 0);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     }
@@ -139,6 +157,37 @@ export default function SettingsPage() {
               onChange={(e) => update("reading:expand:spoilers", e.target.checked)}
             />
             <label htmlFor="spoilers" style={{ fontSize: "0.875rem" }}>{t.settings_expand_spoilers}</label>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              id="locked"
+              checked={locked}
+              onChange={(e) => setLocked(e.target.checked)}
+            />
+            <label htmlFor="locked" style={{ fontSize: "0.875rem" }}>{t.settings_approve_follows}</label>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>{t.settings_auto_delete}</label>
+            <select
+              className="input"
+              value={autoDelete}
+              onChange={(e) => setAutoDelete(Number(e.target.value))}
+              style={{ width: "100%" }}
+            >
+              <option value={0}>{t.profile_edit_auto_delete_off}</option>
+              <option value={3600}>{t.profile_edit_auto_delete_1h}</option>
+              <option value={21600}>{t.profile_edit_auto_delete_6h}</option>
+              <option value={86400}>{t.profile_edit_auto_delete_1d}</option>
+              <option value={259200}>{t.profile_edit_auto_delete_3d}</option>
+              <option value={604800}>{t.profile_edit_auto_delete_1w}</option>
+              <option value={2592000}>{t.profile_edit_auto_delete_30d}</option>
+            </select>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+              {t.profile_edit_auto_delete_hint}
+            </p>
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

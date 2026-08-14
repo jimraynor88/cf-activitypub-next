@@ -264,8 +264,6 @@ export default function ProfilePage() {
   // Edit form state
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editNote, setEditNote] = useState("");
-  const [editLocked, setEditLocked] = useState(false);
-  const [editAutoDelete, setEditAutoDelete] = useState(0);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [headerFile, setHeaderFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -463,8 +461,6 @@ export default function ProfilePage() {
   function openEdit(acct: Account) {
     setEditDisplayName(acct.display_name || "");
     setEditNote(acct.source?.note ?? me?.source?.note ?? acct.note ?? "");
-    setEditLocked(Boolean(acct.locked));
-    setEditAutoDelete((acct.source ?? me?.source)?.auto_delete_after ?? 0);
     setAvatarPreview(null);
     setHeaderPreview(null);
     setAvatarFile(null);
@@ -484,8 +480,6 @@ export default function ProfilePage() {
     const form = new FormData();
     form.append("display_name", editDisplayName);
     form.append("note", editNote);
-    form.append("locked", editLocked ? "true" : "false");
-    form.append("auto_delete_after", editAutoDelete > 0 ? String(editAutoDelete) : "");
     if (avatarFile) form.append("avatar", avatarFile);
     if (headerFile) form.append("header", headerFile);
     editFields.forEach((f, i) => {
@@ -1186,25 +1180,6 @@ export default function ProfilePage() {
                 </span>
               </div>
 
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.6rem",
-                  marginBottom: "1.25rem",
-                  fontSize: "0.85rem",
-                  color: "var(--text-secondary)",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={editLocked}
-                  onChange={(e) => setEditLocked(e.target.checked)}
-                  style={{ width: 16, height: 16 }}
-                />
-                {t.profile_follow_requests_manual}
-              </label>
-
               {/* Profile fields section */}
               <div style={{ marginBottom: "1.25rem" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.5rem" }}>
@@ -1252,30 +1227,6 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 ))}
-              </div>
-
-              {/* Auto-delete setting */}
-              <div style={{ marginBottom: "1.25rem" }}>
-                <label style={{ display: "block", fontSize: "0.85rem", color: "var(--text-secondary)", fontWeight: 500, marginBottom: "0.375rem" }}>
-                  {t.profile_edit_auto_delete}
-                </label>
-                <select
-                  value={editAutoDelete}
-                  onChange={(e) => setEditAutoDelete(Number(e.target.value))}
-                  className="input"
-                  style={{ width: "100%", fontSize: "0.875rem" }}
-                >
-                  <option value={0}>{t.profile_edit_auto_delete_off}</option>
-                  <option value={3600}>{t.profile_edit_auto_delete_1h}</option>
-                  <option value={21600}>{t.profile_edit_auto_delete_6h}</option>
-                  <option value={86400}>{t.profile_edit_auto_delete_1d}</option>
-                  <option value={259200}>{t.profile_edit_auto_delete_3d}</option>
-                  <option value={604800}>{t.profile_edit_auto_delete_1w}</option>
-                  <option value={2592000}>{t.profile_edit_auto_delete_30d}</option>
-                </select>
-                <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
-                  {t.profile_edit_auto_delete_hint}
-                </p>
               </div>
 
               {editError && (
