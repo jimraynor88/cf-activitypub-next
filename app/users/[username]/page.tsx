@@ -468,7 +468,7 @@ export default function ProfilePage() {
     setAvatarFile(null);
     setHeaderFile(null);
     setEditError(null);
-    const currentFields = (acct.source?.fields ?? acct.fields ?? []).slice(0, 4);
+    const currentFields = (acct.source?.fields ?? me?.source?.fields ?? []).slice(0, 4);
     setEditFields(currentFields.map((f) => ({ name: f.name, value: f.value })));
     setEditOpen(true);
   }
