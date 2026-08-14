@@ -51,7 +51,18 @@ function decodeEntities(text: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
+    .replace(/&amp;/g, "&")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => decodeCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => decodeCodePoint(parseInt(dec, 10)));
+}
+
+function decodeCodePoint(cp: number): string {
+  if (Number.isNaN(cp)) return "";
+  if (cp === 0) return "\uFFFD";
+  if (cp > 0x10ffff) return "\uFFFD";
+  // Lone surrogates are invalid scalar values; map to U+FFFD like HTML does.
+  if (cp >= 0xd800 && cp <= 0xdfff) return "\uFFFD";
+  return String.fromCodePoint(cp);
 }
 
 function isAllowedClassName(name: string): boolean {
