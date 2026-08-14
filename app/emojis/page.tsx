@@ -99,6 +99,7 @@ export default function EmojisPage() {
 
   return (
     <PageLayout sidebar={<Sidebar currentPath="/emojis" />}>
+      <div style={{ padding: "1rem" }}>
         <h1 style={{ fontWeight: 700, fontSize: "1.25rem", marginBottom: "1rem" }}>Emojis personalizados</h1>
 
         {/* Upload form */}
@@ -195,6 +196,7 @@ export default function EmojisPage() {
             </div>
           </>
         )}
+      </div>
     </PageLayout>
   );
 }

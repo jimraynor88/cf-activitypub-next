@@ -140,14 +140,6 @@ export default function BlocksPage() {
             zIndex: 10,
           }}
         >
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={() => router.back()}
-            style={{ fontSize: "1.1rem" }}
-          >
-            ←
-          </button>
           <span style={{ fontWeight: 600 }}>Bloqueos</span>
         </div>
 
