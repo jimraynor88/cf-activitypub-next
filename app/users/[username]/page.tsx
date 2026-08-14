@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Fragment } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useParams } from "next/navigation";
@@ -857,18 +857,18 @@ export default function ProfilePage() {
 
               {/* Profile fields (Mastodon-style key/value pairs) */}
               {account.fields && account.fields.length > 0 && (
-                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+                <div style={{ marginBottom: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden", display: "grid", gridTemplateColumns: "max-content 1fr" }}>
                   {account.fields.map((f, i) => (
-                    <div key={i} style={{ display: "flex", borderBottom: i < account.fields.length - 1 ? "1px solid var(--border)" : "none" }}>
-                      <div style={{ padding: "0.4rem 0.75rem", background: "var(--bg-elevated)", fontWeight: 600, fontSize: "0.8rem", color: "var(--text-secondary)", minWidth: 100, maxWidth: 140, borderRight: "1px solid var(--border)" }}>
+                    <Fragment key={i}>
+                      <div style={{ padding: "0.4rem 0.75rem", background: "var(--bg-elevated)", fontWeight: 600, fontSize: "0.8rem", color: "var(--text-secondary)", borderRight: "1px solid var(--border)", borderBottom: i < account.fields.length - 1 ? "1px solid var(--border)" : "none" }}>
                         {f.name}
                       </div>
                       <div
-                        style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", flex: 1, wordBreak: "break-all" }}
+                        style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", wordBreak: "break-all", borderBottom: i < account.fields.length - 1 ? "1px solid var(--border)" : "none" }}
                       >
                         <RichText html={f.value} />
                       </div>
-                    </div>
+                    </Fragment>
                   ))}
                 </div>
               )}
