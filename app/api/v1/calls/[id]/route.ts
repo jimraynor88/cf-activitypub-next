@@ -138,6 +138,22 @@ export async function POST(request: NextRequest, { params }: RouteParams): Promi
       break;
     }
 
+    // ── Mid-call renegotiation (adding/removing tracks on demand) ──────────
+    // Sent via REST so it works for both same-instance (streaming relay) and
+    // cross-instance (federated CallRenegotiate / CallRenegotiateAnswer).
+    case "renegotiate":
+    case "renegotiate-answer": {
+      if (!body.sdp) return badRequest("Missing sdp");
+      const peerActorId = isCaller ? session.calleeId : session.callerId;
+      const eventType = body.type === "renegotiate" ? "call.renegotiate" : "call.renegotiate-answer";
+      await notifyPeer(env, session, peerActorId, localDomain, {
+        type: eventType as "call.renegotiate" | "call.renegotiate-answer",
+        callId: id,
+        sdp: body.sdp,
+      });
+      break;
+    }
+
     default:
       return badRequest("Unknown signal type");
   }
@@ -273,6 +289,8 @@ function buildSignalActivity(
     answer: "CallAnswer",
     ice: "CallIceCandidate",
     hangup: "CallHangup",
+    renegotiate: "CallRenegotiate",
+    "renegotiate-answer": "CallRenegotiateAnswer",
   };
   return {
     "@context": "https://www.w3.org/ns/activitystreams",

@@ -93,6 +93,8 @@ export function useCall(accessToken?: string | null): UseCallReturn {
   const wsRef = useRef<WebSocket | null>(null);
   const callIdRef = useRef<string | null>(null);
   const pendingCandidatesRef = useRef<RTCIceCandidateInit[]>([]);
+  /** Outgoing ICE candidates gathered before the session ID is known (startCall race). */
+  const pendingOutgoingRef = useRef<RTCIceCandidateInit[]>([]);
   const remoteDescSetRef = useRef(false);
   /** Timer that fires when the peer connection has been "disconnected" too long. */
   const disconnectedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -134,6 +136,7 @@ export function useCall(accessToken?: string | null): UseCallReturn {
     isNegotiatingRef.current = false;
     callIdRef.current = null;
     pendingCandidatesRef.current = [];
+    pendingOutgoingRef.current = [];
     remoteDescSetRef.current = false;
   }, [localStream]);
 
@@ -309,19 +312,33 @@ export function useCall(accessToken?: string | null): UseCallReturn {
     };
 
     pc.onicecandidate = (ev) => {
-      if (!ev.candidate || !callIdRef.current) return;
+      if (!ev.candidate) return;
+      const candidate = ev.candidate.toJSON();
+
+      // The session ID isn't known until the POST /api/v1/calls resolves. ICE
+      // gathering starts at setLocalDescription(offer), so buffer candidates
+      // gathered during that window and flush them once the ID is known.
+      if (!callIdRef.current) {
+        pendingOutgoingRef.current.push(candidate);
+        return;
+      }
+      sendIceCandidate(candidate);
+    };
+
+    const sendIceCandidate = (candidate: RTCIceCandidateInit) => {
+      if (!callIdRef.current) return;
       fetch(`${API_BASE}/${callIdRef.current}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
-        body: JSON.stringify({ type: "ice", candidate: ev.candidate.toJSON() }),
+        body: JSON.stringify({ type: "ice", candidate }),
       }).catch(() => {});
 
       // Also send directly over the WebSocket for low-latency relay
       if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: "ice", candidate: ev.candidate.toJSON() }));
+        wsRef.current.send(JSON.stringify({ type: "ice", candidate }));
       }
     };
 
@@ -356,16 +373,23 @@ export function useCall(accessToken?: string | null): UseCallReturn {
     };
 
     // Mid-call renegotiation: fires when the user adds/removes tracks on demand.
-    // Guard: only act once the call is established (callIdRef set) and WS is open.
+    // Sent via the REST endpoint so it works both same-instance (streaming relay)
+    // and cross-instance (ActivityPub federation). The WS path alone cannot reach
+    // a peer connected to a different instance's signaling DO.
     pc.onnegotiationneeded = async () => {
       if (isNegotiatingRef.current || !callIdRef.current) return;
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
       isNegotiatingRef.current = true;
       try {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
-        ws.send(JSON.stringify({ type: "renegotiate", sdp: offer.sdp }));
+        await fetch(`${API_BASE}/${callIdRef.current}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ type: "renegotiate", sdp: offer.sdp }),
+        });
       } catch (err) {
         console.error("[call] onnegotiationneeded error:", err);
         isNegotiatingRef.current = false;
@@ -422,6 +446,20 @@ export function useCall(accessToken?: string | null): UseCallReturn {
 
       const data = await res.json() as { id: string };
       callIdRef.current = data.id;
+
+      // Flush any ICE candidates gathered before the session ID was known.
+      for (const c of pendingOutgoingRef.current) {
+        fetch(`${API_BASE}/${data.id}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+          },
+          body: JSON.stringify({ type: "ice", candidate: c }),
+        }).catch(() => {});
+      }
+      pendingOutgoingRef.current = [];
+
       connectSignalingWs(data.id);
       setCallState({ phase: "calling", callId: data.id, callType, targetAcct });
       return data.id;
@@ -554,8 +592,43 @@ export function useCall(accessToken?: string | null): UseCallReturn {
           setTimeout(() => setCallState({ phase: "idle" }), 3000);
         }
         break;
+
+      case "call.renegotiate":
+        if (callPayload.callId === callIdRef.current && callPayload.sdp) {
+          const pc = pcRef.current;
+          if (!pc || isNegotiatingRef.current) return;
+          isNegotiatingRef.current = true;
+          pc.setRemoteDescription({ type: "offer", sdp: callPayload.sdp })
+            .then(async () => {
+              const answer = await pc.createAnswer();
+              await pc.setLocalDescription(answer);
+              await fetch(`${API_BASE}/${callIdRef.current}`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+                },
+                body: JSON.stringify({ type: "renegotiate-answer", sdp: answer.sdp }),
+              });
+            })
+            .catch((e) => {
+              console.error("[call] call.renegotiate error:", e);
+              isNegotiatingRef.current = false;
+            });
+        }
+        break;
+
+      case "call.renegotiate-answer":
+        if (callPayload.callId === callIdRef.current && callPayload.sdp) {
+          const pc = pcRef.current;
+          if (!pc) return;
+          pc.setRemoteDescription({ type: "answer", sdp: callPayload.sdp })
+            .then(() => { isNegotiatingRef.current = false; })
+            .catch((e) => console.error("[call] call.renegotiate-answer error:", e));
+        }
+        break;
     }
-  }, [callState.phase, cleanup]);
+  }, [callState.phase, cleanup, accessToken]);
 
   // ── Audio/video toggles (acquire media on demand) ────────────────────────
   const toggleMute = useCallback(async (): Promise<void> => {

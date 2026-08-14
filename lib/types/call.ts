@@ -40,4 +40,6 @@ export type CallEventPayload =
   | { type: "call.answered"; callId: string; answerSdp: string }
   | { type: "call.rejected"; callId: string }
   | { type: "call.ended"; callId: string }
-  | { type: "call.ice"; callId: string; candidate: RTCIceCandidateInit };
+  | { type: "call.ice"; callId: string; candidate: RTCIceCandidateInit }
+  | { type: "call.renegotiate"; callId: string; sdp: string }
+  | { type: "call.renegotiate-answer"; callId: string; sdp: string };

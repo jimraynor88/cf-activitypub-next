@@ -186,6 +186,12 @@ export async function processInboxActivity(
       case "callhangup":
         await handleCallHangup(activity, ctx);
         break;
+      case "callrenegotiate":
+        await handleCallRenegotiate(activity, ctx);
+        break;
+      case "callrenegotiateanswer":
+        await handleCallRenegotiateAnswer(activity, ctx);
+        break;
       default:
         // Ignore unknown activity types
         break;
@@ -1628,6 +1634,42 @@ async function handleCallHangup(activity: APActivity, ctx: InboxContext): Promis
     await broadcastCallEvent(ctx.timelineStream, ctx.recipient.username, {
       type: "call.ended",
       callId,
+    });
+  }
+}
+
+async function handleCallRenegotiate(activity: APActivity, ctx: InboxContext): Promise<void> {
+  ctx = await resolveCtxRecipient(activity, ctx);
+  if (!ctx.recipient) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obj = activity.object as Record<string, any> | undefined;
+  if (!obj) return;
+  const callId = (obj.id as string ?? "").split("/").pop() ?? "";
+  if (!callId || !obj.sdp) return;
+
+  if (ctx.timelineStream) {
+    await broadcastCallEvent(ctx.timelineStream, ctx.recipient.username, {
+      type: "call.renegotiate",
+      callId,
+      sdp: obj.sdp as string,
+    });
+  }
+}
+
+async function handleCallRenegotiateAnswer(activity: APActivity, ctx: InboxContext): Promise<void> {
+  ctx = await resolveCtxRecipient(activity, ctx);
+  if (!ctx.recipient) return;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const obj = activity.object as Record<string, any> | undefined;
+  if (!obj) return;
+  const callId = (obj.id as string ?? "").split("/").pop() ?? "";
+  if (!callId || !obj.sdp) return;
+
+  if (ctx.timelineStream) {
+    await broadcastCallEvent(ctx.timelineStream, ctx.recipient.username, {
+      type: "call.renegotiate-answer",
+      callId,
+      sdp: obj.sdp as string,
     });
   }
 }
