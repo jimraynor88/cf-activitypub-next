@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { SettingsHeader } from "@/components/SettingsHeader";
+import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
 interface Me {
@@ -19,6 +20,7 @@ interface Me {
 export default function MigrationPage() {
   const router = useRouter();
   const token = getToken();
+  const { t } = useLocale();
   const [me, setMe] = useState<Me | null>(null);
   const [targetAcct, setTargetAcct] = useState("");
   const [migrating, setMigrating] = useState(false);
@@ -50,13 +52,16 @@ export default function MigrationPage() {
       if (res.ok) {
         setResult({
           ok: true,
-          message: `Moved to ${data.moved_to}. ${data.migrated_followers ?? 0} local followers migrated, Move delivered to ${data.delivered_to ?? 0} remote servers.`,
+          message: t.settings_migration_result
+            .replace("{moved}", data.moved_to ?? "")
+            .replace("{followers}", String(data.migrated_followers ?? 0))
+            .replace("{servers}", String(data.delivered_to ?? 0)),
         });
       } else {
-        setResult({ ok: false, message: data.error ?? "Migration failed" });
+        setResult({ ok: false, message: data.error ?? t.settings_migration_failed });
       }
     } catch {
-      setResult({ ok: false, message: "Migration failed" });
+      setResult({ ok: false, message: t.settings_migration_failed });
     }
     setMigrating(false);
   }
@@ -68,17 +73,15 @@ export default function MigrationPage() {
       <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.25rem", maxWidth: 560 }}>
         {me?.moved ? (
           <div style={{ background: "rgba(251,191,36,0.12)", color: "var(--warning)", padding: "0.75rem 1rem", borderRadius: "var(--radius)", fontSize: "0.875rem" }}>
-            This account has moved to <strong>@{me.moved.acct}</strong>.
+            {t.settings_migration_moved} <strong>@{me.moved.acct}</strong>.
           </div>
         ) : (
           <>
             <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-              Move this account to another instance. Your followers will be migrated automatically and your profile
-              will point to the new account. The target account must list this account as an alias
-              (<code>alsoKnownAs</code>) — set that up on the new instance first.
+              {t.settings_migration_desc}
             </p>
             <div>
-              <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>Target account</label>
+              <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>{t.settings_migration_target}</label>
               <input
                 className="input"
                 placeholder="user@example.com"
@@ -88,7 +91,7 @@ export default function MigrationPage() {
               />
             </div>
             <button className="btn btn-primary btn-sm" style={{ alignSelf: "flex-start" }} onClick={() => void handleMigrate()} disabled={migrating || !targetAcct}>
-              {migrating ? "…" : "Move account"}
+              {migrating ? "…" : t.settings_migration_button}
             </button>
             {result && (
               <div style={{ fontSize: "0.875rem", color: result.ok ? "var(--success)" : "var(--danger)", background: result.ok ? "rgba(52,211,153,0.1)" : "rgba(248,113,113,0.1)", padding: "0.75rem 1rem", borderRadius: "var(--radius)" }}>

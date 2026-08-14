@@ -36,7 +36,7 @@ export default function ImportExportPage() {
       const res = await fetch("/api/v1/export/follows", {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) { setError("Export failed"); return; }
+      if (!res.ok) { setError(t.settings_export_failed); return; }
       const csv = await res.text();
       const blob = new Blob([csv], { type: "text/csv" });
       const url = URL.createObjectURL(blob);
@@ -46,7 +46,7 @@ export default function ImportExportPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      setError("Export failed");
+      setError(t.settings_export_failed);
     }
     setExporting(false);
   }
@@ -67,13 +67,13 @@ export default function ImportExportPage() {
       });
       const data = await res.json() as { results: ImportResult[]; counts: Record<string, number>; total: number; error?: string };
       if (!res.ok) {
-        setError(data.error ?? "Import failed");
+        setError(data.error ?? t.settings_import_failed);
       } else {
         setResults(data.results);
         setCounts(data.counts);
       }
     } catch {
-      setError("Import failed");
+      setError(t.settings_import_failed);
     }
     setImporting(false);
     if (fileRef.current) fileRef.current.value = "";
@@ -85,20 +85,19 @@ export default function ImportExportPage() {
 
       <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1.5rem", maxWidth: 560 }}>
         <div>
-          <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem" }}>Following list export</h2>
+          <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem" }}>{t.settings_export_title}</h2>
           <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
-            Download the accounts you follow as a CSV file, usable as a backup or to move to another instance.
+            {t.settings_export_desc}
           </p>
           <button className="btn btn-outline btn-sm" onClick={() => void handleExport()} disabled={exporting}>
-            {exporting ? "…" : "⬇ Export following list"}
+            {exporting ? "…" : t.settings_export_button}
           </button>
         </div>
 
         <div>
-          <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem" }}>Following list import</h2>
+          <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.25rem" }}>{t.settings_import_title}</h2>
           <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "0.75rem" }}>
-            Restore a backup or import a list from another instance. The CSV must have an{" "}
-            <code>Account address</code> column (e.g. <code>user@example.com</code>), one per line.
+            {t.settings_import_desc}
           </p>
           <input
             ref={fileRef}
@@ -112,8 +111,8 @@ export default function ImportExportPage() {
           {error && <div style={{ fontSize: "0.85rem", color: "var(--danger)", marginTop: "0.5rem" }}>{error}</div>}
           {counts && (
             <div style={{ fontSize: "0.85rem", marginTop: "0.5rem" }}>
-              Followed: {counts.followed ?? 0} · Already following: {counts.already_following ?? 0} ·
-              Not found: {counts.not_found ?? 0} · Errors: {counts.error ?? 0}
+              {t.settings_import_followed}: {counts.followed ?? 0} · {t.settings_import_already}: {counts.already_following ?? 0} ·
+              {t.settings_import_not_found}: {counts.not_found ?? 0} · {t.settings_import_errors}: {counts.error ?? 0}
             </div>
           )}
           {results && results.length > 0 && (

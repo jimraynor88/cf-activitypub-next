@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { SettingsHeader } from "@/components/SettingsHeader";
+import { useLocale, type Translations } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
 interface PushSubscriptionData {
@@ -16,12 +17,12 @@ interface PushSubscriptionData {
 
 type NotificationType = "follow" | "favourite" | "reblog" | "mention" | "poll";
 
-const NOTIFICATION_TYPES: { key: NotificationType; label: string }[] = [
-  { key: "follow", label: "Follow" },
-  { key: "favourite", label: "Favourite" },
-  { key: "reblog", label: "Boost" },
-  { key: "mention", label: "Mention" },
-  { key: "poll", label: "Poll" },
+const NOTIFICATION_TYPES: { key: NotificationType; labelKey: keyof Translations }[] = [
+  { key: "follow", labelKey: "notif_type_follow" },
+  { key: "favourite", labelKey: "notif_type_favourite" },
+  { key: "reblog", labelKey: "notif_type_reblog" },
+  { key: "mention", labelKey: "notif_type_mention" },
+  { key: "poll", labelKey: "notif_type_poll" },
 ];
 
 export default function PushNotificationsPage() {
@@ -32,6 +33,7 @@ export default function PushNotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [browserSupport, setBrowserSupport] = useState(true);
   const token = getToken();
+  const { t } = useLocale();
 
   useEffect(() => {
     if (!token) { window.location.href = "/login"; return; }
@@ -67,7 +69,7 @@ export default function PushNotificationsPage() {
     try {
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setError("Push notification permission was denied.");
+        setError(t.settings_push_permission_denied);
         setSubscribing(false);
         return;
       }
@@ -83,7 +85,7 @@ export default function PushNotificationsPage() {
       const keys = subJSON.keys as { p256dh?: string; auth?: string } | undefined;
 
       if (!endpoint || !keys?.p256dh || !keys?.auth) {
-        setError("Failed to get push subscription details from the browser.");
+        setError(t.settings_push_no_details);
         setSubscribing(false);
         return;
       }
@@ -114,10 +116,10 @@ export default function PushNotificationsPage() {
         setSubscription(data);
       } else {
         const err = await res.json() as { error?: string };
-        setError(err.error ?? "Failed to create push subscription");
+        setError(err.error ?? t.settings_push_create_failed);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to subscribe to push notifications");
+      setError(e instanceof Error ? e.message : t.settings_push_subscribe_failed);
     }
 
     setSubscribing(false);
@@ -137,10 +139,10 @@ export default function PushNotificationsPage() {
         setSubscription(null);
       } else {
         const err = await res.json() as { error?: string };
-        setError(err.error ?? "Failed to delete push subscription");
+        setError(err.error ?? t.settings_push_delete_failed);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to unsubscribe");
+      setError(e instanceof Error ? e.message : t.settings_push_unsubscribe_failed);
     }
 
     setUnsubscribing(false);
@@ -163,7 +165,7 @@ export default function PushNotificationsPage() {
       setSubscription(data);
     } else {
       const err = await res.json() as { error?: string };
-      setError(err.error ?? "Failed to update notification settings");
+      setError(err.error ?? t.settings_push_update_failed);
     }
   }
 
@@ -172,7 +174,7 @@ export default function PushNotificationsPage() {
       <PageLayout sidebar={<Sidebar currentPath="/settings" />}>
         <SettingsHeader />
         <div style={{ padding: "1rem", color: "var(--text-muted)" }}>
-          Push notifications require a Web Push compatible browser. Your browser does not appear to support this feature.
+          {t.settings_push_unsupported}
         </div>
       </PageLayout>
     );
@@ -183,19 +185,19 @@ export default function PushNotificationsPage() {
         <SettingsHeader />
 
         <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)", fontSize: "0.875rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
-          Push notifications require a Web Push compatible browser. Your browser must support the Push API and Service Workers to receive notifications even when the tab is closed.
+          {t.settings_push_intro}
         </div>
 
         {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
         ) : (
           <>
             {/* Subscription status & actions */}
             <div style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "0.75rem" }}>
-                <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>Status:</span>
+                <span style={{ fontSize: "0.875rem", fontWeight: 600 }}>{t.settings_push_status}</span>
                 <span style={{ fontSize: "0.875rem", color: subscription ? "var(--accent)" : "var(--text-muted)" }}>
-                  {subscription ? "Enabled" : "Disabled"}
+                  {subscription ? t.settings_push_enabled : t.settings_push_disabled}
                 </span>
               </div>
               {subscription ? (
@@ -206,7 +208,7 @@ export default function PushNotificationsPage() {
                   disabled={unsubscribing}
                   onClick={() => void handleUnsubscribe()}
                 >
-                  {unsubscribing ? "…" : "Unsubscribe"}
+                  {unsubscribing ? "…" : t.settings_push_unsubscribe}
                 </button>
               ) : (
                 <button
@@ -215,7 +217,7 @@ export default function PushNotificationsPage() {
                   disabled={subscribing}
                   onClick={() => void handleSubscribe()}
                 >
-                  {subscribing ? "…" : "Enable Push Notifications"}
+                  {subscribing ? "…" : t.settings_push_enable}
                 </button>
               )}
             </div>
@@ -223,7 +225,7 @@ export default function PushNotificationsPage() {
             {/* Notification type toggles */}
             {subscription && (
               <div style={{ padding: "1rem" }}>
-                <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.75rem" }}>Notification Types</h2>
+                <h2 style={{ fontWeight: 600, fontSize: "0.95rem", marginBottom: "0.75rem" }}>{t.settings_push_notification_types}</h2>
                 {NOTIFICATION_TYPES.map((nt) => {
                   const checked = subscription.alerts[nt.key] ?? false;
                   return (
@@ -236,7 +238,7 @@ export default function PushNotificationsPage() {
                         checked={checked}
                         onChange={(e) => void handleToggleAlert(nt.key, e.target.checked)}
                       />
-                      {nt.label}
+                      {t[nt.labelKey]}
                     </label>
                   );
                 })}

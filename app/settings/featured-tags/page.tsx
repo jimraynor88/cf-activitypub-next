@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { SettingsHeader } from "@/components/SettingsHeader";
+import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
 interface FeaturedTag {
@@ -28,6 +29,7 @@ export default function FeaturedTagsPage() {
   const [error, setError] = useState<string | null>(null);
   const token = getToken();
   const wrapperRef = useRef<HTMLFormElement>(null);
+  const { t } = useLocale();
 
   useEffect(() => {
     async function fetchTags() {
@@ -82,7 +84,7 @@ export default function FeaturedTagsPage() {
       setSuggestions((prev) => prev.filter((s) => s.name !== name));
     } else {
       const err = await res.json() as { error?: string };
-      setError(err.error ?? "Error creating tag");
+      setError(err.error ?? t.settings_tags_create_error);
     }
     setCreating(false);
   }
@@ -120,7 +122,7 @@ export default function FeaturedTagsPage() {
                   setShowSuggestions(true);
                 }}
                 onFocus={() => setShowSuggestions(true)}
-                placeholder="Search or add a tag"
+                placeholder={t.settings_tags_placeholder}
                 style={{ width: "100%", padding: "0.5rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.9rem", fontFamily: "inherit", boxSizing: "border-box" }}
                 maxLength={64}
               />
@@ -139,14 +141,14 @@ export default function FeaturedTagsPage() {
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
                       <span>#{s.name}</span>
-                      <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{s.statuses_count} posts</span>
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.82rem" }}>{s.statuses_count} {t.settings_tags_posts}</span>
                     </button>
                   ))}
                 </div>
               )}
             </div>
             <button type="submit" className="btn btn-primary btn-sm" disabled={creating || !newTagName.trim()}>
-              {creating ? "…" : "Feature"}
+              {creating ? "…" : t.settings_tags_feature}
             </button>
           </form>
           {error && (
@@ -156,10 +158,10 @@ export default function FeaturedTagsPage() {
 
         {/* Tag list */}
         {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>Loading…</div>
+          <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
         ) : tags.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            No featured tags yet. Feature a tag above to show it on your profile.
+            {t.settings_tags_empty}
           </div>
         ) : (
           tags.map((tag) => (
@@ -169,7 +171,7 @@ export default function FeaturedTagsPage() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>#{tag.name}</div>
-                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{tag.statuses_count} posts</div>
+                <div style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{tag.statuses_count} {t.settings_tags_posts}</div>
               </div>
               <button
                 type="button"
@@ -178,7 +180,7 @@ export default function FeaturedTagsPage() {
                 disabled={deletingId === tag.id}
                 onClick={() => handleDelete(tag)}
               >
-                {deletingId === tag.id ? "…" : "Remove"}
+                {deletingId === tag.id ? "…" : t.settings_tags_remove}
               </button>
             </div>
           ))
