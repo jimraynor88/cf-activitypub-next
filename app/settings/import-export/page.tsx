@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
@@ -25,9 +25,9 @@ export default function ImportExportPage() {
   const [counts, setCounts] = useState<Record<string, number> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (!token) {
-    router.push("/login");
-  }
+  useEffect(() => {
+    if (!token) router.push("/login");
+  }, [token, router]);
 
   async function handleExport() {
     if (!token) return;
