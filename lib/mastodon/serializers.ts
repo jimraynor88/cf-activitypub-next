@@ -27,6 +27,7 @@ import type {
 import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub/sanitize";
 import { isRenderableObjectType } from "@/lib/activitypub/vocab";
+import { linkifyInline } from "@/lib/activitypub/content";
 
 // ─────────────────────────────────────────
 // Account serializer
@@ -60,6 +61,22 @@ function serializeEmoji(e: LocalCustomEmoji): { shortcode: string; url: string; 
   };
 }
 
+/**
+ * Convert a local actor's stored note (escaped plain text with <br />) back to
+ * plain text so it can be re-linkified. Remote summaries are real HTML and must
+ * not be touched.
+ */
+function localSummaryToPlain(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 export function serializeAccount(
   actor: LocalActor,
   localDomain: string,
@@ -69,6 +86,14 @@ export function serializeAccount(
   const acct = isLocal
     ? actor.username
     : `${actor.username}@${actor.domain}`;
+
+  const baseUrl = `https://${localDomain}`;
+
+  // Local actors store plain-text notes/fields, so linkify them the same way
+  // statuses are. Remote actors already carry federated HTML.
+  const note = isLocal
+    ? linkifyInline(localSummaryToPlain(actor.summary ?? ""), baseUrl, opts.emojis)
+    : sanitizeFediverseHtml(actor.summary ?? "") ?? "";
 
   const account: MastodonAccount = {
     id: actor.id,
@@ -82,7 +107,7 @@ export function serializeAccount(
     indexable: actor.discoverable,
     noindex: !actor.discoverable,
     created_at: toIso(actor.createdAt) ?? new Date().toISOString(),
-    note: sanitizeFediverseHtml(actor.summary ?? "") ?? "",
+    note,
     url: isLocal ? `https://${localDomain}/users/${actor.username}` : actor.id,
     uri: actor.id,
     avatar: actor.avatarUrl ?? `https://${localDomain}${DEFAULT_AVATAR}`,
@@ -98,7 +123,9 @@ export function serializeAccount(
     roles: opts.role ? [{ id: opts.role === "admin" ? "1" : opts.role === "moderator" ? "2" : "3", name: opts.role.charAt(0).toUpperCase() + opts.role.slice(1), color: "" }] : [],
     fields: (opts.fields ?? []).map((f) => ({
       name: sanitizeFediversePlain(f.name) ?? f.name,
-      value: sanitizeFediverseHtml(f.value) ?? f.value,
+      value: isLocal
+        ? linkifyInline(f.value, baseUrl, opts.emojis)
+        : sanitizeFediverseHtml(f.value) ?? f.value,
       verified_at: null,
     })),
   };

@@ -22,16 +22,15 @@ interface Replacement {
 }
 
 /**
- * Processes plain-text status content into HTML with linked mentions/hashtags
- * and custom emoji shortcodes.
- * Returns the HTML string and an array of AP tags (Mention / Hashtag / Emoji)
- * for use in the ActivityPub Note `tag` field.
+ * Builds the ordered list of link replacements for plain-text content
+ * (custom emoji, URLs, remote/local mentions, hashtags). Shared by
+ * `processStatusContent` and `linkifyInline`.
  */
-export function processStatusContent(
+function buildReplacements(
   text: string,
   baseUrl?: string,
   customEmojis?: LocalCustomEmoji[]
-): { html: string; tags: APTag[] } {
+): Replacement[] {
   const replacements: Replacement[] = [];
   const usedRanges: [number, number][] = [];
 
@@ -123,9 +122,53 @@ export function processStatusContent(
     );
   }
 
-  // Sort by start position and build HTML
   replacements.sort((a, b) => a.start - b.start);
+  return replacements;
+}
 
+/**
+ * Joins a sorted list of replacements with the surrounding escaped plain text,
+ * preserving single newlines (converted to <br /> inline).
+ */
+function buildHtml(text: string, replacements: Replacement[]): string {
+  let result = "";
+  let cursor = 0;
+  for (const { start, end, html } of replacements) {
+    result += escapeHtml(text.slice(cursor, start));
+    result += html;
+    cursor = end;
+  }
+  result += escapeHtml(text.slice(cursor));
+  return result.replace(/\n/g, "<br />");
+}
+
+/**
+ * Linkifies plain text into inline HTML (URLs, mentions, hashtags, custom
+ * emoji) WITHOUT paragraph wrapping. Used for profile bios and field values,
+ * where a <p> wrapper would add unwanted block margins.
+ */
+export function linkifyInline(
+  text: string,
+  baseUrl?: string,
+  customEmojis?: LocalCustomEmoji[]
+): string {
+  return buildHtml(text, buildReplacements(text, baseUrl, customEmojis));
+}
+
+/**
+ * Processes plain-text status content into HTML with linked mentions/hashtags
+ * and custom emoji shortcodes.
+ * Returns the HTML string and an array of AP tags (Mention / Hashtag / Emoji)
+ * for use in the ActivityPub Note `tag` field.
+ */
+export function processStatusContent(
+  text: string,
+  baseUrl?: string,
+  customEmojis?: LocalCustomEmoji[]
+): { html: string; tags: APTag[] } {
+  const replacements = buildReplacements(text, baseUrl, customEmojis);
+
+  // Sort by start position and build HTML
   let result = "";
   let cursor = 0;
   for (const { start, end, html } of replacements) {

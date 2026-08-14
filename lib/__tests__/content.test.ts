@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processStatusContent } from "@/lib/activitypub/content";
+import { processStatusContent, linkifyInline } from "@/lib/activitypub/content";
 
 describe("processStatusContent URL vs hashtag handling", () => {
   it("does not treat a #fragment inside a URL as a hashtag", () => {
@@ -52,5 +52,24 @@ describe("processStatusContent URL vs hashtag handling", () => {
     // Mentions outside the URL are still resolved normally.
     expect(html).toContain('href="https://example.com/@bob"');
     expect(tags).toContainEqual({ type: "Mention", href: "https://example.com/@bob", name: "@bob@example.com" });
+  });
+});
+describe("linkifyInline", () => {
+  it("linkifies URLs, mentions, and hashtags without paragraph wrapping", () => {
+    const html = linkifyInline("hola https://example.com @alice@remote.example #cats", "https://local.example");
+    expect(html).toContain('<a href="https://example.com"');
+    expect(html).toContain('href="https://remote.example/@alice"');
+    expect(html).toContain('href="/tags/cats"');
+    expect(html).not.toContain("<p>");
+  });
+
+  it("preserves single newlines as <br />", () => {
+    const html = linkifyInline("linea1\nlinea2");
+    expect(html).toBe("linea1<br />linea2");
+  });
+
+  it("linkifies local mentions to /users/...", () => {
+    const html = linkifyInline("@admin hola", "https://local.example");
+    expect(html).toContain('href="https://local.example/users/admin"');
   });
 });

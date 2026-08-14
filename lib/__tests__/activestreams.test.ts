@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isContentObjectType, isActivityType, isActorType, CONTENT_OBJECT_TYPES } from "@/lib/activitypub/vocab";
-import { extractAPMeta, rewriteProfileLinks, serializeStatus } from "@/lib/mastodon/serializers";
-import type { LocalActor, LocalObject } from "@/lib/types";
+import { extractAPMeta, rewriteProfileLinks, serializeStatus, serializeAccount } from "@/lib/mastodon/serializers";
+import type { LocalActor, LocalObject, ActorField } from "@/lib/types";
 
 function makeObject(type: string, extra: Record<string, unknown> = {}): LocalObject {
   const rawObj = { id: "https://remote.example/objects/1", type, ...extra };
@@ -185,5 +185,62 @@ describe("rewriteProfileLinks", () => {
     const out = rewriteProfileLinks(content, "{}", "local.example");
     expect(out).toContain('href="https://example.com/article"');
     expect(out).toContain('target="_blank"');
+  });
+});
+
+describe("serializeAccount local linkification", () => {
+  const localAuthor: LocalActor = {
+    id: "https://local.example/users/admin",
+    username: "admin",
+    domain: "local.example",
+    displayName: "Admin",
+    summary: "Hola https://example.com #news<br />luego @user",
+    avatarUrl: null,
+    headerUrl: null,
+    publicKeyPem: "pem",
+    privateKeyPem: null,
+    isLocal: true,
+    isBot: false,
+    manuallyApprovesFollowers: false,
+    discoverable: true,
+    followersCount: 0,
+    followingCount: 0,
+    statusesCount: 0,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    email: null,
+    passwordHash: null,
+    emailVerified: false,
+    autoDeleteAfter: null,
+  };
+
+  it("linkifies local bio URLs, hashtags and mentions into HTML", () => {
+    const acct = serializeAccount(localAuthor, "local.example");
+    expect(acct.note).toContain('href="https://example.com"');
+    expect(acct.note).toContain('href="/tags/news"');
+    expect(acct.note).toContain('href="https://local.example/users/user"');
+    expect(acct.note).toContain("<br />");
+  });
+
+  it("linkifies local field values but not remote ones", () => {
+    const fields: ActorField[] = [{ id: "f1", actorId: localAuthor.id, name: "Web", value: "https://example.com", position: 0, createdAt: "2026-01-01T00:00:00.000Z" }];
+    const acct = serializeAccount(localAuthor, "local.example", { fields });
+    expect(acct.fields[0].value).toContain('<a href="https://example.com"');
+
+    const remoteAuthor = { ...author };
+    const remoteAcct = serializeAccount(remoteAuthor, "local.example", {
+      fields: [{ id: "f2", actorId: remoteAuthor.id, name: "Web", value: '<a href="https://example.com">web</a>', position: 0, createdAt: "2026-01-01T00:00:00.000Z" }],
+    });
+    expect(remoteAcct.fields[0].value).toContain('href="https://example.com"');
+    expect(remoteAcct.fields[0].value).toContain(">web</a>");
+  });
+
+  it("keeps remote summaries as-is (already federated HTML)", () => {
+    const remoteAuthor = {
+      ...author,
+      summary: '<p><a href="https://example.com/x" class="mention">@x</a></p>',
+    };
+    const acct = serializeAccount(remoteAuthor, "local.example");
+    expect(acct.note).toContain('<a href="https://example.com/x"');
   });
 });
