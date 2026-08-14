@@ -331,7 +331,7 @@ export interface LocalPollOption {
 
 export interface LocalNotification {
   id: string;
-  type: "mention" | "status" | "reblog" | "follow" | "follow_request" | "favourite" | "poll" | "update";
+  type: "mention" | "status" | "reblog" | "follow" | "follow_request" | "favourite" | "poll" | "update" | "direct" | "encrypted";
   accountId: string; // who triggered it
   targetAccountId: string; // who receives it
   objectId: string | null;

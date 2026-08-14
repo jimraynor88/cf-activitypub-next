@@ -36,6 +36,8 @@ const EN = {
   notif_liked: "liked your post",
   notif_poll: "A poll you voted in has ended",
   notif_edited: "edited a post",
+  notif_dm: "sent you a direct message",
+  notif_encrypted: "sent you an encrypted message",
   // Explore
   explore_search_ph: "People, #tags, posts… @user@domain for remote accounts",
   explore_searching: "Searching…",
@@ -268,6 +270,8 @@ const EN = {
   notif_type_reblog: "Boost",
   notif_type_mention: "Mention",
   notif_type_poll: "Poll",
+  notif_type_direct: "Direct messages",
+  notif_type_encrypted: "Encrypted messages",
   // Settings — featured tags
   settings_tags_placeholder: "Search or add a tag",
   settings_tags_feature: "Feature",
@@ -534,6 +538,8 @@ const ES: typeof EN = {
   notif_liked: "le gustó tu publicación",
   notif_poll: "Una encuesta en la que votaste ha terminado",
   notif_edited: "editó una publicación",
+  notif_dm: "te envió un mensaje directo",
+  notif_encrypted: "te envió un mensaje cifrado",
   // Explore
   explore_search_ph: "Personas, #etiquetas, posts… @user@domain para cuentas remotas",
   explore_searching: "Buscando…",
@@ -766,6 +772,8 @@ const ES: typeof EN = {
   notif_type_reblog: "Boost",
   notif_type_mention: "Mención",
   notif_type_poll: "Encuesta",
+  notif_type_direct: "Mensajes directos",
+  notif_type_encrypted: "Mensajes cifrados",
   // Settings — featured tags
   settings_tags_placeholder: "Busca o añade una etiqueta",
   settings_tags_feature: "Destacar",

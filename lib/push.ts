@@ -53,6 +53,8 @@ function notifTitle(type: string): string {
     case "reblog": return "Nuevo boost";
     case "poll": return "Encuesta finalizada";
     case "update": return "Publicación editada";
+    case "direct": return "Mensaje directo";
+    case "encrypted": return "Mensaje cifrado";
     default: return "Nueva notificación";
   }
 }
@@ -60,6 +62,7 @@ function notifTitle(type: string): string {
 const TYPE_MAP: Record<string, string> = {
   mention: "mention", follow: "follow", follow_request: "follow_request",
   favourite: "favourite", reblog: "reblog", poll: "poll", update: "update",
+  direct: "direct", encrypted: "encrypted",
 };
 
 export async function deliverPushNotification(

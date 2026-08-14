@@ -349,9 +349,21 @@ async function handleCreate(activity: APActivity, ctx: InboxContext): Promise<vo
     raw: JSON.stringify(obj),
   });
 
-  // Direct messages create an unread conversation for the local recipient.
+  // Direct messages create an unread conversation for the local recipient
+  // and show up in the notifications column.
   if (visibility === "direct" && ctx.recipient) {
     await upsertDirectConversation(ctx.db, ctx.recipient.id, [actorId], obj.id, true);
+    const notif: LocalNotification = {
+      id: generateId(),
+      type: "direct",
+      accountId: actorId,
+      targetAccountId: ctx.recipient.id,
+      objectId: obj.id,
+      read: false,
+      createdAt: new Date().toISOString(),
+    };
+    await createNotification(ctx.db, notif);
+    await broadcastAndPush(ctx, notif);
   }
 
   // ── Federated poll ingestion ──────────────────────────────────────────────
@@ -1250,6 +1262,18 @@ async function routeMlsToRecipients(
         raw: JSON.stringify(activity),
         published,
       });
+      // Surface the encrypted message in the recipient's notifications.
+      const notif: LocalNotification = {
+        id: generateId(),
+        type: "encrypted",
+        accountId: actorId,
+        targetAccountId: recipient.id,
+        objectId: object.id,
+        read: false,
+        createdAt: new Date().toISOString(),
+      };
+      await createNotification(ctx.db, notif);
+      await broadcastAndPush(ctx, notif);
     } catch {
       /* duplicate / FK race — ignore */
     }

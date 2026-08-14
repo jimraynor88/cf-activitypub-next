@@ -15,7 +15,7 @@ interface PushSubscriptionData {
   server_key: string;
 }
 
-type NotificationType = "follow" | "favourite" | "reblog" | "mention" | "poll";
+type NotificationType = "follow" | "favourite" | "reblog" | "mention" | "poll" | "direct" | "encrypted";
 
 const NOTIFICATION_TYPES: { key: NotificationType; labelKey: keyof Translations }[] = [
   { key: "follow", labelKey: "notif_type_follow" },
@@ -23,6 +23,8 @@ const NOTIFICATION_TYPES: { key: NotificationType; labelKey: keyof Translations 
   { key: "reblog", labelKey: "notif_type_reblog" },
   { key: "mention", labelKey: "notif_type_mention" },
   { key: "poll", labelKey: "notif_type_poll" },
+  { key: "direct", labelKey: "notif_type_direct" },
+  { key: "encrypted", labelKey: "notif_type_encrypted" },
 ];
 
 export default function PushNotificationsPage() {
