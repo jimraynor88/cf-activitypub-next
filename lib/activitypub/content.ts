@@ -143,6 +143,22 @@ function buildHtml(text: string, replacements: Replacement[]): string {
 }
 
 /**
+ * Convert a local actor's stored note (escaped plain text with <br />) back to
+ * plain text so it can be re-linkified. Remote summaries are real HTML and must
+ * not be touched.
+ */
+export function localSummaryToPlain(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+/**
  * Linkifies plain text into inline HTML (URLs, mentions, hashtags, custom
  * emoji) WITHOUT paragraph wrapping. Used for profile bios and field values,
  * where a <p> wrapper would add unwanted block margins.

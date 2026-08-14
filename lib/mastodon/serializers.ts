@@ -27,7 +27,7 @@ import type {
 import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub/sanitize";
 import { isRenderableObjectType } from "@/lib/activitypub/vocab";
-import { linkifyInline } from "@/lib/activitypub/content";
+import { linkifyInline, localSummaryToPlain } from "@/lib/activitypub/content";
 
 // ─────────────────────────────────────────
 // Account serializer
@@ -59,22 +59,6 @@ function serializeEmoji(e: LocalCustomEmoji): { shortcode: string; url: string; 
     visible_in_picker: e.visibleInPicker,
     ...(e.category ? { category: e.category } : {}),
   };
-}
-
-/**
- * Convert a local actor's stored note (escaped plain text with <br />) back to
- * plain text so it can be re-linkified. Remote summaries are real HTML and must
- * not be touched.
- */
-function localSummaryToPlain(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, "&");
 }
 
 export function serializeAccount(

@@ -1,5 +1,5 @@
 import { DEFAULT_CONTEXT, PUBLIC_ADDRESS } from "./vocab";
-import type { APActor, APNote, APActivity, APCollection, APCollectionPage } from "@/lib/types";
+import type { APActor, APNote, APActivity, APCollection, APCollectionPage, APTag } from "@/lib/types";
 
 // ─────────────────────────────────────────
 // ID generation
@@ -66,6 +66,7 @@ export function buildActor(
     statusesCount?: number;
     published?: string;
     fields?: { name: string; value: string }[];
+    tags?: APTag[];
     alsoKnownAs?: string[];
     movedTo?: string;
   }
@@ -112,6 +113,9 @@ export function buildActor(
       name: f.name,
       value: f.value,
     }));
+  }
+  if (options.tags && options.tags.length > 0) {
+    actor.tag = options.tags;
   }
   if (options.alsoKnownAs && options.alsoKnownAs.length > 0) {
     actor.alsoKnownAs = options.alsoKnownAs;

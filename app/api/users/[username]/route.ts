@@ -1,7 +1,8 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, activityJson, notFound } from "@/lib/cf";
-import { getActorByUsername, getActorFields, getMlsKeyPackagesByActor, countMlsMessagesByRecipient } from "@/lib/db";
+import { getActorByUsername, getActorFields, getMlsKeyPackagesByActor, countMlsMessagesByRecipient, getAllCustomEmojis } from "@/lib/db";
 import { buildActor } from "@/lib/activitypub/utils";
+import { processStatusContent, localSummaryToPlain, linkifyInline } from "@/lib/activitypub/content";
 
 // GET /users/:username
 export async function GET(
@@ -23,11 +24,24 @@ export async function GET(
 
   const fields = await getActorFields(env.DB, actor.id);
   const baseUrl = `https://${domain}`;
+  const emojis = await getAllCustomEmojis(env.DB);
+
+  // Local actors store plain-text summaries (escaped, with <br />) and plain
+  // field values. Linkify them into federated HTML so remote instances render
+  // mentions/hashtags/URLs/custom emoji, mirroring what statuses do.
+  const note = actor.summary
+    ? processStatusContent(localSummaryToPlain(actor.summary), baseUrl, emojis)
+    : { html: "", tags: [] };
+  const linkifiedFields = fields.map((f) => ({
+    name: f.name,
+    value: linkifyInline(f.value, baseUrl, emojis),
+  }));
+
   const keyPackageCount = (await getMlsKeyPackagesByActor(env.DB, actor.id)).length;
   const messageCount = await countMlsMessagesByRecipient(env.DB, actor.id);
   const apActor = buildActor(baseUrl, actor.username, {
     displayName: actor.displayName ?? undefined,
-    summary: actor.summary ?? undefined,
+    summary: note.html,
     avatarUrl: actor.avatarUrl,
     headerUrl: actor.headerUrl,
     publicKeyPem: actor.publicKeyPem,
@@ -35,7 +49,8 @@ export async function GET(
     discoverable: actor.discoverable,
     isBot: actor.isBot,
     published: actor.createdAt,
-    fields: fields.map((f) => ({ name: f.name, value: f.value })),
+    fields: linkifiedFields,
+    tags: note.tags,
     alsoKnownAs: actor.alsoKnownAs ?? undefined,
     movedTo: actor.movedTo ?? undefined,
   });
