@@ -11,6 +11,7 @@ import { RichText } from "@/components/RichText";
 import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { statusHtmlToPlain } from "@/lib/activitypub/content";
 
 interface PollOption { title: string; votes_count: number | null }
 interface Poll {
@@ -573,13 +574,7 @@ export default function ThreadPage() {
   }
 
   function openEdit(s: Status) {
-    const div = typeof document !== "undefined" ? document.createElement("div") : null;
-    if (div) {
-      div.innerHTML = s.content.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n");
-      setEditText((div.textContent ?? div.innerText ?? "").trim());
-    } else {
-      setEditText(s.content.replace(/<[^>]*>/g, "").trim());
-    }
+    setEditText(statusHtmlToPlain(s.content));
     setEditSpoiler(s.spoiler_text ?? "");
     setEditingStatus(s);
   }

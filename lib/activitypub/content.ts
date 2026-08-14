@@ -159,6 +159,29 @@ export function localSummaryToPlain(html: string): string {
 }
 
 /**
+ * Convert status HTML back to the plain text a user would type in the editor,
+ * restoring the full `@user@domain` handle for mention links. Mentions are
+ * rendered with the domain only in the `title` attribute (display shows just
+ * `@user`), so a naive `textContent` strip would drop the remote domain and
+ * cause the mention to be re-parsed as a local one on the next save.
+ */
+export function statusHtmlToPlain(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<p\b[^>]*>/gi, "\n")
+    .replace(/<a\b[^>]*?\btitle="(@[^"]+)"[^>]*>.*?<\/a>/gi, "$1")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Linkifies plain text into inline HTML (URLs, mentions, hashtags, custom
  * emoji) WITHOUT paragraph wrapping. Used for profile bios and field values,
  * where a <p> wrapper would add unwanted block margins.

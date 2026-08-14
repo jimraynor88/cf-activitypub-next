@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processStatusContent, linkifyInline } from "@/lib/activitypub/content";
+import { processStatusContent, linkifyInline, statusHtmlToPlain } from "@/lib/activitypub/content";
 
 describe("processStatusContent URL vs hashtag handling", () => {
   it("does not treat a #fragment inside a URL as a hashtag", () => {
@@ -71,5 +71,40 @@ describe("linkifyInline", () => {
   it("linkifies local mentions to /users/...", () => {
     const html = linkifyInline("@admin hola", "https://local.example");
     expect(html).toContain('href="https://local.example/users/admin"');
+  });
+});
+
+describe("statusHtmlToPlain", () => {
+  it("restores the full @user@domain handle for remote mentions", () => {
+    const { html } = processStatusContent("hola @alice@example.com!");
+    expect(html).toContain('title="@alice@example.com"');
+
+    const plain = statusHtmlToPlain(html);
+    expect(plain).toBe("hola @alice@example.com!");
+  });
+
+  it("round-trips a mixed status with local + remote mentions and hashtags", () => {
+    const { html } = processStatusContent(
+      "@admin mira esto @alice@example.com #cats",
+      "https://local.example"
+    );
+    const plain = statusHtmlToPlain(html);
+    expect(plain).toBe("@admin mira esto @alice@example.com #cats");
+  });
+
+  it("preserves paragraphs and line breaks as newlines", () => {
+    const { html } = processStatusContent("linea uno\nlinea dos\n\nparrafo dos", "https://local.example");
+    const plain = statusHtmlToPlain(html);
+    expect(plain).toBe("linea uno\nlinea dos\n\nparrafo dos");
+  });
+
+  it("strips formatting tags but keeps the text", () => {
+    const html = '<p>hola <strong>mundo</strong></p>';
+    expect(statusHtmlToPlain(html)).toBe("hola mundo");
+  });
+
+  it("decodes HTML entities back to plain characters", () => {
+    const html = "<p>a &amp; b &lt; c</p>";
+    expect(statusHtmlToPlain(html)).toBe("a & b < c");
   });
 });
