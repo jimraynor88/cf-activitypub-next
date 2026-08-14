@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { isContentObjectType, isActivityType, isActorType, CONTENT_OBJECT_TYPES } from "@/lib/activitypub/vocab";
-import { extractAPMeta, serializeStatus } from "@/lib/mastodon/serializers";
+import { extractAPMeta, rewriteProfileLinks, serializeStatus } from "@/lib/mastodon/serializers";
 import type { LocalActor, LocalObject } from "@/lib/types";
 
 function makeObject(type: string, extra: Record<string, unknown> = {}): LocalObject {
@@ -145,5 +145,45 @@ describe("serializeStatus type passthrough", () => {
     expect(status.ap_type).toBe("Tombstone");
     expect(status.ap_meta?.formerType).toBe("Note");
     expect(status.ap_meta?.deleted).toBe("2026-01-02T00:00:00Z");
+  });
+});
+
+describe("rewriteProfileLinks", () => {
+  it("rewrites remote mention links to the local resolver route", () => {
+    const raw = JSON.stringify({
+      id: "https://remote.example/objects/1",
+      type: "Note",
+      tag: [{ type: "Mention", href: "https://remote.example/users/a", name: "@a@remote.example" }],
+    });
+    const content = '<p>hola <a href="https://remote.example/users/a" class="u-url mention" rel="nofollow noopener noreferrer" target="_blank">@a</a></p>';
+    const out = rewriteProfileLinks(content, raw, "local.example");
+    expect(out).toContain('href="/users/remote?url=' + encodeURIComponent("https://remote.example/users/a") + '"');
+    expect(out).not.toContain("target=\"_blank\"");
+    expect(out).not.toContain("https://remote.example/users/a\"");
+  });
+
+  it("keeps local and relative links untouched", () => {
+    const raw = JSON.stringify({
+      id: "https://remote.example/objects/1",
+      type: "Note",
+      tag: [{ type: "Mention", href: "https://local.example/users/me", name: "@me@local.example" }],
+    });
+    const content = '<p><a href="https://local.example/users/me" class="mention">@me</a> <a href="/tags/x" class="tag">#x</a></p>';
+    const out = rewriteProfileLinks(content, raw, "local.example");
+    expect(out).toContain('href="https://local.example/users/me"');
+    expect(out).toContain('href="/tags/x"');
+  });
+
+  it("rewrites remote mention links via the mention class fallback", () => {
+    const content = '<p><a href="https://other.example/@bob" class="u-url mention" rel="nofollow">@bob</a></p>';
+    const out = rewriteProfileLinks(content, "{}", "local.example");
+    expect(out).toContain('href="/users/remote?url=' + encodeURIComponent("https://other.example/@bob") + '"');
+  });
+
+  it("keeps ordinary external links untouched", () => {
+    const content = '<p><a href="https://example.com/article" target="_blank" rel="nofollow noopener noreferrer">article</a></p>';
+    const out = rewriteProfileLinks(content, "{}", "local.example");
+    expect(out).toContain('href="https://example.com/article"');
+    expect(out).toContain('target="_blank"');
   });
 });

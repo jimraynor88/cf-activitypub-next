@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -142,17 +143,18 @@ export default function EndorsementsPage() {
                   </div>
                   {account.note && (
                     <div
-                      style={{
-                        fontSize: "0.82rem",
-                        color: "var(--text-secondary)",
-                        marginTop: "0.3rem",
-                        overflow: "hidden",
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                      }}
-                      dangerouslySetInnerHTML={{ __html: account.note }}
-                    />
+                        style={{
+                          fontSize: "0.82rem",
+                          color: "var(--text-secondary)",
+                          marginTop: "0.3rem",
+                          overflow: "hidden",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                        }}
+                      >
+                        <RichText html={account.note} />
+                      </div>
                   )}
                 </div>
                 <button

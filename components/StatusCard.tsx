@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Lightbox } from "./Lightbox";
 import { InteractionList } from "./InteractionList";
+import { RichText } from "./RichText";
 import { renderEmojiInHtml } from "@/lib/emoji";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -611,8 +612,9 @@ export function StatusCard({
           <div
             className="status-content"
             style={{ fontSize: isFocal ? "1.05rem" : "0.95rem", lineHeight: 1.6, overflowWrap: "break-word", wordBreak: "break-word" }}
-            dangerouslySetInnerHTML={{ __html: showTranslation && translatedContent ? translatedContent : renderedContent }}
-          />
+          >
+            <RichText html={showTranslation && translatedContent ? translatedContent : renderedContent} />
+          </div>
         )}
         {isFocal && (
           <div style={{ marginTop: "0.5rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>

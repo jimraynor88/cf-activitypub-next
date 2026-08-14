@@ -9,6 +9,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useStartCallButton } from "@/components/CallOverlay";
 import { StatusCard } from "@/components/StatusCard";
+import { RichText } from "@/components/RichText";
 import type { Status as SharedStatus } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -452,8 +453,9 @@ function RemoteProfileInner() {
           {account.note && (
             <div
               style={{ fontSize: "0.925rem", lineHeight: 1.55, color: "var(--text-secondary)", marginBottom: "0.75rem" }}
-              dangerouslySetInnerHTML={{ __html: account.note }}
-            />
+            >
+              <RichText html={account.note} />
+            </div>
           )}
           {/* Profile fields */}
           {account.fields && account.fields.length > 0 && (
@@ -464,7 +466,7 @@ function RemoteProfileInner() {
                     {f.name}
                     {f.verified_at && <span style={{ color: "var(--accent)", marginLeft: "0.25rem" }}>✓</span>}
                   </div>
-                  <div style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", flex: 1, wordBreak: "break-all" }} dangerouslySetInnerHTML={{ __html: f.value }} />
+                  <div style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", flex: 1, wordBreak: "break-all" }}><RichText html={f.value} /></div>
                 </div>
               ))}
             </div>

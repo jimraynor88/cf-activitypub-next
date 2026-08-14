@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -100,8 +101,9 @@ export default function AnnouncementsPage() {
             >
               <div
                 style={{ fontSize: "0.95rem", color: "var(--text-primary)", marginBottom: "0.5rem", lineHeight: 1.6 }}
-                dangerouslySetInnerHTML={{ __html: a.content }}
-              />
+              >
+                <RichText html={a.content} />
+              </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>
                 <span>{formatDate(a.published_at)}</span>
                 {!a.read && <span className="badge badge-accent" style={{ fontSize: "0.68rem" }}>New</span>}

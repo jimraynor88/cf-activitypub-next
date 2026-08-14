@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { StatusCard } from "@/components/StatusCard";
+import { RichText } from "@/components/RichText";
 import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -676,7 +677,9 @@ export default function ThreadPage() {
                     ⚠️ {edit.spoiler_text}
                   </div>
                 )}
-                <div className="status-content" style={{ fontSize: "0.95rem", lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: edit.content }} />
+                <div className="status-content" style={{ fontSize: "0.95rem", lineHeight: 1.6 }}>
+                  <RichText html={edit.content} />
+                </div>
               </div>
             ))
           )

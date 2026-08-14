@@ -6,6 +6,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 
@@ -308,8 +309,9 @@ export default function NotificationsPage() {
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
                           }}
-                          dangerouslySetInnerHTML={{ __html: n.status.content }}
-                        />
+                        >
+                          <RichText html={n.status.content} />
+                        </div>
                       </Link>
                     )}
                     {n.type === "follow_request" && (

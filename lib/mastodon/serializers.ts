@@ -167,7 +167,7 @@ export function serializeStatus(
     reblogs_count: obj.reblogsCount,
     favourites_count: obj.favouritesCount,
     edited_at: obj.updatedAt && obj.updatedAt !== obj.published ? toIso(obj.updatedAt) : null,
-    content: sanitizeFediverseHtml(obj.content ?? "") ?? "",
+    content: rewriteProfileLinks(sanitizeFediverseHtml(obj.content ?? "") ?? "", obj.raw, localDomain),
     reblog: opts.reblogOf ?? null,
     application: obj.local ? { name: "CF ActivityPub", website: `https://${localDomain}` } : null,
     account: serializeAccount(author, localDomain),
@@ -187,6 +187,49 @@ export function serializeStatus(
     pinned: opts.pinned ?? false,
     ...buildTypeMeta(obj),
   };
+}
+
+/**
+ * Rewrite links to remote profile pages in status content so they point to the
+ * local resolver route `/users/remote?url=...` instead of the original server.
+ * Remote actors are identified from the structured `tag` mentions in the raw AP
+ * JSON (reliable) plus a `class`-based fallback for `mention` links.
+ */
+export function rewriteProfileLinks(
+  content: string,
+  raw: string,
+  localDomain: string
+): string {
+  if (!content || !content.includes("<a")) return content;
+
+  const localBase = `https://${localDomain}`;
+
+  // Collect remote actor URLs from the structured mention tags.
+  const remoteActorHrefs = new Set<string>();
+  try {
+    const parsed = JSON.parse(raw) as APObject;
+    const tags = Array.isArray(parsed.tag) ? parsed.tag : [];
+    for (const t of tags) {
+      if (t.type === "Mention" && typeof t.href === "string" && t.href) {
+        const href = t.href.startsWith("/") ? `${localBase}${t.href}` : t.href;
+        if (!href.startsWith(localBase)) remoteActorHrefs.add(href);
+      }
+    }
+  } catch {
+    /* malformed raw */
+  }
+
+  return content.replace(/<a\b([^>]*?)\bhref="([^"]*)"([^>]*)>/g, (match, pre, href, post) => {
+    const isLocal = href.startsWith(localBase) || href.startsWith("/");
+    const isKnownRemote = !isLocal && remoteActorHrefs.has(href);
+    const isMentionClass = /\bmention\b/.test(pre + post);
+    if (isLocal || (!isKnownRemote && !isMentionClass)) return match;
+
+    const local = `/users/remote?url=${encodeURIComponent(href)}`;
+    // Drop target="_blank" (the local resolver page should open in-place).
+    const cleanPost = post.replace(/\s*target="_blank"/g, "");
+    return `<a${pre} href="${local}"${cleanPost}>`;
+  });
 }
 
 /**

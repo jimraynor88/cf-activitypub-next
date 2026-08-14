@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { StatusCard, Status, Me, AvatarBubble } from "@/components/StatusCard";
@@ -416,8 +417,9 @@ function AccountCard({ account }: { account: Account }) {
         </div>
         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.1rem" }}>@{account.acct}</div>
         {account.note && (
-          <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.3rem", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
-            dangerouslySetInnerHTML={{ __html: account.note }} />
+          <div style={{ fontSize: "0.82rem", color: "var(--text-secondary)", marginTop: "0.3rem", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+            <RichText html={account.note} />
+          </div>
         )}
         <div style={{ display: "flex", gap: "1rem", marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
           <span><strong style={{ color: "var(--text)" }}>{account.followers_count}</strong> {t.profile_followers_label}</span>

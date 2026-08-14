@@ -9,6 +9,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { Lightbox } from "@/components/Lightbox";
 import { useStartCallButton } from "@/components/CallOverlay";
 import { StatusCard } from "@/components/StatusCard";
+import { RichText } from "@/components/RichText";
 import type { Status as SharedStatus } from "@/components/StatusCard";
 import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
@@ -210,8 +211,9 @@ function AccountCard({ acct }: { acct: Account }) {
         {acct.note && (
           <div
             style={{ fontSize: "0.8rem", color: "var(--text-secondary)", marginTop: "0.25rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-            dangerouslySetInnerHTML={{ __html: acct.note }}
-          />
+          >
+            <RichText html={acct.note} />
+          </div>
         )}
       </div>
     </div>
@@ -848,8 +850,9 @@ export default function ProfilePage() {
               {account.note && (
                 <div
                   style={{ fontSize: "0.9rem", lineHeight: 1.55, marginBottom: "0.75rem", whiteSpace: "pre-line" }}
-                  dangerouslySetInnerHTML={{ __html: account.note }}
-                />
+                >
+                  <RichText html={account.note} />
+                </div>
               )}
 
               {/* Profile fields (Mastodon-style key/value pairs) */}
@@ -862,8 +865,9 @@ export default function ProfilePage() {
                       </div>
                       <div
                         style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem", flex: 1, wordBreak: "break-all" }}
-                        dangerouslySetInnerHTML={{ __html: f.value }}
-                      />
+                      >
+                        <RichText html={f.value} />
+                      </div>
                     </div>
                   ))}
                 </div>
