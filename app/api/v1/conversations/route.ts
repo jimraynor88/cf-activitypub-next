@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getConversations, getObjectById, getActorById } from "@/lib/db";
+import { getConversations, getObjectById, getActorById, getActorByUri } from "@/lib/db";
 import { serializeStatus, serializeAccount } from "@/lib/mastodon/serializers";
 
 // IRIs of the other participants of a direct object: everyone addressed in
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest): Promise<Response> {
               const others = otherParticipantIds(obj.raw, actor.id);
               let other = null;
               for (const oid of others) {
-                const oa = await getActorById(env.DB, oid);
+                const oa = await getActorByUri(env.DB, oid);
                 if (oa) { other = oa; break; }
               }
               if (other) accounts = [serializeAccount(other, domain)];

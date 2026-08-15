@@ -1,7 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { getConversationById, deleteConversation, getObjectById, getActorById } from "@/lib/db";
+import { getConversationById, deleteConversation, getObjectById, getActorById, getActorByUri } from "@/lib/db";
 import { serializeStatus, serializeAccount } from "@/lib/mastodon/serializers";
 
 function otherParticipantIds(raw: string, ownerId: string): string[] {
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           const others = otherParticipantIds(obj.raw, actor.id);
           let other = null;
           for (const oid of others) {
-            const oa = await getActorById(env.DB, oid);
+            const oa = await getActorByUri(env.DB, oid);
             if (oa) { other = oa; break; }
           }
           if (other) accounts = [serializeAccount(other, domain)];

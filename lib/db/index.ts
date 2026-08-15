@@ -284,6 +284,39 @@ export async function getActorByUsername(
   return row ? rowToActor(row) : null;
 }
 
+/**
+ * Resolve an actor from any of the IRIs a remote object may reference:
+ * the canonical id ("https://host/users/name"), the web profile URL
+ * ("https://host/@name") or a plain "name@host" acct. Falls back to
+ * matching by username+domain when the exact id is unknown.
+ */
+export async function getActorByUri(db: D1Database, uri: string): Promise<LocalActor | null> {
+  const exact = await getActorById(db, uri);
+  if (exact) return exact;
+
+  // Plain acct form: name@host
+  if (!uri.startsWith("http")) {
+    const at = uri.lastIndexOf("@");
+    if (at > 0 && at < uri.length - 1) {
+      const username = uri.slice(0, at);
+      const domain = uri.slice(at + 1);
+      if (!username.includes("@") && domain.includes(".")) {
+        return getActorByUsername(db, username, domain);
+      }
+    }
+    return null;
+  }
+
+  let parsed: URL;
+  try { parsed = new URL(uri); } catch { return null; }
+  const segments = parsed.pathname.split("/").filter(Boolean);
+  const last = segments[segments.length - 1];
+  if (!last) return null;
+  const username = last.startsWith("@") ? last.slice(1) : last;
+  if (!username) return null;
+  return getActorByUsername(db, username, parsed.hostname);
+}
+
 export async function getActorByEmail(db: D1Database, email: string): Promise<LocalActor | null> {
   const row = await db
     .prepare("SELECT * FROM actors WHERE email = ?")
