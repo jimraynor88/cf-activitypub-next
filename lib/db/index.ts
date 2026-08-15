@@ -722,7 +722,16 @@ export async function upsertDirectConversation(
 ): Promise<void> {
   const others = [...new Set(otherActorIds)].filter((id) => id && id !== ownerActorId).sort();
   if (others.length === 0) return;
-  const id = `dm:${ownerActorId}::${others.join("+")}`;
+  // Normalise alternate IRI spellings of the same remote actor
+  // (https://host/@user vs https://host/users/user) so the outgoing and
+  // incoming sides of a thread share one conversation id.
+  const canonical: string[] = [];
+  for (const oid of others) {
+    const actor = await getActorByUri(db, oid);
+    canonical.push(actor ? actor.id : oid);
+  }
+  const key = [...new Set(canonical)].sort().join("+");
+  const id = `dm:${ownerActorId}::${key}`;
   await db
     .prepare(
       `INSERT INTO conversations (id, actor_id, last_status_id, unread, updated_at)
