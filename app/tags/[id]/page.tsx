@@ -18,7 +18,7 @@ interface TagInfo {
 
 export default function TagPage() {
   const params = useParams();
-  const tagName = typeof params.id === "string" ? params.id : "";
+  const tagName = typeof params.id === "string" ? decodeURIComponent(params.id) : "";
 
   const [statuses, setStatuses] = useState<Status[]>([]);
   const [loading, setLoading] = useState(true);

@@ -1,7 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
-import { createAttachment } from "@/lib/db";
 import { serializeAttachment } from "@/lib/mastodon/serializers";
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -15,8 +14,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (!allowedTypes.includes(file.type)) return json({ error: "Unsupported media type" }, 400);
   if (file.size > 16 * 1024 * 1024) return json({ error: "File too large" }, 413);
   const id = crypto.randomUUID();
-  const key = `media/${me.id}/${id}-${file.name}`;
-  await env.R2.put(key, file, { httpMetadata: { contentType: file.type } });
+  const key = `media/${me.username}/${id}-${file.name}`;
+  const buffer = await file.arrayBuffer();
+  await env.R2.put(key, buffer, { httpMetadata: { contentType: file.type } });
   const url = `https://${new URL(request.url).hostname}/api/media/${key}`;
   const att = {
     id,
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     mimeType: file.type,
     createdAt: new Date().toISOString(),
   };
-  await createAttachment(env.DB, att);
+  await env.KV.put(`pending_media:${id}`, JSON.stringify({ ...att, r2Key: key }), { expirationTtl: 3600 });
 
   return json(serializeAttachment(att));
 }

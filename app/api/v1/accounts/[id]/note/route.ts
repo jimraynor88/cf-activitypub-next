@@ -16,6 +16,10 @@ export async function POST(
   if (!me) return unauthorized();
   const target = await getActorById(env.DB, rawId);
   if (!target) return notFound();
+  const contentType = _request.headers.get("Content-Type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return json({ error: "Invalid request" }, 400);
+  }
   const body = await _request.json() as { comment?: string };
   if (body.comment) {
     await env.DB

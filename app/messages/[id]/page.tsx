@@ -33,13 +33,35 @@ export default function ConversationDetailPage() {
     }
     async function fetchConversation() {
       if (!token || !params?.id) return;
-      const res = await fetch(`/api/v1/conversations/${encodeURIComponent(params.id)}`, {
+      const rawId = decodeURIComponent(params.id);
+      const res = await fetch(`/api/v1/conversations/${encodeURIComponent(rawId)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json() as { id: string; accounts: { id: string; username: string; acct: string; display_name: string; avatar: string }[]; last_status: Status | null };
-        setConv(data);
-        if (data.last_status) setMessages([data.last_status]);
+      if (!res.ok) { setLoading(false); return; }
+      const data = await res.json() as { id: string; accounts: { id: string; username: string; acct: string; display_name: string; avatar: string }[]; last_status: Status | null };
+      setConv(data);
+
+      // Mark the conversation as read when opened.
+      void fetch(`/api/v1/conversations/${encodeURIComponent(data.id)}/read`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+
+      if (data.last_status) {
+        // Load the full thread (ancestors + focal + descendants) so the
+        // conversation shows every message, not just the latest one.
+        try {
+          const ctxRes = await fetch(`/api/v1/statuses/${encodeURIComponent(data.last_status.id)}/context`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (ctxRes.ok) {
+            const ctx = await ctxRes.json() as { ancestors: Status[]; descendants: Status[] };
+            setMessages([...(ctx.ancestors ?? []), data.last_status, ...(ctx.descendants ?? [])]);
+            setLoading(false);
+            return;
+          }
+        } catch { /* fall through to single message */ }
+        setMessages([data.last_status]);
       }
       setLoading(false);
     }

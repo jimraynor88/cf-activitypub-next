@@ -9,7 +9,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (!token) return unauthorized();
   const tokenRow = await env.DB
     .prepare("SELECT app_id FROM oauth_tokens WHERE access_token = ?")
-    .first<{ app_id: string }>(token);
+    .bind(token)
+    .first<{ app_id: string }>();
   if (!tokenRow?.app_id) return json({ name: "API", website: null, vapid_key: null, client_id: null }, 200);
   const app = await getOAuthAppByClientId(env.DB, tokenRow.app_id);
   if (!app) return json({ name: "API", website: null, vapid_key: null, client_id: null }, 200);

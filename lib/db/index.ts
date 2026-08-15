@@ -637,7 +637,14 @@ export async function addAccountsToList(
   actorIds: string[]
 ): Promise<void> {
   if (actorIds.length === 0) return;
+  const placeholders = actorIds.map(() => "?").join(",");
+  const existing = await db
+    .prepare(`SELECT id FROM actors WHERE id IN (${placeholders})`)
+    .bind(...actorIds)
+    .all<{ id: string }>();
+  const valid = new Set(existing.results.map((a) => a.id));
   for (const actorId of actorIds) {
+    if (!valid.has(actorId)) continue;
     await db
       .prepare("INSERT OR IGNORE INTO list_accounts (id, list_id, actor_id) VALUES (?, ?, ?)")
       .bind(crypto.randomUUID(), listId, actorId)

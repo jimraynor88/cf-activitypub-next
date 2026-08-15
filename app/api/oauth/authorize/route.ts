@@ -5,7 +5,13 @@ import { verifyPassword, generateSecureToken } from "@/lib/auth";
 
 // POST /api/oauth/authorize — processes the authorize form submission
 export async function POST(request: NextRequest): Promise<Response> {
-  const form = await request.formData();
+  const origin = new URL(request.url).origin;
+  let form: FormData;
+  try {
+    form = await request.formData();
+  } catch {
+    return new Response("Invalid request", { status: 400 });
+  }
   const client_id = form.get("client_id") as string;
   const redirect_uri = form.get("redirect_uri") as string;
   const scope = (form.get("scope") as string) ?? "read";
@@ -21,13 +27,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Validate app
   const app = await getOAuthAppByClientId(env.DB, client_id);
   if (!app) {
-    return redirectToAuthorize(client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid client");
+    return redirectToAuthorize(origin, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid client");
   }
 
   // Validate redirect_uri against registered URIs (prevents open redirect)
   const registeredUris = app.redirectUri.split(/[\n,]/).map((u) => u.trim());
   if (!registeredUris.includes(redirect_uri)) {
-    return redirectToAuthorize(client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid redirect URI");
+    return redirectToAuthorize(origin, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid redirect URI");
   }
 
   // Handle deny (after validation so redirect_uri is safe)
@@ -39,16 +45,16 @@ export async function POST(request: NextRequest): Promise<Response> {
   // Authenticate user
   const actor = await getActorByEmail(env.DB, email?.toLowerCase());
   if (!actor || !actor.passwordHash) {
-    return redirectToAuthorize(client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid credentials");
+    return redirectToAuthorize(origin, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid credentials");
   }
 
   const valid = await verifyPassword(password, actor.passwordHash);
   if (!valid) {
-    return redirectToAuthorize(client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid credentials");
+    return redirectToAuthorize(origin, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Invalid credentials");
   }
 
   if (!actor.emailVerified) {
-    return redirectToAuthorize(client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Email not verified");
+    return redirectToAuthorize(origin, client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, "Email not verified");
   }
 
   // Generate auth code, store in KV for 10 minutes
@@ -88,6 +94,7 @@ function buildRedirect(redirectUri: string, code: string | null, error: string |
 }
 
 function redirectToAuthorize(
+  origin: string,
   clientId: string,
   redirectUri: string,
   scope: string,
@@ -96,7 +103,7 @@ function redirectToAuthorize(
   codeChallengeMethod: string | null,
   error: string
 ): Response {
-  const url = new URL("/oauth/authorize", "https://placeholder");
+  const url = new URL("/oauth/authorize", origin);
   url.searchParams.set("response_type", "code");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -105,5 +112,5 @@ function redirectToAuthorize(
   url.searchParams.set("error", error);
   if (codeChallenge) url.searchParams.set("code_challenge", codeChallenge);
   if (codeChallengeMethod) url.searchParams.set("code_challenge_method", codeChallengeMethod);
-  return Response.redirect(`/oauth/authorize${url.search}`, 302);
+  return Response.redirect(url.toString(), 302);
 }

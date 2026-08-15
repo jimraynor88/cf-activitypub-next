@@ -16,7 +16,10 @@ export async function POST(
   const obj = await getObjectById(env.DB, decodeStatusId(id, domain));
   if (!obj) return notFound();
   const text = (obj.content ?? "").replace(/<[^>]*>/g, "");
-  const targetLang = (await request.json() as { lang?: string }).lang ?? "en";
+  let targetLang = "en";
+  try {
+    targetLang = (await request.json() as { lang?: string }).lang ?? "en";
+  } catch { /* default to en */ }
   const libretranslateUrl = env.LIBRETRANSLATE_URL?.trim();
   let translatedText = text;
   if (libretranslateUrl) {

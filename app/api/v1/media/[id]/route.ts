@@ -28,7 +28,8 @@ export async function GET(
   const { id } = await params;
   const att = await env.DB
     .prepare("SELECT * FROM attachments WHERE id = ?")
-    .first<Record<string, unknown>>(id);
+    .bind(id)
+    .first<Record<string, unknown>>();
   if (att) return json(serializeAttachment(fromRow(att)));
   // Attachment uploaded but not yet attached to a status — check pending KV.
   const pendingRaw = await env.KV.get(`pending_media:${id}`);
@@ -88,7 +89,8 @@ export async function PUT(
 
   const att = await env.DB
     .prepare("SELECT * FROM attachments WHERE id = ?")
-    .first<Record<string, unknown>>(id);
+    .bind(id)
+    .first<Record<string, unknown>>();
   if (att) {
     if (description !== null) {
       await env.DB
@@ -98,7 +100,8 @@ export async function PUT(
     }
     const refreshed = await env.DB
       .prepare("SELECT * FROM attachments WHERE id = ?")
-      .first<Record<string, unknown>>(id);
+      .bind(id)
+      .first<Record<string, unknown>>();
     return json(serializeAttachment(fromRow(refreshed!)));
   }
 

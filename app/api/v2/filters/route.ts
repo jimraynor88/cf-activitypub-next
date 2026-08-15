@@ -48,7 +48,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (contentType.includes("application/json")) {
     const body = await request.json() as Record<string, unknown>;
     title = (body.title as string) ?? "";
-    context = (body.context as string[]) ?? [];
+    context = (body.filter_context as string[]) ?? (body.context as string[]) ?? [];
     filterAction = (body.filter_action as string) ?? "warn";
     expiresIn = (body.expires_in as number) ?? null;
   } else {

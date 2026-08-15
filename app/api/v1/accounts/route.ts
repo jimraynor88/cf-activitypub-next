@@ -16,14 +16,18 @@ export async function POST(request: NextRequest): Promise<Response> {
   const domain = new URL(request.url).hostname;
   const baseUrl = `https://${domain}`;
 
-  let body: Record<string, string>;
+  let body: Record<string, string> = {};
   const contentType = request.headers.get("Content-Type") ?? "";
 
-  if (contentType.includes("application/json")) {
-    body = await request.json();
-  } else {
-    const form = await request.formData();
-    body = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
+  try {
+    if (contentType.includes("application/json")) {
+      body = await request.json();
+    } else {
+      const form = await request.formData();
+      body = Object.fromEntries([...form.entries()].map(([k, v]) => [k, String(v)]));
+    }
+  } catch {
+    return json({ error: "Invalid request body" }, 400);
   }
 
   const { username, email, password } = body;

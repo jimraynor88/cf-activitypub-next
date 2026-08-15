@@ -50,7 +50,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (contentType.includes("application/json")) {
     const body = await request.json() as Record<string, unknown>;
     if (body.title !== undefined) title = body.title as string;
-    if (body.context !== undefined) context = body.context as string[];
+    if (body.filter_context !== undefined) context = body.filter_context as string[];
+    else if (body.context !== undefined) context = body.context as string[];
     if (body.filter_action !== undefined) filterAction = body.filter_action as string;
     if (body.expires_in !== undefined) expiresIn = body.expires_in as number | null;
   } else {

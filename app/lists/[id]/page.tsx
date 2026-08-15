@@ -36,6 +36,7 @@ type ActiveTab = "members" | "timeline";
 export default function ListDetailPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
+  const listId = params?.id ? decodeURIComponent(params.id) : "";
   const [me, setMe] = useState<Me | null>(null);
   const [list, setList] = useState<List | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -67,7 +68,7 @@ export default function ListDetailPage() {
 
   async function fetchList() {
     if (!token || !params?.id) return;
-    const res = await fetch(`/api/v1/lists/${encodeURIComponent(params.id)}`, {
+    const res = await fetch(`/api/v1/lists/${encodeURIComponent(listId)}`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setList(await res.json() as List);
@@ -75,7 +76,7 @@ export default function ListDetailPage() {
 
   async function fetchAccounts() {
     if (!token || !params?.id) return;
-    const res = await fetch(`/api/v1/lists/${encodeURIComponent(params.id)}/accounts`, {
+    const res = await fetch(`/api/v1/lists/${encodeURIComponent(listId)}/accounts`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setAccounts(await res.json() as Account[]);
@@ -84,7 +85,7 @@ export default function ListDetailPage() {
 
   async function fetchTimeline() {
     if (!token || !params?.id) return;
-    const res = await fetch(`/api/v1/timelines/list?list_id=${encodeURIComponent(params.id)}&limit=20`, {
+    const res = await fetch(`/api/v1/timelines/list?list_id=${encodeURIComponent(listId)}&limit=20`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setStatuses(await res.json() as Status[]);
@@ -94,7 +95,7 @@ export default function ListDetailPage() {
     e.preventDefault();
     if (!token || !addAcct.trim() || !params?.id) return;
     setAdding(true);
-    const res = await fetch(`/api/v1/lists/${encodeURIComponent(params.id)}/accounts`, {
+    const res = await fetch(`/api/v1/lists/${encodeURIComponent(listId)}/accounts`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ account_ids: [addAcct.trim()] }),
@@ -109,7 +110,7 @@ export default function ListDetailPage() {
   async function handleRemove(account: Account) {
     if (!token || !params?.id) return;
     setRemovingId(account.id);
-    await fetch(`/api/v1/lists/${encodeURIComponent(params.id)}/accounts`, {
+    await fetch(`/api/v1/lists/${encodeURIComponent(listId)}/accounts`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ account_ids: [account.id] }),

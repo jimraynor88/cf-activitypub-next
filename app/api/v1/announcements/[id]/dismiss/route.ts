@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
+import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 
 export async function POST(
@@ -10,6 +10,11 @@ export async function POST(
   const { id } = await params;
   const me = await getAuthenticatedActor(_request, env.DB);
   if (!me) return unauthorized();
+  const announcement = await env.DB
+    .prepare("SELECT id FROM announcements WHERE id = ?")
+    .bind(id)
+    .first<{ id: string }>();
+  if (!announcement) return notFound();
   await env.DB
     .prepare("DELETE FROM announcement_reactions WHERE announcement_id = ? AND actor_id = ?")
     .bind(id, me.id)
