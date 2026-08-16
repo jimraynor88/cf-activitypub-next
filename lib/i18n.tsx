@@ -326,6 +326,7 @@ const EN = {
   nav_blocks: "Blocks",
   nav_emojis: "Emojis",
   nav_announcements: "Announcements",
+  nav_admin: "Admin",
   // Announcements
   announcements_title: "Announcements",
   announcements_empty: "No announcements",
@@ -849,6 +850,7 @@ const ES: typeof EN = {
   nav_blocks: "Bloqueos",
   nav_emojis: "Emojis",
   nav_announcements: "Anuncios",
+  nav_admin: "Admin",
   // Announcements
   announcements_title: "Anuncios",
   announcements_empty: "No hay anuncios",

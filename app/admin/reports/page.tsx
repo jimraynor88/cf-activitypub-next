@@ -94,11 +94,24 @@ export default function AdminReportsPage() {
     if (!token) return;
     setActionLoading(`${reportId}:suspend`);
     try {
-      await fetch(`/api/v1/admin/accounts/${targetId}/suspend`, {
+      await fetch(`/api/v1/admin/accounts/${encodeURIComponent(targetId)}/suspend`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       await performAction(reportId, "resolve");
+    } catch { /* ignore */ }
+    setActionLoading(null);
+  }
+
+  async function deleteReport(id: string) {
+    if (!token) return;
+    setActionLoading(`${id}:delete`);
+    try {
+      await fetch(`/api/v1/admin/reports/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      await fetchReports();
     } catch { /* ignore */ }
     setActionLoading(null);
   }
@@ -166,6 +179,7 @@ export default function AdminReportsPage() {
                   actionLoading={actionLoading}
                   resolved
                   onReopen={() => performAction(r.id, "reopen")}
+                  onDelete={() => deleteReport(r.id)}
                 />
               ))}
             </Section>
@@ -202,6 +216,7 @@ function ReportCard({
   onDismiss,
   onSuspendAccount,
   onReopen,
+  onDelete,
   onAddNote,
 }: {
   report: Report;
@@ -211,6 +226,7 @@ function ReportCard({
   onDismiss?: () => void;
   onSuspendAccount?: (() => void) | null;
   onReopen?: () => void;
+  onDelete?: () => void;
   onAddNote?: (content: string) => Promise<boolean>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -291,6 +307,14 @@ function ReportCard({
               onClick={onReopen}
             >
               {actionLoading === `${report.id}:reopen` ? "..." : "Reopen"}
+            </button>
+            <button
+              className="btn btn-outline btn-sm"
+              style={{ color: "var(--danger)", borderColor: "var(--danger)" }}
+              disabled={actionLoading === `${report.id}:delete`}
+              onClick={onDelete}
+            >
+              {actionLoading === `${report.id}:delete` ? "..." : "Delete"}
             </button>
           </div>
         )}

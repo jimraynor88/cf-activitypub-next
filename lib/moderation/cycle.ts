@@ -246,7 +246,7 @@ function stripForDetails(html: string): string {
 }
 
 /** Block domains that are a consistent source of abuse. */
-async function detectSpamDomains(env: GuardianCycleEnv): Promise<void> {
+export async function detectSpamDomains(env: GuardianCycleEnv): Promise<void> {
   const instanceDomain = (env.INSTANCE_URL ? new URL(env.INSTANCE_URL).hostname : "") || "localhost";
 
   // Only auto-block a domain when it is *overwhelmingly* spammy relative to how

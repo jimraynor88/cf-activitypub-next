@@ -66,3 +66,26 @@ async function getReportStatuses(db: D1Database, statusIdsRaw: string | null, do
     })
   )).filter((s): s is NonNullable<typeof s> => s !== null);
 }
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
+  const { env } = getCloudflareContext();
+
+  if (!(await requireAdmin(request, env))) {
+    return json({ error: "Unauthorized" }, 401);
+  }
+
+  const { id } = await params;
+  const report = await getReportById(env.DB, id);
+  if (!report) return notFound();
+
+  if (!report.action_taken) {
+    return json({ error: "Report must be resolved before it can be deleted" }, 422);
+  }
+
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM report_notes WHERE report_id = ?").bind(id),
+    env.DB.prepare("DELETE FROM reports WHERE id = ?").bind(id),
+  ]);
+
+  return json({ id, deleted: true });
+}

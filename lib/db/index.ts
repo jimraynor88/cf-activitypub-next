@@ -1938,17 +1938,16 @@ export async function createDomainBlock(db: D1Database, id: string, actorId: str
     .run();
 }
 
-export async function deleteDomainBlock(db: D1Database, actorId: string, domain: string): Promise<void> {
+export async function deleteDomainBlock(db: D1Database, domain: string): Promise<void> {
   await db
-    .prepare("DELETE FROM domain_blocks WHERE actor_id = ? AND domain = ?")
-    .bind(actorId, domain.toLowerCase())
+    .prepare("DELETE FROM domain_blocks WHERE domain = ?")
+    .bind(domain.toLowerCase())
     .run();
 }
 
-export async function getDomainBlocks(db: D1Database, actorId: string): Promise<string[]> {
+export async function getDomainBlocks(db: D1Database): Promise<string[]> {
   const rows = await db
-    .prepare("SELECT domain FROM domain_blocks WHERE actor_id = ? ORDER BY created_at DESC")
-    .bind(actorId)
+    .prepare("SELECT DISTINCT domain FROM domain_blocks ORDER BY created_at DESC")
     .all<{ domain: string }>();
   return rows.results.map((r) => r.domain);
 }

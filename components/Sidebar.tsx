@@ -12,6 +12,7 @@ interface SidebarAccount {
   username: string;
   display_name: string;
   acct: string;
+  roles?: { id?: string; name: string; color?: string }[];
 }
 
 interface SidebarProps {
@@ -24,6 +25,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   const [unreadCount, setUnreadCount] = useState(0);
   const [localMe, setLocalMe] = useState<SidebarAccount | null | undefined>(propMe);
   const me = propMe ?? localMe;
+  const isStaff = me?.roles?.some((r) => r.name.toLowerCase() === "admin" || r.name.toLowerCase() === "moderator") ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
   // Client-only flag so the mobile top bar (rendered via portal) never runs on
   // the server, avoiding a hydration mismatch. False during SSR, true on client.
@@ -118,6 +120,10 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
     { label: t.nav_emojis, icon: "😊", href: "/emojis", badge: 0 },
     { label: t.nav_announcements, icon: "📢", href: "/announcements", badge: 0 },
   ];
+
+  if (isStaff) {
+    navItems.push({ label: t.nav_admin, icon: "🛡️", href: "/admin", badge: 0 });
+  }
 
   return (
     <>

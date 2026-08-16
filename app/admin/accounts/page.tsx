@@ -74,7 +74,7 @@ export default function AdminAccountsPage() {
     if (!token) return;
     setActionLoading(`${id}:${action}`);
     try {
-      await fetch(`/api/v1/admin/accounts/${id}/${action}`, {
+      await fetch(`/api/v1/admin/accounts/${encodeURIComponent(id)}/${action}`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
