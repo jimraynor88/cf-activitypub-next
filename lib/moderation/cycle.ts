@@ -249,13 +249,27 @@ function stripForDetails(html: string): string {
 async function detectSpamDomains(env: GuardianCycleEnv): Promise<void> {
   const instanceDomain = (env.INSTANCE_URL ? new URL(env.INSTANCE_URL).hostname : "") || "localhost";
 
+  // Only auto-block a domain when it is *overwhelmingly* spammy relative to how
+  // many of its accounts we've cached — never just because a big server happens
+  // to have a few spammers. Absolute count (>= 3) plus proportion (>= 50% of the
+  // domain's cached accounts) prevents the collateral mass-suspension of a whole
+  // legitimate instance (e.g. mastodon.social with 3 spam accounts out of 12k).
   const suspendedByDomain = await env.DB
-    .prepare("SELECT domain, COUNT(*) AS c FROM actors WHERE is_local = 0 AND suspended = 1 GROUP BY domain HAVING c >= 3")
+    .prepare(
+      `SELECT domain, SUM(CASE WHEN suspended = 1 THEN 1 ELSE 0 END) AS c
+       FROM actors WHERE is_local = 0
+       GROUP BY domain
+       HAVING c >= 3 AND c * 1.0 / COUNT(*) >= 0.5`
+    )
     .all<{ domain: string; c: number }>();
 
   const reportedByDomain = await env.DB
     .prepare(
-      "SELECT a.domain, COUNT(DISTINCT r.id) AS c FROM reports r JOIN actors a ON a.id = r.target_id WHERE a.is_local = 0 GROUP BY a.domain HAVING c >= 3"
+      `SELECT a.domain, COUNT(DISTINCT r.id) AS c
+       FROM reports r JOIN actors a ON a.id = r.target_id
+       WHERE a.is_local = 0
+       GROUP BY a.domain
+       HAVING c >= 3 AND c >= 0.5 * (SELECT COUNT(*) FROM actors WHERE domain = a.domain AND is_local = 0)`
     )
     .all<{ domain: string; c: number }>();
 

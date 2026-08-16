@@ -1208,8 +1208,12 @@ export async function getHomeTimeline(
   // Own posts → all visibilities (except direct).
   // Posts from followed accounts → public, unlisted, followers-only.
   // Direct messages are excluded (handled through conversations).
+  // Suspended accounts never appear in any timeline, including the home of
+  // their followers (mirrors Mastodon). Silenced accounts still show to
+  // followers, so only `suspended` is filtered here.
   const baseWhere = `
-    (
+    NOT EXISTS (SELECT 1 FROM actors a WHERE a.id = o.actor_id AND a.suspended = 1)
+    AND (
       (o.actor_id = ? AND o.visibility != 'direct')
       OR (
         o.actor_id IN (
