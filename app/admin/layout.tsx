@@ -8,6 +8,8 @@ import { getToken } from "@/lib/client-api";
 const navItems = [
   { label: "Dashboard", href: "/admin" },
   { label: "Accounts", href: "/admin/accounts" },
+  { label: "Suspended", href: "/admin/suspended" },
+  { label: "Blocked", href: "/admin/blocked" },
   { label: "Reports", href: "/admin/reports" },
 ];
 

@@ -22,6 +22,9 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
   const domain = rows.results[idx].domain;
   await env.DB.prepare("DELETE FROM domain_blocks WHERE domain = ?").bind(domain).run();
+  // Unblocking also lifts the collateral suspension the domain block applied to
+  // every cached account of that domain.
+  await env.DB.prepare("UPDATE actors SET suspended = 0, updated_at = datetime('now') WHERE is_local = 0 AND domain = ? AND suspended = 1").bind(domain).run();
 
   return json({});
 }
