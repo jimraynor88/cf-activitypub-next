@@ -456,6 +456,12 @@ export default function ThreadPage() {
     });
   }, [autoReply, focal]);
 
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      if (focal && !focal.edited_at) setHistoryTab(false);
+    });
+  }, [focal]);
+
   async function load() {
     setLoading(true);
     try {
@@ -635,19 +641,21 @@ export default function ThreadPage() {
             >
               Hilo
             </button>
-            <button
-              className="btn btn-ghost"
-              onClick={() => { setHistoryTab(true); void loadHistory(); }}
-              style={{
-                flex: 1, borderRadius: 0, padding: "0.625rem 1rem",
-                borderBottom: historyTab ? "2px solid var(--accent)" : "2px solid transparent",
-                color: historyTab ? "var(--accent)" : "var(--text-muted)",
-                fontWeight: historyTab ? 600 : 400,
-                fontSize: "0.875rem",
-              }}
-            >
-              Historial de edición
-            </button>
+            {focal?.edited_at && (
+              <button
+                className="btn btn-ghost"
+                onClick={() => { setHistoryTab(true); void loadHistory(); }}
+                style={{
+                  flex: 1, borderRadius: 0, padding: "0.625rem 1rem",
+                  borderBottom: historyTab ? "2px solid var(--accent)" : "2px solid transparent",
+                  color: historyTab ? "var(--accent)" : "var(--text-muted)",
+                  fontWeight: historyTab ? 600 : 400,
+                  fontSize: "0.875rem",
+                }}
+              >
+                Historial de edición
+              </button>
+            )}
           </div>
         </div>
 
