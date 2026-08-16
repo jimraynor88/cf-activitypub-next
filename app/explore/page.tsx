@@ -10,6 +10,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { BackToTop } from "@/components/BackToTop";
 import { StatusCard, Status, Me, AvatarBubble } from "@/components/StatusCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -285,6 +286,7 @@ export default function ExplorePage() {
         )}
       </PageLayout>
 
+      <BackToTop />
       {/* Edit status modal */}
       {editingStatus && (
         <div

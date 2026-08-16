@@ -300,6 +300,14 @@ const EN = {
   settings_migration_button: "Move account",
   settings_migration_failed: "Migration failed",
   settings_migration_result: "Moved to {moved}. {followers} local followers migrated, Move delivered to {servers} remote servers.",
+  // Settings — delete account
+  settings_tab_delete: "Delete account",
+  settings_delete_warning: "Deleting your account is permanent and cannot be undone.",
+  settings_delete_desc: "All your posts, followers, follows, direct messages and settings will be erased. Other servers will be notified that your account was deleted. To confirm, type your username below.",
+  settings_delete_confirm_label: "Type your username to confirm:",
+  settings_delete_button: "Delete account",
+  settings_delete_failed: "Account deletion failed",
+  settings_delete_done: "Your account has been deleted. Redirecting…",
   // Followed Tags
   followed_tags_title: "Followed hashtags",
   followed_tags_empty: "You're not following any hashtags",
@@ -815,6 +823,14 @@ const ES: typeof EN = {
   settings_migration_button: "Mover cuenta",
   settings_migration_failed: "Error en la migración",
   settings_migration_result: "Cuenta movida a {moved}. {followers} seguidores locales migrados, Move entregado a {servers} servidores remotos.",
+  // Settings — delete account
+  settings_tab_delete: "Borrar cuenta",
+  settings_delete_warning: "Borrar tu cuenta es permanente y no se puede deshacer.",
+  settings_delete_desc: "Todas tus publicaciones, seguidores, seguidos, mensajes directos y ajustes serán eliminados. Otros servidores serán notificados de que tu cuenta fue borrada. Para confirmar, escribe tu nombre de usuario a continuación.",
+  settings_delete_confirm_label: "Escribe tu nombre de usuario para confirmar:",
+  settings_delete_button: "Borrar cuenta",
+  settings_delete_failed: "Error al borrar la cuenta",
+  settings_delete_done: "Tu cuenta ha sido borrada. Redirigiendo…",
   // Followed Tags
   followed_tags_title: "Etiquetas seguidas",
   followed_tags_empty: "No sigues ninguna etiqueta",

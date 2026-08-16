@@ -45,6 +45,7 @@ export default function AdminAccountsPage() {
     if (!token) return;
     setLoading(true);
     const params = new URLSearchParams();
+    params.set("local", "true");
     if (roleFilter !== "all") params.set("role", roleFilter);
     if (statusFilter !== "all") params.set("status", statusFilter);
     if (search) params.set("q", search);

@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, notFound } from "@/lib/cf";
-import { getActorById } from "@/lib/db";
+import { getReportById } from "@/lib/db";
 import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
@@ -11,10 +11,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const { id } = await params;
-  const actor = await getActorById(env.DB, id);
-  if (!actor) return notFound();
+  const report = await getReportById(env.DB, id);
+  if (!report) return notFound();
 
-  await env.DB.prepare("DELETE FROM actors WHERE id = ?").bind(id).run();
+  await env.DB.prepare("UPDATE reports SET action_taken = 0 WHERE id = ?").bind(id).run();
 
-  return json({});
+  return json({ id, action_taken: false, reopened: true });
 }

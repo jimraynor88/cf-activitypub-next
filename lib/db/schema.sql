@@ -554,6 +554,22 @@ CREATE INDEX IF NOT EXISTS idx_reports_actor ON reports(actor_id);
 CREATE INDEX IF NOT EXISTS idx_reports_target ON reports(target_id);
 
 -- ─────────────────────────────────────────
+-- Report notes (moderation discussion on a report)
+-- Mirrors Mastodon's report_notes: internal-only notes between moderators
+-- attached to a report ticket. Not federated (Mastodon does not federate
+-- moderation notes).
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS report_notes (
+  id         TEXT PRIMARY KEY,
+  report_id  TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+  actor_id   TEXT NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_report_notes_report ON report_notes(report_id);
+
+-- ─────────────────────────────────────────
 -- Moderation log (AI Guardian audit trail)
 -- One row per automated moderation decision/action so every action the AI
 -- takes on the instance can be audited later.

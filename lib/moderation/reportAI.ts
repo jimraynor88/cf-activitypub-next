@@ -1,0 +1,176 @@
+/**
+ * Shared AI evaluation for report tickets.
+ *
+ * Runs the Guardian's report pipeline (heuristic pre-scan → LLM verdict → action)
+ * so that locally-submitted reports and inbound federated Flag activities are
+ * treated identically: every decision is audited in moderation_log and the
+ * ticket is resolved/dismissed according to the verdict.
+ */
+
+import { getObjectById } from "@/lib/db";
+import { decodeStatusId } from "@/lib/mastodon/statusId";
+import { evaluateReport } from "./ai";
+import {
+  type ModerationEnv,
+  suspendAccount,
+  warnAccount,
+  deleteStatus,
+  resolveReport,
+  dismissReport,
+  recordNoAction,
+} from "./actions";
+import { GUARDIAN_MODEL } from "./ai";
+import { sendReportOutcomeEmail } from "@/lib/email";
+
+export interface ReportAIInput {
+  reportId: string;
+  category: string;
+  comment: string;
+  /** Mastodon-encoded ids of the reported statuses (empty for account-only reports). */
+  statusIds: string[];
+  domain: string;
+  target: { id: string; username: string };
+  reporter: { id: string; username: string; email?: string | null };
+}
+
+/**
+ * Evaluate a report with the Guardian and apply the verdict.
+ *
+ * Does not throw on model failures — those are recorded as no_action so the
+ * scheduled moderation cycle / a human moderator can pick the ticket up.
+ */
+export async function evaluateReportWithAI(env: ModerationEnv, input: ReportAIInput): Promise<void> {
+  const { reportId, category, comment, statusIds, domain, target, reporter } = input;
+  const statusContents: string[] = [];
+  const reviewedStatuses: string[] = [];
+  let invalidStatuses = false;
+  let mismatchedOwnership = false;
+
+  for (const sid of statusIds) {
+    const decoded = decodeStatusId(sid, domain);
+    const obj = await getObjectById(env.DB, decoded);
+    if (!obj) {
+      invalidStatuses = true;
+      continue;
+    }
+    if (obj.actorId !== target.id) {
+      mismatchedOwnership = true;
+    }
+    reviewedStatuses.push(decoded);
+    if (obj?.content) {
+      const stripped = obj.content.replace(/<[^>]+>/g, "").trim();
+      if (stripped) statusContents.push(stripped);
+    }
+  }
+
+  const report = {
+    category,
+    comment,
+    statusContent: statusContents.join("\n---\n").slice(0, 2000),
+    targetUsername: target.username,
+    reporterUsername: reporter.username,
+    invalidStatuses,
+    mismatchedOwnership,
+  };
+
+  const verdict = await evaluateReport(env, report);
+
+  if (!verdict || verdict.confidence === "low") {
+    // Leave open for the scheduled moderation cycle / keep an audit trail.
+    await recordNoAction(env, {
+      targetType: "report",
+      targetId: reportId,
+      action: "no_action",
+      reason: verdict?.reason ?? "Reporte no evaluado (IA no disponible o confianza baja).",
+      confidence: verdict?.confidence,
+      source: "ai",
+      model: GUARDIAN_MODEL,
+      details: { stage: "report", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+      relatedId: reporter.id,
+    });
+    return;
+  }
+
+  const details = { stage: "report", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership, statusContent: statusContents.join("\n---\n").slice(0, 1000) };
+  let actionNote = `[AI] Decisión: ${verdict.action}. Razón: ${verdict.reason} (confianza: ${verdict.confidence})`;
+
+  if (verdict.action === "suspend") {
+    await suspendAccount(env, {
+      actorId: target.id,
+      reason: verdict.reason,
+      confidence: verdict.confidence,
+      source: "ai",
+      model: GUARDIAN_MODEL,
+      details,
+      relatedId: reportId,
+    });
+    actionNote += " — Cuenta suspendida.";
+  } else if (verdict.action === "delete") {
+    for (const oid of reviewedStatuses) {
+      await deleteStatus(env, {
+        objectId: oid,
+        reason: verdict.reason,
+        confidence: verdict.confidence,
+        source: "ai",
+        model: GUARDIAN_MODEL,
+        details,
+        relatedId: reportId,
+      });
+    }
+    actionNote += " — Publicación(es) eliminada(s).";
+  } else if (verdict.action === "warn") {
+    await warnAccount(env, {
+      actorId: target.id,
+      reason: verdict.reason,
+      confidence: verdict.confidence,
+      source: "ai",
+      model: GUARDIAN_MODEL,
+      details,
+      relatedId: reportId,
+    });
+    actionNote += " — Advertencia emitida.";
+  } else {
+    // dismiss — the report is fraudulent/unfounded
+    await dismissReport(env, {
+      reportId,
+      reason: verdict.reason,
+      confidence: verdict.confidence,
+      source: "ai",
+      model: GUARDIAN_MODEL,
+      details,
+      relatedId: reporter.id,
+    });
+    actionNote += " — Reporte descartado.";
+  }
+
+  // Mark the report resolved (unless already dismissed/removed).
+  if (verdict.action !== "dismiss") {
+    await resolveReport(env, {
+      reportId,
+      note: actionNote,
+      reason: verdict.reason,
+      confidence: verdict.confidence,
+      source: "ai",
+      model: GUARDIAN_MODEL,
+      details,
+      relatedId: reporter.id,
+    });
+  }
+
+  // Notify the reporter about the outcome.
+  if (reporter.email && env.EMAIL) {
+    try {
+      await sendReportOutcomeEmail(env.EMAIL, {
+        to: reporter.email,
+        from: env.FROM_EMAIL ?? "",
+        reporterUsername: reporter.username,
+        targetUsername: target.username,
+        action: verdict.action,
+        reason: verdict.reason,
+        instanceTitle: env.INSTANCE_TITLE ?? "",
+      });
+    } catch {
+      // email error — don't fail the report
+    }
+  }
+}

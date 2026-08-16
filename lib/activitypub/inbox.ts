@@ -24,6 +24,7 @@ import {
   updateActor,
   updateObject,
   upsertRemoteActor,
+  createReport,
   getPollByObjectId,
   getPollOptions,
   getPollVotesByActor,
@@ -38,8 +39,10 @@ import {
   generateId,
 } from "./utils";
 import { upsertCustomEmoji } from "@/lib/db";
+import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { deliverToInbox, fetchRemoteObject } from "./federation";
 import { fetchAndCacheRemoteActor } from "./remote";
+import { evaluateReportWithAI } from "@/lib/moderation/reportAI";
 import { broadcastNotificationEvent, broadcastPublicStatus, broadcastHomeStatus, broadcastCallEvent } from "@/lib/streaming/broadcast";
 import { deliverPushSafe } from "@/lib/push";
 import type { LocalNotification } from "@/lib/types";
@@ -81,6 +84,12 @@ interface InboxContext {
   vapidPublicKey?: string;
   vapidPrivateKey?: string;
   vapidEmail?: string;
+  /** Workers AI binding — used to run the Guardian report pipeline on inbound Flags. */
+  ai?: Ai | null;
+  /** Outbound email binding for report-outcome notifications. */
+  email?: SendEmail | null;
+  fromEmail?: string;
+  instanceTitle?: string;
 }
 
 /** Helper: broadcast streaming event + deliver Web Push for a new notification. */
@@ -161,6 +170,9 @@ export async function processInboxActivity(
         break;
       case "delete":
         await handleDelete(activity, ctx);
+        break;
+      case "flag":
+        await handleFlag(activity, ctx);
         break;
       case "add":
         await handleAdd(activity, ctx);
@@ -1056,6 +1068,180 @@ async function handleDelete(activity: APActivity, ctx: InboxContext): Promise<vo
   const obj = await getObjectById(ctx.db, objectId);
   if (obj && obj.actorId === actorId) {
     await deleteObject(ctx.db, objectId);
+  }
+}
+
+/**
+ * Handle an inbound federated report (ActivityPub Flag), Mastodon-compatible.
+ *
+ * Mastodon serializes a Flag with `object` as an ARRAY of URIs: first the
+ * reported account, then each reported status (ActivityPub::FlagSerializer).
+ * It may also be a bare string URI. Like Mastodon's ActivityPub::Activity::Flag,
+ * each distinct target account in the URIs produces its own report, and the
+ * statuses are attached to the report of the account that authored them.
+ * Reported statuses are cached so our admins can review the full evidence.
+ * No automatic action is taken — federated reports queue for local moderators.
+ */
+async function handleFlag(activity: APActivity, ctx: InboxContext): Promise<void> {
+  const reporterId = typeof activity.actor === "string" ? activity.actor : activity.actor.id;
+  if (!reporterId) return;
+
+  // Make sure the reporter (remote account) is cached.
+  let reporter = await getActorById(ctx.db, reporterId);
+  if (!reporter) {
+    const inlineActor = typeof activity.actor !== "string" ? activity.actor as APActor : null;
+    if (inlineActor?.publicKey?.publicKeyPem) {
+      try { await upsertRemoteActor(ctx.db, inlineActor); } catch { /* ignore */ }
+    } else {
+      try {
+        const fetched = await fetchRemoteObject(reporterId) as APActor | null;
+        if (fetched?.publicKey?.publicKeyPem) await upsertRemoteActor(ctx.db, fetched);
+      } catch { /* ignore */ }
+    }
+    reporter = await getActorById(ctx.db, reporterId);
+  }
+  if (!reporter) return;
+
+  // `object` is an array of URIs ([targetAccount, ...statusUris]) or a single
+  // string URI — coerce to an array. Embedded objects are reduced to their id.
+  const rawObject = activity.object;
+  const objectUris: string[] = Array.isArray(rawObject)
+    ? rawObject.map((o) => (typeof o === "string" ? o : (o as { id?: string })?.id)).filter((v): v is string => !!v)
+    : (typeof rawObject === "string" ? [rawObject] : (rawObject as { id?: string })?.id ? [(rawObject as { id?: string }).id as string] : []);
+  if (objectUris.length === 0) return;
+
+  // Resolve each URI to either a target account or an evidence status.
+  // Statuses are grouped by their author so each account gets its own report,
+  // mirroring Mastodon's flag.rb. Unknown statuses are fetched and cached.
+  const targets = new Map<string, { id: string; statusUris: string[] }>();
+  const seenStatuses = new Set<string>();
+
+  for (const uri of objectUris) {
+    if (uri === reporterId) continue;
+
+    // Is it a known account (a report target)?
+    const actor = await getActorById(ctx.db, uri);
+    if (actor) {
+      if (!targets.has(actor.id)) targets.set(actor.id, { id: actor.id, statusUris: [] });
+      continue;
+    }
+
+    // Is it a known object (a reported status)?
+    const existing = await getObjectById(ctx.db, uri);
+    if (existing) {
+      const ownerId = existing.actorId;
+      if (!targets.has(ownerId)) targets.set(ownerId, { id: ownerId, statusUris: [] });
+      if (!seenStatuses.has(uri)) {
+        seenStatuses.add(uri);
+        targets.get(ownerId)!.statusUris.push(uri);
+      }
+      continue;
+    }
+
+    // Unknown URI — try to fetch the remote object so the evidence is cached.
+    try {
+      const fetched = await fetchRemoteObject(uri) as APNote | null;
+      if (fetched?.id) {
+        const { content, contentWarning } = sanitizeRemoteNoteContent(
+          fetched.content,
+          fetched.summary,
+          fetched.sensitive ?? false
+        );
+        const visibility = resolveVisibility(fetched.to, fetched.cc);
+        await createObject(ctx.db, {
+          id: fetched.id,
+          type: String(fetched.type ?? "Note").split("/").pop() || "Note",
+          actorId: fetched.attributedTo && typeof fetched.attributedTo === "string"
+            ? fetched.attributedTo
+            : (fetched.attributedTo as { id?: string })?.id ?? "",
+          content,
+          contentWarning,
+          sensitive: fetched.sensitive ?? false,
+          visibility,
+          inReplyToId: fetched.inReplyTo ?? null,
+          language: fetched.contentMap ? Object.keys(fetched.contentMap)[0] : null,
+          url: resolveObjectUrl(fetched.url, fetched.id),
+          repliesCount: 0,
+          reblogsCount: 0,
+          favouritesCount: 0,
+          published: toUtcIso(fetched.published),
+          local: false,
+          raw: JSON.stringify(fetched),
+        });
+        const ownerId = (typeof fetched.attributedTo === "string"
+          ? fetched.attributedTo
+          : (fetched.attributedTo as { id?: string })?.id) ?? "";
+        if (!targets.has(ownerId)) targets.set(ownerId, { id: ownerId, statusUris: [] });
+        if (!seenStatuses.has(uri)) {
+          seenStatuses.add(uri);
+          targets.get(ownerId)!.statusUris.push(uri);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  if (targets.size === 0) return;
+
+  const comment = typeof activity.content === "string" ? activity.content : "";
+
+  for (const target of targets.values()) {
+    const statusIds = target.statusUris.map((uri) => encodeStatusId(uri, uri.startsWith(ctx.baseUrl)));
+
+    // Deduplicate: skip if the same reporter already reported this account with
+    // the exact same comment (avoids spamming the moderation queue on retries).
+    try {
+      const existing = await ctx.db
+        .prepare("SELECT id FROM reports WHERE actor_id = ? AND target_id = ? AND comment = ? LIMIT 1")
+        .bind(reporterId, target.id, comment)
+        .first<{ id: string }>();
+      if (existing) continue;
+    } catch { /* ignore */ }
+
+    try {
+      const reportId = generateId();
+      await createReport(
+        ctx.db,
+        reportId,
+        reporterId,
+        target.id,
+        statusIds.length > 0 ? JSON.stringify(statusIds) : null,
+        comment,
+        "other",
+        null,
+        false
+      );
+
+      // Run the same Guardian report pipeline used for locally-submitted reports
+      // so federated Flags are also AI-managed. The target account must be local
+      // (we can only take action on accounts that live here).
+      const targetActor = await getActorById(ctx.db, target.id);
+      if (ctx.ai && targetActor && targetActor.isLocal) {
+        try {
+          await evaluateReportWithAI(
+            {
+              DB: ctx.db,
+              AI: ctx.ai,
+              EMAIL: ctx.email ?? undefined,
+              FROM_EMAIL: ctx.fromEmail,
+              INSTANCE_TITLE: ctx.instanceTitle,
+            },
+            {
+              reportId,
+              category: "other",
+              comment,
+              statusIds,
+              domain: ctx.baseUrl.replace(/^https?:\/\//, ""),
+              target: { id: targetActor.id, username: targetActor.username },
+              reporter: { id: reporter.id, username: reporter.username, email: reporter.email },
+            }
+          );
+        } catch (err) {
+          console.error("[inbox] Flag AI evaluation error:", err);
+        }
+      }
+    } catch (err) {
+      console.error("[inbox] Failed to store incoming Flag:", err);
+    }
   }
 }
 

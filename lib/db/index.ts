@@ -935,6 +935,25 @@ export async function getReportsByActor(db: D1Database, actorId: string): Promis
 }
 
 // ─────────────────────────────────────────
+// Report notes (moderation discussion on a report)
+// ─────────────────────────────────────────
+
+export async function createReportNote(db: D1Database, id: string, reportId: string, actorId: string, content: string): Promise<void> {
+  await db
+    .prepare("INSERT INTO report_notes (id, report_id, actor_id, content) VALUES (?, ?, ?, ?)")
+    .bind(id, reportId, actorId, content)
+    .run();
+}
+
+export async function getReportNotes(db: D1Database, reportId: string): Promise<{ id: string; report_id: string; actor_id: string; content: string; created_at: string }[]> {
+  const rows = await db
+    .prepare("SELECT id, report_id, actor_id, content, created_at FROM report_notes WHERE report_id = ? ORDER BY created_at ASC")
+    .bind(reportId)
+    .all<{ id: string; report_id: string; actor_id: string; content: string; created_at: string }>();
+  return rows.results;
+}
+
+// ─────────────────────────────────────────
 // Featured tags
 // ─────────────────────────────────────────
 

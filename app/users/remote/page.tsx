@@ -38,6 +38,7 @@ interface Account {
   url: string;
   created_at: string;
   fields?: MastodonField[];
+  roles?: { id: string; name: string; color: string }[];
   supports_calls?: boolean;
 }
 
@@ -447,7 +448,12 @@ function RemoteProfileInner() {
             </div>
           </div>
 
-          <div style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "0.1rem" }}>{displayName}</div>
+          <div style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "0.1rem" }}>
+            {displayName}
+            {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
+              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
+            )}
+          </div>
           <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>@{account.acct}</div>
 
           {account.note && (

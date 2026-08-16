@@ -8,7 +8,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { env } = getCloudflareContext();
   const domain = new URL(request.url).hostname;
 
-  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+  if (!(await requireAdmin(request, env))) {
     return json({ error: "Unauthorized" }, 401);
   }
 

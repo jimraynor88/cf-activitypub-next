@@ -5,7 +5,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { env } = getCloudflareContext();
 
-  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+  if (!(await requireAdmin(request, env))) {
     return json({ error: "Unauthorized" }, 401);
   }
 

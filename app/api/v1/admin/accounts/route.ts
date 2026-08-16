@@ -8,7 +8,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
   const domain = new URL(request.url).hostname;
 
-  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+  if (!(await requireAdmin(request, env))) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -17,10 +17,15 @@ export async function GET(request: NextRequest): Promise<Response> {
   const offset = (page - 1) * limit;
   const status = request.nextUrl.searchParams.get("status") ?? "all";
   const role = request.nextUrl.searchParams.get("role") ?? "all";
+  const local = request.nextUrl.searchParams.get("local") ?? "false";
   const q = request.nextUrl.searchParams.get("q") ?? "";
 
   let sql = "SELECT * FROM actors WHERE 1=1";
   const binds: unknown[] = [];
+
+  if (local === "true") {
+    sql += " AND is_local = 1";
+  }
 
   if (status === "active") {
     sql += " AND email_verified = 1";
@@ -52,6 +57,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     rows = result.results;
     const totalRow = await env.DB.prepare(
       "SELECT COUNT(*) as count FROM actors WHERE 1=1" +
+      (local === "true" ? " AND is_local = 1" : "") +
       (status !== "all" ? (status === "active" ? " AND email_verified = 1" : status === "pending" ? " AND email_verified = 0" : status === "suspended" ? " AND suspended = 1" : " AND silenced = 1") : "") +
       (role !== "all" ? " AND role = ?" : "") +
       (q ? " AND (username LIKE ? OR display_name LIKE ?)" : "")

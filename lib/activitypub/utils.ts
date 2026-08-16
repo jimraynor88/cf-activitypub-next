@@ -350,6 +350,34 @@ export function buildDelete(baseUrl: string, actorId: string, objectId: string, 
   };
 }
 
+/**
+ * Build a federated moderation report (ActivityPub Flag), Mastodon-compatible.
+ *
+ * Mastodon serializes a Flag as: id, type, actor, content and an `object` that
+ * is an ARRAY of URIs — first the reported account, then each reported status
+ * (see ActivityPub::FlagSerializer / docs.joinmastodon.org/spec/activitypub).
+ * It does NOT include `to`, `cc`, `published` or `tag`. The array must contain
+ * the target account explicitly, otherwise older Mastodon versions reject the
+ * report. Only already-public object IRIs are exposed — nothing about the
+ * reporting instance is disclosed beyond those URIs and the comment.
+ */
+export function buildFlag(
+  baseUrl: string,
+  reporterId: string,
+  targetId: string,
+  id: string,
+  options: { content?: string; statusUris?: string[] }
+): APActivity {
+  return {
+    "@context": DEFAULT_CONTEXT,
+    id: activityIRI(baseUrl, id),
+    type: "Flag",
+    actor: reporterId,
+    content: options.content ?? "",
+    object: [targetId, ...(options.statusUris ?? [])],
+  };
+}
+
 export function buildUpdateActor(baseUrl: string, actor: APActor, id: string): APActivity {
   const followersUrl = followersIRI(baseUrl, actor.preferredUsername);
   return {

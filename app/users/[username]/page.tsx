@@ -39,6 +39,7 @@ interface Account {
   url: string;
   created_at: string;
   fields: MastodonField[];
+  roles?: { id: string; name: string; color: string }[];
   supports_calls?: boolean;
   source?: {
     note: string;
@@ -831,6 +832,9 @@ export default function ProfilePage() {
             <div style={{ padding: "0.75rem 1rem 0" }}>
               <div style={{ fontWeight: 700, fontSize: "1.15rem" }}>
                 {account.display_name || account.username}
+                {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
+                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
+                )}
                 {account.bot && (
                   <span
                     style={{

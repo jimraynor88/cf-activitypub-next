@@ -32,7 +32,7 @@ export default function AdminDashboard() {
     const headers = { Authorization: `Bearer ${token}` };
 
     Promise.all([
-      fetch("/api/v1/admin/accounts?limit=1", { headers }).then(async (r) => {
+      fetch("/api/v1/admin/accounts?local=true&limit=1", { headers }).then(async (r) => {
         const data = await r.json() as { total: number; accounts: AccountSummary[] };
         setTotalUsers(data.total);
         return data.total;

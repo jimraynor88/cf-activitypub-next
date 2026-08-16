@@ -3,19 +3,12 @@ import { getCloudflareContext, json, unauthorized, notFound } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { createReport, getActorById, getReportsByActor, getObjectById } from "@/lib/db";
 import { serializeAccount } from "@/lib/mastodon/serializers";
-import { generateId } from "@/lib/activitypub/utils";
+import { buildFlag, generateId } from "@/lib/activitypub/utils";
+import { deliverToInbox } from "@/lib/activitypub/federation";
+import { fetchAndCacheRemoteActor } from "@/lib/activitypub/remote";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
-import { evaluateReport } from "@/lib/moderation/ai";
-import { sendReportOutcomeEmail } from "@/lib/email";
-import {
-  suspendAccount,
-  warnAccount,
-  deleteStatus,
-  resolveReport,
-  dismissReport,
-  recordNoAction,
-  GUARDIAN_MODEL,
-} from "@/lib/moderation/actions";
+import { evaluateReportWithAI } from "@/lib/moderation/reportAI";
+import { recordNoAction } from "@/lib/moderation/actions";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
@@ -119,151 +112,57 @@ export async function POST(request: NextRequest): Promise<Response> {
     forward
   );
 
-  // AI moderation: evaluate the report and take action automatically.
-  // Every decision is recorded in moderation_log (see lib/moderation).
-  if (env.AI) {
+  // Federated forward: when the reported account lives on another instance and
+  // the reporter opted in, deliver a Mastodon-compatible Flag activity to that
+  // server so its admins get the full evidence (the reported statuses' IRIs) to
+  // make a moderation decision. Only already-public object IRIs are included —
+  // nothing about this instance is disclosed beyond the statuses themselves.
+  if (forward && !target.isLocal) {
     try {
-      const statusContents: string[] = [];
-      const reviewedStatuses: string[] = [];
-      let invalidStatuses = false;
-      let mismatchedOwnership = false;
-
+      const baseUrl = `https://${domain}`;
+      const statusUris: string[] = [];
       for (const sid of statusIds) {
         const decoded = decodeStatusId(sid, domain);
-        const obj = await getObjectById(env.DB, decoded);
-        if (!obj) {
-          invalidStatuses = true;
-          continue;
-        }
-        if (obj.actorId !== target.id) {
-          mismatchedOwnership = true;
-        }
-        reviewedStatuses.push(decoded);
-        if (obj?.content) {
-          const stripped = obj.content.replace(/<[^>]+>/g, "").trim();
-          if (stripped) statusContents.push(stripped);
-        }
+        if (decoded.startsWith("http")) statusUris.push(decoded);
       }
 
-      const verdict = await evaluateReport(env, {
+      if (actor.privateKeyPem) {
+        const flag = buildFlag(baseUrl, actor.id, target.id, generateId(), {
+          content: comment,
+          statusUris,
+        });
+        let inboxUrl = target.inbox ?? `${target.id}/inbox`;
+        // Ensure the remote actor's inbox is available before delivering.
+        if (!target.inbox) {
+          const refreshed = await fetchAndCacheRemoteActor(env.DB, target.id);
+          if (refreshed?.inbox) inboxUrl = refreshed.inbox;
+        }
+        try {
+          await deliverToInbox(inboxUrl, flag, `${actor.id}#main-key`, actor.privateKeyPem);
+          await env.DB.prepare("UPDATE reports SET forwarded = 1 WHERE id = ?").bind(id).run();
+        } catch (err) {
+          console.error("[reports] Flag forward failed:", err);
+        }
+      }
+    } catch (err) {
+      console.error("[reports] Flag build failed:", err);
+    }
+  }
+
+  // AI moderation: evaluate the report with the Guardian and take action
+  // automatically. Every decision is recorded in moderation_log. The same
+  // pipeline runs for inbound federated Flag activities (see handleFlag).
+  if (env.AI) {
+    try {
+      await evaluateReportWithAI(env, {
+        reportId: id,
         category,
         comment,
-        statusContent: statusContents.join("\n---\n").slice(0, 2000),
-        targetUsername: target.username,
-        reporterUsername: actor.username,
-        invalidStatuses,
-        mismatchedOwnership,
+        statusIds,
+        domain,
+        target: { id: target.id, username: target.username },
+        reporter: { id: actor.id, username: actor.username, email: actor.email },
       });
-
-      if (!verdict || verdict.confidence === "low") {
-        // Leave open for the scheduled moderation cycle / keep an audit trail.
-        await recordNoAction(env, {
-          targetType: "report",
-          targetId: id,
-          action: "no_action",
-          reason: verdict?.reason ?? "Reporte no evaluado (IA no disponible o confianza baja).",
-          confidence: verdict?.confidence,
-          source: "ai",
-          model: GUARDIAN_MODEL,
-          details: { stage: "report", reporterId: actor.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
-          relatedId: actor.id,
-        });
-        return json({
-          id,
-          action_taken: false,
-          action_taken_at: null,
-          category,
-          comment,
-          forwarded: forward,
-          created_at: new Date().toISOString(),
-          status_ids: statusIds.length > 0 ? statusIds : null,
-          rule_ids: ruleIds.length > 0 ? ruleIds : null,
-          target_account: serializeAccount(target, domain),
-        });
-      }
-
-      const details = { stage: "report", reporterId: actor.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership, statusContent: statusContents.join("\n---\n").slice(0, 1000) };
-      let actionNote = `[AI] Decisión: ${verdict.action}. Razón: ${verdict.reason} (confianza: ${verdict.confidence})`;
-
-      if (verdict.action === "suspend") {
-        await suspendAccount(env, {
-          actorId: target.id,
-          reason: verdict.reason,
-          confidence: verdict.confidence,
-          source: "ai",
-          model: GUARDIAN_MODEL,
-          details,
-          relatedId: id,
-        });
-        actionNote += " — Cuenta suspendida.";
-      } else if (verdict.action === "delete") {
-        for (const oid of reviewedStatuses) {
-          await deleteStatus(env, {
-            objectId: oid,
-            reason: verdict.reason,
-            confidence: verdict.confidence,
-            source: "ai",
-            model: GUARDIAN_MODEL,
-            details,
-            relatedId: id,
-          });
-        }
-        actionNote += " — Publicación(es) eliminada(s).";
-      } else if (verdict.action === "warn") {
-        await warnAccount(env, {
-          actorId: target.id,
-          reason: verdict.reason,
-          confidence: verdict.confidence,
-          source: "ai",
-          model: GUARDIAN_MODEL,
-          details,
-          relatedId: id,
-        });
-        actionNote += " — Advertencia emitida.";
-      } else {
-        // dismiss — the report is fraudulent/unfounded
-        await dismissReport(env, {
-          reportId: id,
-          reason: verdict.reason,
-          confidence: verdict.confidence,
-          source: "ai",
-          model: GUARDIAN_MODEL,
-          details,
-          relatedId: actor.id,
-        });
-        actionNote += " — Reporte descartado.";
-      }
-
-      // Mark the report resolved (unless already dismissed/removed).
-      if (verdict.action !== "dismiss") {
-        await resolveReport(env, {
-          reportId: id,
-          note: actionNote,
-          reason: verdict.reason,
-          confidence: verdict.confidence,
-          source: "ai",
-          model: GUARDIAN_MODEL,
-          details,
-          relatedId: actor.id,
-        });
-      }
-
-      // Notify the reporter about the outcome.
-      if (actor.email && env.EMAIL) {
-        try {
-          await sendReportOutcomeEmail(env.EMAIL, {
-            to: actor.email,
-            from: env.FROM_EMAIL,
-            reporterUsername: actor.username,
-            targetUsername: target.username,
-            action: verdict.action,
-            reason: verdict.reason,
-            instanceTitle: env.INSTANCE_TITLE,
-          });
-        } catch {
-          // email error — don't fail the report
-        }
-      }
     } catch (e) {
       console.error("[reports] AI moderation error:", e);
       // AI error — leave report open for the scheduled moderation cycle.

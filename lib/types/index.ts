@@ -156,7 +156,7 @@ export interface APCollectionPage extends APObject {
 export interface APActivity extends APObject {
   type: string;
   actor: string | APActor;
-  object?: string | APObject | APActor | APNote;
+  object?: string | string[] | APObject | APActor | APNote;
   target?: string | APObject;
   to?: string[];
   cc?: string[];

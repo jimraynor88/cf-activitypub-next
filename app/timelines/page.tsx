@@ -10,6 +10,7 @@ import { getToken } from "@/lib/client-api";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { statusHtmlToPlain } from "@/lib/activitypub/content";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
+import { BackToTop } from "@/components/BackToTop";
 
 type TimelineView = "local" | "federated";
 
@@ -352,6 +353,7 @@ export default function TimelinesPage() {
           </div>
         </div>
       )}
+      <BackToTop />
     </>
   );
 }

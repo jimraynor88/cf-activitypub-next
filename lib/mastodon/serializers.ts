@@ -104,7 +104,7 @@ export function serializeAccount(
     last_status_at: opts.lastStatusAt ?? null,
     hide_collections: null,
     emojis: (opts.emojis ?? []).map(serializeEmoji),
-    roles: opts.role ? [{ id: opts.role === "admin" ? "1" : opts.role === "moderator" ? "2" : "3", name: opts.role.charAt(0).toUpperCase() + opts.role.slice(1), color: "" }] : [],
+    roles: opts.role ? [{ id: opts.role === "admin" ? "1" : opts.role === "moderator" ? "2" : "3", name: opts.role.charAt(0).toUpperCase() + opts.role.slice(1), color: "" }] : (actor.isLocal && (actor.role === "admin" || actor.role === "moderator")) ? [{ id: actor.role === "admin" ? "1" : "2", name: actor.role.charAt(0).toUpperCase() + actor.role.slice(1), color: "" }] : [],
     fields: (opts.fields ?? []).map((f) => ({
       name: sanitizeFediversePlain(f.name) ?? f.name,
       value: isLocal

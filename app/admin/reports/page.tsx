@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
+import { RichText } from "@/components/RichText";
 
 interface Report {
   id: string;
@@ -13,6 +14,18 @@ interface Report {
   forwarded: boolean;
   created_at: string;
   status_ids: string[];
+  statuses: {
+    id: string;
+    content: string;
+    created_at: string | null;
+    account: {
+      id: string;
+      username: string;
+      acct: string;
+      display_name: string;
+      avatar: string;
+    } | null;
+  }[];
   rule_ids: string[];
   target_account: {
     id: string;
@@ -21,6 +34,18 @@ interface Report {
     display_name: string;
     avatar: string;
   } | null;
+  reporter_account: {
+    id: string;
+    username: string;
+    acct: string;
+    display_name: string;
+    avatar: string;
+  } | null;
+  notes: {
+    id: string;
+    content: string;
+    created_at: string;
+  }[];
 }
 
 export default function AdminReportsPage() {
@@ -78,6 +103,22 @@ export default function AdminReportsPage() {
     setActionLoading(null);
   }
 
+  async function addNote(reportId: string, content: string) {
+    if (!token || !content.trim()) return false;
+    setActionLoading(`${reportId}:note`);
+    try {
+      const res = await fetch(`/api/v1/admin/reports/${encodeURIComponent(reportId)}/notes`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) return false;
+      await fetchReports();
+      return true;
+    } catch { return false; }
+    finally { setActionLoading(null); }
+  }
+
   const openReports = reports.filter((r) => !r.action_taken);
   const resolvedReports = reports.filter((r) => r.action_taken);
 
@@ -110,6 +151,7 @@ export default function AdminReportsPage() {
                   onResolve={() => performAction(r.id, "resolve")}
                   onDismiss={() => performAction(r.id, "dismiss")}
                   onSuspendAccount={() => r.target_account ? suspendReportedAccount(r.target_account.id, r.id) : null}
+                  onAddNote={(content) => addNote(r.id, content)}
                 />
               ))
             )}
@@ -123,6 +165,7 @@ export default function AdminReportsPage() {
                   report={r}
                   actionLoading={actionLoading}
                   resolved
+                  onReopen={() => performAction(r.id, "reopen")}
                 />
               ))}
             </Section>
@@ -158,6 +201,8 @@ function ReportCard({
   onResolve,
   onDismiss,
   onSuspendAccount,
+  onReopen,
+  onAddNote,
 }: {
   report: Report;
   actionLoading: string | null;
@@ -165,7 +210,13 @@ function ReportCard({
   onResolve?: () => void;
   onDismiss?: () => void;
   onSuspendAccount?: (() => void) | null;
+  onReopen?: () => void;
+  onAddNote?: (content: string) => Promise<boolean>;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [sending, setSending] = useState(false);
+
   return (
     <div
       className="card"
@@ -194,6 +245,11 @@ function ReportCard({
             <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               {report.category} · {formatDate(report.created_at)}
             </div>
+            {report.reporter_account && (
+              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                by {report.reporter_account.display_name || report.reporter_account.username}
+              </div>
+            )}
           </div>
         </div>
 
@@ -227,7 +283,16 @@ function ReportCard({
         )}
 
         {resolved && (
-          <span className="badge badge-success" style={{ flexShrink: 0 }}>Resolved</span>
+          <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0, alignItems: "center" }}>
+            <span className="badge badge-success">Resolved</span>
+            <button
+              className="btn btn-outline btn-sm"
+              disabled={actionLoading === `${report.id}:reopen`}
+              onClick={onReopen}
+            >
+              {actionLoading === `${report.id}:reopen` ? "..." : "Reopen"}
+            </button>
+          </div>
         )}
       </div>
 
@@ -237,9 +302,83 @@ function ReportCard({
         </div>
       )}
 
-      {report.status_ids && report.status_ids.length > 0 && (
-        <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
-          {report.status_ids.length} post{report.status_ids.length !== 1 ? "s" : ""} attached
+      {report.statuses.length > 0 && (
+        <div>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize: "0.8rem", color: "var(--text-secondary)", padding: "0.25rem 0" }}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Hide" : "Show"} {report.statuses.length} attached post{report.statuses.length !== 1 ? "s" : ""}
+          </button>
+
+          {expanded && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.5rem" }}>
+              {report.statuses.map((s) => (
+                <div key={s.id} style={{ fontSize: "0.85rem", padding: "0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.375rem" }}>
+                    <span style={{ fontWeight: 600 }}>
+                      {s.account?.display_name || s.account?.username || "Unknown"}
+                    </span>
+                    {s.created_at && (
+                      <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
+                        {formatDate(s.created_at)}
+                      </span>
+                    )}
+                  </div>
+                  <RichText html={s.content} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {(report.notes.length > 0 || onAddNote) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            Discussion ({report.notes.length})
+          </div>
+
+          {report.notes.map((n) => (
+            <div key={n.id} style={{ fontSize: "0.85rem", padding: "0.625rem 0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.25rem" }}>
+                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Note</span>
+                <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{formatDate(n.created_at)}</span>
+              </div>
+              <div style={{ color: "var(--text)", whiteSpace: "pre-wrap" }}>{n.content}</div>
+            </div>
+          ))}
+
+          {onAddNote && (
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "flex-start" }}>
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="Add a moderation note…"
+                rows={2}
+                style={{
+                  flex: 1, padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--border)", background: "var(--bg)",
+                  color: "var(--text)", fontSize: "0.85rem", fontFamily: "inherit",
+                  resize: "vertical",
+                }}
+              />
+              <button
+                className="btn btn-outline btn-sm"
+                disabled={sending || !noteText.trim() || actionLoading === `${report.id}:note`}
+                onClick={async () => {
+                  if (!onAddNote) return;
+                  setSending(true);
+                  const ok = await onAddNote(noteText);
+                  if (ok) setNoteText("");
+                  setSending(false);
+                }}
+              >
+                {actionLoading === `${report.id}:note` ? "..." : "Add"}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

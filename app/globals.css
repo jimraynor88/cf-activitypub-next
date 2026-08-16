@@ -113,6 +113,9 @@ a:hover { color: var(--accent); }
 .btn:active { transform: scale(0.98); }
 .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
 .btn-primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: #fff; }
+.btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+.btn-danger:hover { background: var(--danger-hover, var(--danger)); border-color: var(--danger); color: #fff; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-outline { background: transparent; color: var(--text-primary); border-color: var(--border); }
 .btn-outline:hover { background: var(--bg-elevated); border-color: var(--border-hover); color: var(--text-primary); }
 .btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }

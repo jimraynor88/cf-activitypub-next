@@ -131,6 +131,10 @@ export async function POST(
       vapidPublicKey: env.VAPID_PUBLIC_KEY,
       vapidPrivateKey: env.VAPID_PRIVATE_KEY,
       vapidEmail: env.VAPID_EMAIL,
+      ai: env.AI,
+      email: env.EMAIL,
+      fromEmail: env.FROM_EMAIL,
+      instanceTitle: env.INSTANCE_TITLE,
     });
   } catch {
     // ignore

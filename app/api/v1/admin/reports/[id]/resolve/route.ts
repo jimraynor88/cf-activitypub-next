@@ -6,8 +6,9 @@ import { requireAdmin } from "@/lib/admin-auth";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }): Promise<Response> {
   const { env } = getCloudflareContext();
+  const domain = new URL(request.url).hostname;
 
-  if (!requireAdmin(request, env as unknown as { ADMIN_TOKEN?: string })) {
+  if (!(await requireAdmin(request, env))) {
     return json({ error: "Unauthorized" }, 401);
   }
 
@@ -30,6 +31,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     created_at: updated!.created_at,
     status_ids: updated!.status_ids ? JSON.parse(updated!.status_ids) : [],
     rule_ids: updated!.rule_ids ? JSON.parse(updated!.rule_ids) : [],
-    target_account: target ? serializeAccount(target, "") : null,
+    target_account: target ? serializeAccount(target, domain) : null,
   });
 }

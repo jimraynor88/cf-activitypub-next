@@ -9,6 +9,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { BackToTop } from "@/components/BackToTop";
 
 interface Account {
   id: string;
@@ -158,6 +159,7 @@ export default function NotificationsPage() {
   }, [hasMore, loadingMore, notifications]);
 
   return (
+    <>
     <PageLayout sidebar={<Sidebar me={me} currentPath="/notifications" />}>
 
       {/* Main */}
@@ -346,5 +348,7 @@ export default function NotificationsPage() {
           </>
         )}
       </PageLayout>
+      <BackToTop />
+    </>
   );
 }

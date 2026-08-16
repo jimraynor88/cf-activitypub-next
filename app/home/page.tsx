@@ -9,6 +9,7 @@ import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { StatusCard } from "@/components/StatusCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { BackToTop } from "@/components/BackToTop";
 import type { Status, Me, MediaAttachment } from "@/components/StatusCard";
 
 export default function HomePage() {
@@ -539,6 +540,7 @@ export default function HomePage() {
         )}
       </PageLayout>
 
+      <BackToTop />
       {/* Edit status modal */}
       {editingStatus && (
         <div
