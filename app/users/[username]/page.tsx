@@ -835,6 +835,9 @@ export default function ProfilePage() {
                 {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
                   <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
                 )}
+                {account.roles?.some((r) => r.name.toLowerCase() === "moderator") && (
+                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator">🥈</span>
+                )}
                 {account.bot && (
                   <span
                     style={{

@@ -453,6 +453,9 @@ function RemoteProfileInner() {
             {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
               <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
             )}
+            {account.roles?.some((r) => r.name.toLowerCase() === "moderator") && (
+              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator">🥈</span>
+            )}
           </div>
           <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>@{account.acct}</div>
 
