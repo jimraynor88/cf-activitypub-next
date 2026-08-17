@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
+import { useLocale } from "@/lib/i18n";
 
 interface SuspendedAccount {
   id: string;
@@ -27,6 +28,7 @@ interface ListResponse {
 
 export default function AdminSuspendedPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const token = getToken();
 
   const [accounts, setAccounts] = useState<SuspendedAccount[]>([]);
@@ -82,7 +84,7 @@ export default function AdminSuspendedPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>
-        Suspended
+        {t.admin_suspended}
         <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 400, marginLeft: "0.5rem" }}>
           ({total})
         </span>
@@ -91,7 +93,7 @@ export default function AdminSuspendedPage() {
       <div style={{ display: "flex", gap: "0.75rem", marginBottom: "1.5rem", flexWrap: "wrap", alignItems: "center" }}>
         <input
           className="input"
-          placeholder="Search by username..."
+          placeholder={t.admin_search_username}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: 280, padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
@@ -99,18 +101,18 @@ export default function AdminSuspendedPage() {
       </div>
 
       {loading ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>Loading suspended accounts...</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_loading_accounts}</div>
       ) : accounts.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>No suspended accounts.</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_no_accounts}</div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Account</th>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Status</th>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Suspended</th>
-                <th style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Actions</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_account}</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_status}</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_status_suspended}</th>
+                <th style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -138,7 +140,7 @@ export default function AdminSuspendedPage() {
                     </div>
                   </td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>
-                    <span className="badge" style={{ background: "rgba(248,113,113,0.12)", color: "var(--danger)" }}>Suspended</span>
+                    <span className="badge" style={{ background: "rgba(248,113,113,0.12)", color: "var(--danger)" }}>{t.admin_status_suspended}</span>
                   </td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
                     {formatDate(a.created_at)}
@@ -149,7 +151,7 @@ export default function AdminSuspendedPage() {
                       disabled={actionLoading === a.id}
                       onClick={() => unsuspend(a.id)}
                     >
-                      {actionLoading === a.id ? "..." : "Unsuspend"}
+                      {actionLoading === a.id ? "..." : t.admin_btn_unsuspend}
                     </button>
                   </td>
                 </tr>

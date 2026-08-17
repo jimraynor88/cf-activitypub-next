@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getToken } from "@/lib/client-api";
+import { useLocale } from "@/lib/i18n";
 
 interface AccountSummary {
   id: string;
@@ -20,6 +21,7 @@ interface ReportSummary {
 
 export default function AdminDashboard() {
   const router = useRouter();
+  const { t } = useLocale();
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [pendingApprovals, setPendingApprovals] = useState<number | null>(null);
   const [reportedCount, setReportedCount] = useState<number | null>(null);
@@ -54,24 +56,24 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div style={{ color: "var(--text-muted)", padding: "2rem" }}>Loading dashboard...</div>
+      <div style={{ color: "var(--text-muted)", padding: "2rem" }}>{t.loading}</div>
     );
   }
 
   return (
     <div>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>Dashboard</h1>
+      <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>{t.admin_dashboard}</h1>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
-        <StatCard label="Total users" value={totalUsers ?? 0} />
-        <StatCard label="Pending approvals" value={pendingApprovals ?? 0} accent />
-        <StatCard label="Open reports" value={reportedCount ?? 0} danger={!!reportedCount && reportedCount > 0} />
+        <StatCard label={t.admin_users} value={totalUsers ?? 0} />
+        <StatCard label={t.admin_pending} value={pendingApprovals ?? 0} accent />
+        <StatCard label={t.admin_open_reports} value={reportedCount ?? 0} danger={!!reportedCount && reportedCount > 0} />
       </div>
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
         <Link href="/admin/accounts" className="btn btn-primary">
-          Manage Accounts
+          {t.admin_accounts}
         </Link>
         <Link href="/admin/reports" className="btn btn-outline">
-          View Reports
+          {t.admin_reports}
         </Link>
       </div>
     </div>

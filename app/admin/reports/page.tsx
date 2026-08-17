@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
 import { RichText } from "@/components/RichText";
+import { useLocale, type Translations } from "@/lib/i18n";
 
 interface Report {
   id: string;
@@ -50,6 +51,7 @@ interface Report {
 
 export default function AdminReportsPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const token = getToken();
 
   const [reports, setReports] = useState<Report[]>([]);
@@ -138,28 +140,29 @@ export default function AdminReportsPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>
-        Reports
+        {t.admin_reports_title}
         {openReports.length > 0 && (
           <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 400, marginLeft: "0.5rem" }}>
-            ({openReports.length} open)
+            ({openReports.length} {t.admin_reports_open.toLowerCase()})
           </span>
         )}
       </h1>
 
       {loading ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>Loading reports...</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_loading_reports}</div>
       ) : reports.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>No reports yet.</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_no_reports}</div>
       ) : (
         <>
-          <Section title="Open" count={openReports.length}>
+          <Section title={t.admin_reports_open} count={openReports.length}>
             {openReports.length === 0 ? (
-              <div style={{ color: "var(--text-muted)", padding: "1rem 0" }}>All clear — no open reports.</div>
+              <div style={{ color: "var(--text-muted)", padding: "1rem 0" }}>{t.admin_reports_all_clear}</div>
             ) : (
               openReports.map((r) => (
                 <ReportCard
                   key={r.id}
                   report={r}
+                  t={t}
                   actionLoading={actionLoading}
                   onResolve={() => performAction(r.id, "resolve")}
                   onDismiss={() => performAction(r.id, "dismiss")}
@@ -171,11 +174,12 @@ export default function AdminReportsPage() {
           </Section>
 
           {resolvedReports.length > 0 && (
-            <Section title="Resolved" count={resolvedReports.length}>
+            <Section title={t.admin_reports_resolved} count={resolvedReports.length}>
               {resolvedReports.map((r) => (
                 <ReportCard
                   key={r.id}
                   report={r}
+                  t={t}
                   actionLoading={actionLoading}
                   resolved
                   onReopen={() => performAction(r.id, "reopen")}
@@ -210,6 +214,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
 
 function ReportCard({
   report,
+  t,
   actionLoading,
   resolved,
   onResolve,
@@ -220,6 +225,7 @@ function ReportCard({
   onAddNote,
 }: {
   report: Report;
+  t: Translations;
   actionLoading: string | null;
   resolved?: boolean;
   onResolve?: () => void;
@@ -256,14 +262,14 @@ function ReportCard({
           </div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 600, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              Reported: {report.target_account?.display_name || report.target_account?.username || "Unknown"}
+              {t.admin_reported_account}: {report.target_account?.display_name || report.target_account?.username || t.admin_reported_unknown}
             </div>
             <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>
               {report.category} · {formatDate(report.created_at)}
             </div>
             {report.reporter_account && (
               <div style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
-                by {report.reporter_account.display_name || report.reporter_account.username}
+                {t.admin_reported_by.replace("{user}", report.reporter_account.display_name || report.reporter_account.username)}
               </div>
             )}
           </div>
@@ -276,14 +282,14 @@ function ReportCard({
               disabled={actionLoading === `${report.id}:resolve` || actionLoading === `${report.id}:suspend`}
               onClick={onResolve}
             >
-              {actionLoading === `${report.id}:resolve` ? "..." : "Resolve"}
+              {actionLoading === `${report.id}:resolve` ? "..." : t.admin_btn_resolve}
             </button>
             <button
               className="btn btn-outline btn-sm"
               disabled={actionLoading === `${report.id}:dismiss`}
               onClick={onDismiss}
             >
-              {actionLoading === `${report.id}:dismiss` ? "..." : "Dismiss"}
+              {actionLoading === `${report.id}:dismiss` ? "..." : t.admin_btn_dismiss}
             </button>
             {report.target_account && onSuspendAccount && (
               <button
@@ -292,7 +298,7 @@ function ReportCard({
                 disabled={actionLoading === `${report.id}:suspend`}
                 onClick={onSuspendAccount}
               >
-                {actionLoading === `${report.id}:suspend` ? "..." : "Suspend"}
+                {actionLoading === `${report.id}:suspend` ? "..." : t.admin_btn_suspend}
               </button>
             )}
           </div>
@@ -300,13 +306,13 @@ function ReportCard({
 
         {resolved && (
           <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0, alignItems: "center" }}>
-            <span className="badge badge-success">Resolved</span>
+            <span className="badge badge-success">{t.admin_status_resolved}</span>
             <button
               className="btn btn-outline btn-sm"
               disabled={actionLoading === `${report.id}:reopen`}
               onClick={onReopen}
             >
-              {actionLoading === `${report.id}:reopen` ? "..." : "Reopen"}
+              {actionLoading === `${report.id}:reopen` ? "..." : t.admin_btn_reopen}
             </button>
             <button
               className="btn btn-outline btn-sm"
@@ -314,7 +320,7 @@ function ReportCard({
               disabled={actionLoading === `${report.id}:delete`}
               onClick={onDelete}
             >
-              {actionLoading === `${report.id}:delete` ? "..." : "Delete"}
+              {actionLoading === `${report.id}:delete` ? "..." : t.admin_btn_delete}
             </button>
           </div>
         )}
@@ -333,7 +339,7 @@ function ReportCard({
             style={{ fontSize: "0.8rem", color: "var(--text-secondary)", padding: "0.25rem 0" }}
             onClick={() => setExpanded((v) => !v)}
           >
-            {expanded ? "Hide" : "Show"} {report.statuses.length} attached post{report.statuses.length !== 1 ? "s" : ""}
+            {(expanded ? t.admin_hide_posts : t.admin_show_posts).replace("{count}", String(report.statuses.length))}
           </button>
 
           {expanded && (
@@ -342,7 +348,7 @@ function ReportCard({
                 <div key={s.id} style={{ fontSize: "0.85rem", padding: "0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.375rem" }}>
                     <span style={{ fontWeight: 600 }}>
-                      {s.account?.display_name || s.account?.username || "Unknown"}
+                      {s.account?.display_name || s.account?.username || t.admin_reported_unknown}
                     </span>
                     {s.created_at && (
                       <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
@@ -361,13 +367,13 @@ function ReportCard({
       {(report.notes.length > 0 || onAddNote) && (
         <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
           <div style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-            Discussion ({report.notes.length})
+            {t.admin_discussion} ({report.notes.length})
           </div>
 
           {report.notes.map((n) => (
             <div key={n.id} style={{ fontSize: "0.85rem", padding: "0.625rem 0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: "0.5rem", marginBottom: "0.25rem" }}>
-                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Note</span>
+                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{t.admin_reports_title}</span>
                 <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>{formatDate(n.created_at)}</span>
               </div>
               <div style={{ color: "var(--text)", whiteSpace: "pre-wrap" }}>{n.content}</div>
@@ -379,7 +385,7 @@ function ReportCard({
               <textarea
                 value={noteText}
                 onChange={(e) => setNoteText(e.target.value)}
-                placeholder="Add a moderation note…"
+                placeholder={t.admin_note_placeholder}
                 rows={2}
                 style={{
                   flex: 1, padding: "0.5rem 0.75rem", borderRadius: "var(--radius-sm)",
@@ -399,7 +405,7 @@ function ReportCard({
                   setSending(false);
                 }}
               >
-                {actionLoading === `${report.id}:note` ? "..." : "Add"}
+                {actionLoading === `${report.id}:note` ? "..." : t.admin_btn_add_note}
               </button>
             </div>
           )}

@@ -4,18 +4,21 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getToken } from "@/lib/client-api";
+import { useLocale, type Translations } from "@/lib/i18n";
 
-const navItems = [
-  { label: "Dashboard", href: "/admin" },
-  { label: "Accounts", href: "/admin/accounts" },
-  { label: "Suspended", href: "/admin/suspended" },
-  { label: "Blocked", href: "/admin/blocked" },
-  { label: "Reports", href: "/admin/reports" },
+const navItems: { key: keyof Translations; href: string }[] = [
+  { key: "admin_dashboard", href: "/admin" },
+  { key: "admin_accounts", href: "/admin/accounts" },
+  { key: "admin_suspended", href: "/admin/suspended" },
+  { key: "admin_blocked", href: "/admin/blocked" },
+  { key: "admin_reports", href: "/admin/reports" },
+  { key: "admin_moderation_log", href: "/admin/moderation_log" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { t } = useLocale();
   const [authorized, setAuthorized] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (loading) {
     return (
       <div style={{ display: "flex", minHeight: "100vh", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-        <div style={{ color: "var(--text-muted)" }}>Loading...</div>
+        <div style={{ color: "var(--text-muted)" }}>{t.loading}</div>
       </div>
     );
   }
@@ -89,13 +92,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 transition: "background 0.12s, color 0.12s",
               }}
             >
-              {item.label}
+              {t[item.key]}
             </Link>
           );
         })}
         <div style={{ marginTop: "auto", padding: "1rem", borderTop: "1px solid var(--border)" }}>
           <Link href="/home" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-            ← Back to app
+            ← {t.admin_back_to_app}
           </Link>
         </div>
       </aside>

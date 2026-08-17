@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
+import { useLocale } from "@/lib/i18n";
 
 interface DomainBlock {
   id: string;
@@ -13,6 +14,7 @@ interface DomainBlock {
 
 export default function AdminBlockedPage() {
   const router = useRouter();
+  const { t } = useLocale();
   const token = getToken();
 
   const [blocks, setBlocks] = useState<DomainBlock[]>([]);
@@ -61,25 +63,25 @@ export default function AdminBlockedPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>
-        Blocked
+        {t.admin_blocked_title}
         <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 400, marginLeft: "0.5rem" }}>
           ({blocks.length})
         </span>
       </h1>
 
       {loading ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>Loading blocked domains...</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_loading_blocked}</div>
       ) : blocks.length === 0 ? (
-        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>No blocked domains.</div>
+        <div style={{ color: "var(--text-muted)", padding: "2rem 0" }}>{t.admin_no_blocked}</div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)", color: "var(--text-muted)", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Domain</th>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Severity</th>
-                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Blocked</th>
-                <th style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 600 }}>Actions</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_domain}</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_severity}</th>
+                <th style={{ textAlign: "left", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_blocked}</th>
+                <th style={{ textAlign: "right", padding: "0.5rem 0.75rem", fontWeight: 600 }}>{t.admin_col_actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -91,7 +93,7 @@ export default function AdminBlockedPage() {
                   <td style={{ padding: "0.625rem 0.75rem", fontWeight: 600 }}>{b.domain}</td>
                   <td style={{ padding: "0.625rem 0.75rem" }}>
                     <span className="badge" style={{ background: "rgba(248,113,113,0.12)", color: "var(--danger)" }}>
-                      {b.severity === "suspend" ? "Suspended" : "Silenced"}
+                      {b.severity === "suspend" ? t.admin_severity_suspended : t.admin_severity_silenced}
                     </span>
                   </td>
                   <td style={{ padding: "0.625rem 0.75rem", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
@@ -103,7 +105,7 @@ export default function AdminBlockedPage() {
                       disabled={actionLoading === b.id}
                       onClick={() => unblock(b.id)}
                     >
-                      {actionLoading === b.id ? "..." : "Unblock"}
+                      {actionLoading === b.id ? "..." : t.admin_btn_unblock}
                     </button>
                   </td>
                 </tr>
