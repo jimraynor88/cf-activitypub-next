@@ -27,7 +27,7 @@ import type {
 import { encodeStatusId } from "@/lib/mastodon/statusId";
 import { sanitizeFediverseHtml, sanitizeFediversePlain } from "@/lib/activitypub/sanitize";
 import { isRenderableObjectType } from "@/lib/activitypub/vocab";
-import { linkifyInline, localSummaryToPlain } from "@/lib/activitypub/content";
+import { linkifyHtmlText, linkifyInline, localSummaryToPlain, processStatusContent } from "@/lib/activitypub/content";
 
 // ─────────────────────────────────────────
 // Account serializer
@@ -145,6 +145,31 @@ export function serializeAccount(
 // Status serializer
 // ─────────────────────────────────────────
 
+/**
+ * Render federated status content for display.
+ *
+ * Servers that emit fully-linked HTML (Mastodon, GoToSocial, Akkoma) pass
+ * through the sanitizer unchanged. Many others (PeerTube, WordPress, some
+ * bridges) send plain text with no markup, or wrap unlinked plain text in
+ * `<p>` tags — for those, linkify URLs, @mentions, #hashtags and :emoji:
+ * shortcodes just like locally-authored posts so links render instead of raw
+ * text.
+ */
+function renderRemoteContent(
+  content: string | null | undefined,
+  localDomain: string,
+  emojis?: LocalCustomEmoji[]
+): string {
+  const raw = content ?? "";
+  if (!raw) return "";
+  const isHtml = /<[a-z][\s>]/i.test(raw);
+  if (isHtml) {
+    const sanitized = sanitizeFediverseHtml(raw) ?? "";
+    return linkifyHtmlText(sanitized, `https://${localDomain}`, emojis);
+  }
+  return processStatusContent(localSummaryToPlain(raw), `https://${localDomain}`, emojis).html;
+}
+
 export function serializeStatus(
   obj: LocalObject,
   author: LocalActor,
@@ -178,7 +203,7 @@ export function serializeStatus(
     reblogs_count: obj.reblogsCount,
     favourites_count: obj.favouritesCount,
     edited_at: obj.updatedAt && obj.updatedAt !== obj.published ? toIso(obj.updatedAt) : null,
-    content: rewriteProfileLinks(sanitizeFediverseHtml(obj.content ?? "") ?? "", obj.raw, localDomain),
+    content: rewriteProfileLinks(renderRemoteContent(obj.content, localDomain, opts.emojis), obj.raw, localDomain),
     reblog: opts.reblogOf ?? null,
     application: obj.local ? { name: "CF ActivityPub", website: `https://${localDomain}` } : null,
     account: serializeAccount(author, localDomain),

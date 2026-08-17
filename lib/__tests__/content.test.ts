@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processStatusContent, linkifyInline, statusHtmlToPlain } from "@/lib/activitypub/content";
+import { processStatusContent, linkifyInline, linkifyHtmlText, statusHtmlToPlain } from "@/lib/activitypub/content";
 
 describe("processStatusContent URL vs hashtag handling", () => {
   it("does not treat a #fragment inside a URL as a hashtag", () => {
@@ -71,6 +71,48 @@ describe("linkifyInline", () => {
   it("linkifies local mentions to /users/...", () => {
     const html = linkifyInline("@admin hola", "https://local.example");
     expect(html).toContain('href="https://local.example/users/admin"');
+  });
+});
+
+describe("linkifyHtmlText", () => {
+  it("linkifies unlinked URLs, mentions and hashtags inside <p>-wrapped text", () => {
+    const html = linkifyHtmlText(
+      "<p>Mira https://example.com y @alice@remote.example #cats</p>",
+      "https://local.example"
+    );
+    expect(html).toContain('<a href="https://example.com"');
+    expect(html).toContain('href="https://remote.example/@alice"');
+    expect(html).toContain('href="/tags/cats"');
+    expect(html).toContain("<p>");
+  });
+
+  it("leaves already-linked content untouched", () => {
+    const html = linkifyHtmlText(
+      '<p>hola <a href="https://example.com" class="mention">@bob@example.com</a> https://other.example</p>',
+      "https://local.example"
+    );
+    expect(html).toContain('<a href="https://example.com" class="mention">');
+    expect(html).toContain('href="https://other.example"');
+    expect(html).toMatch(/class="mention"[^>]*>@bob@example.com<\/a>/);
+  });
+
+  it("does not linkify content inside pre/code blocks", () => {
+    const html = linkifyHtmlText(
+      "<p>texto <code>https://no-link.example</code> @alice@remote.example</p>",
+      "https://local.example"
+    );
+    expect(html).toContain("<code>https://no-link.example</code>");
+    expect(html).not.toContain('href="https://no-link.example"');
+    expect(html).toContain('href="https://remote.example/@alice"');
+  });
+
+  it("linkifies custom emoji shortcodes in HTML text", () => {
+    const html = linkifyHtmlText("<p>hola :blobcat:</p>", "https://local.example", [{
+      id: "e1", shortcode: "blobcat", url: "https://local.example/emoji/blobcat.png",
+      staticUrl: "https://local.example/emoji/blobcat.png", category: null, visibleInPicker: false,
+      domain: null, actorId: null, disabled: false, createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+    }]);
+    expect(html).toContain('class="emojione"');
   });
 });
 

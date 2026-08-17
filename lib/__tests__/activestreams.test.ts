@@ -9,7 +9,7 @@ function makeObject(type: string, extra: Record<string, unknown> = {}): LocalObj
     id: "https://remote.example/objects/1",
     type,
     actorId: "https://remote.example/users/a",
-    content: "<p>hello</p>",
+    content: (extra.content as string | undefined) ?? "<p>hello</p>",
     contentWarning: null,
     sensitive: false,
     visibility: "public",
@@ -174,6 +174,51 @@ describe("serializeStatus type passthrough", () => {
     expect(status.ap_type).toBe("Tombstone");
     expect(status.ap_meta?.formerType).toBe("Note");
     expect(status.ap_meta?.deleted).toBe("2026-01-02T00:00:00Z");
+  });
+});
+
+describe("serializeStatus content linkification", () => {
+  it("linkifies plain-text remote content (URLs, mentions, hashtags)", () => {
+    const obj = makeObject("Note", { content: "Mira https://example.com/x y @alice@remote.example #viaje" });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.content).toContain('<a href="https://example.com/x"');
+    expect(status.content).toContain('class="u-url mention"');
+    expect(status.content).toContain('#viaje');
+  });
+
+  it("keeps federated HTML content untouched by the sanitizer", () => {
+    const obj = makeObject("Note", { content: "<p>Hola <b>mundo</b> <a href=\"https://example.com\">enlace</a></p>" });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.content).toContain("<b>mundo</b>");
+    expect(status.content).toContain('<a href="https://example.com"');
+    expect(status.content).toContain("rel=\"nofollow noopener noreferrer\"");
+  });
+
+  it("linkifies unlinked text wrapped in <p> tags (PeerTube/WordPress-style)", () => {
+    const obj = makeObject("Note", {
+      content: "<p>Mira @alice@remote.example https://example.com/x #viaje</p>",
+    });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.content).toContain('class="u-url mention"');
+    expect(status.content).toContain('<a href="https://example.com/x"');
+    expect(status.content).toContain('#viaje');
+  });
+
+  it("does not double-link already-linked Mastodon content", () => {
+    const obj = makeObject("Note", {
+      content: '<p>hola <a href="https://mastodon.example/@bob" class="mention" rel="nofollow">@bob@mastodon.example</a></p>',
+    });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.content).toMatch(/class="mention"/);
+    expect(status.content).toContain('href="/users/remote?url=' + encodeURIComponent("https://mastodon.example/@bob") + '"');
+    expect(status.content).not.toContain('@bob@mastodon.example</p>');
+  });
+
+  it("linkifies Video plain-text content (PeerTube-style)", () => {
+    const obj = makeObject("Video", { content: "Más info en https://koreus.tv/w/4yrZgYN8GJ2rszErUULqe4 #videos" });
+    const status = serializeStatus(obj, author, "local.example");
+    expect(status.ap_type).toBe("Video");
+    expect(status.content).toContain('<a href="https://koreus.tv/w/4yrZgYN8GJ2rszErUULqe4"');
   });
 });
 

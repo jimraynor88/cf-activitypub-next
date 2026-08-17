@@ -194,6 +194,58 @@ export function linkifyInline(
   return buildHtml(text, buildReplacements(text, baseUrl, customEmojis));
 }
 
+const HTML_WALK_RE = /<(\/?)([a-zA-Z][\w:-]*)([^>]*)>|([^<]+)/g;
+
+/**
+ * Linkifies any still-unlinked URLs, @mentions, #hashtags and :emoji: shortcodes
+ * found in the text nodes of already-sanitized federated HTML.
+ *
+ * Some servers (PeerTube, WordPress, several bridges) wrap their plain text in
+ * `<p>` tags without ever turning URLs, mentions or hashtags into `<a>` links.
+ * This walks the sanitized HTML and linkifies only the text that is NOT already
+ * inside an `<a>`, `<pre>` or `<code>` element, so already-linked content (e.g.
+ * Mastodon) is left untouched while plain text gets the same treatment as local
+ * statuses.
+ */
+export function linkifyHtmlText(
+  html: string,
+  baseUrl?: string,
+  customEmojis?: LocalCustomEmoji[]
+): string {
+  let out = "";
+  let skip = 0; // depth of protected elements (a, pre, code)
+  HTML_WALK_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = HTML_WALK_RE.exec(html)) !== null) {
+    const text = match[4];
+    if (text != null) {
+      if (skip === 0) {
+        out += linkifyInline(decodeHtmlEscapes(text), baseUrl, customEmojis);
+      } else {
+        out += text;
+      }
+      continue;
+    }
+    const closing = match[1] === "/";
+    const tag = (match[2] ?? "").toLowerCase();
+    if (tag === "a" || tag === "pre" || tag === "code") {
+      if (!closing) skip++;
+      else skip = Math.max(0, skip - 1);
+    }
+    out += match[0];
+  }
+  return out;
+}
+
+function decodeHtmlEscapes(text: string): string {
+  return text
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 /**
  * Processes plain-text status content into HTML with linked mentions/hashtags
  * and custom emoji shortcodes.
