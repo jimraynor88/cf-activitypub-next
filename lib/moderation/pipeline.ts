@@ -14,6 +14,8 @@
  *
  * A per-account daily budget (KV) caps how many times any AI tier may run for a
  * given author; once exhausted the pipeline falls back to heuristics only.
+ * An instance-wide daily budget (AI_DAILY_BUDGET, KV) additionally disables the
+ * AI tiers for the whole server once the day's neuron allowance is spent.
  */
 
 import { screenContent } from "./classifier";
@@ -22,7 +24,7 @@ import { stripHtml, computeContentSignals, contentHash } from "./heuristics";
 import { vectorPreScreen } from "./vectors";
 import { warnAccount, suspendAccount, deleteStatus, markStatusSensitive, recordNoAction, GUARDIAN_MODEL } from "./actions";
 import { countWarnings } from "./log";
-import { isTrustedAuthor, getCachedContentVerdict, cacheContentVerdict, chargeAI } from "./budget";
+import { isTrustedAuthor, getCachedContentVerdict, cacheContentVerdict, chargeAI, chargeGlobalAI, AI_UNITS_GUARD, AI_UNITS_REASON } from "./budget";
 import { runWithTimeout } from "./util";
 import type { ModerationEnv } from "./actions";
 
@@ -92,17 +94,8 @@ export async function screenStatus(
       }
       return { blocked: false, markedSensitive: true };
     }
-    await recordNoAction(env, {
-      targetType: "status",
-      targetId: input.objectId,
-      action: "no_action",
-      reason: cached.reason ?? "Contenido idéntico ya revisado.",
-      confidence: "high",
-      source: "heuristic",
-      model: "heuristic",
-      details: { stage: "cached_verdict", authorId: input.authorId },
-      relatedId: input.authorId,
-    });
+    // Cached "allow": the original review already logged the outcome, so the
+    // re-scan (scheduled cycle) is a silent no-op instead of spamming the log.
     return { blocked: false, markedSensitive: false };
   }
 
@@ -160,8 +153,9 @@ export async function screenStatus(
   }
 
   // ── Tier 1: cheap Llama Guard screen + Vectorize similarity in parallel ────
+  const globalOk = await chargeGlobalAI(env, AI_UNITS_GUARD);
   const [screen, vector] = await Promise.all([
-    env.AI ? runWithTimeout(screenContent(env.AI, plainText), 2500, null) : Promise.resolve(null),
+    env.AI && globalOk ? runWithTimeout(screenContent(env.AI, plainText), 2500, null) : Promise.resolve(null),
     vectorPreScreen(env, plainText),
   ]);
 
@@ -210,23 +204,26 @@ export async function screenStatus(
   const severe = [...guardCodes].some((c) => SEVERE_GUARD_CODES.has(c));
 
   // ── Tier 2: expensive reasoning model — only for actually-flagged content ──
-  const verdict = await runWithTimeout(
-    evaluateContent(env, {
-      content: plainText.slice(0, 1200),
-      contentWarning: input.spoilerText,
-      mediaCount: input.mediaCount,
-      isReply: input.isReply,
-      visibility: input.visibility,
-      authorUsername: input.authorUsername,
-      accountAgeDays: input.accountAgeDays,
-      statusesCount: input.statusesCount,
-      previousWarnings,
-      flags: signals.flags,
-      precedent: vector.precedent,
-    }),
-    6000,
-    null
-  );
+  const globalReasonOk = await chargeGlobalAI(env, AI_UNITS_REASON);
+  const verdict = globalReasonOk
+    ? await runWithTimeout(
+        evaluateContent(env, {
+          content: plainText.slice(0, 1200),
+          contentWarning: input.spoilerText,
+          mediaCount: input.mediaCount,
+          isReply: input.isReply,
+          visibility: input.visibility,
+          authorUsername: input.authorUsername,
+          accountAgeDays: input.accountAgeDays,
+          statusesCount: input.statusesCount,
+          previousWarnings,
+          flags: signals.flags,
+          precedent: vector.precedent,
+        }),
+        6000,
+        null
+      )
+    : null;
 
   const action = verdict?.action ?? (severe ? "delete" : [...guardCodes].some((c) => SENSITIVE_GUARD_CODES.has(c)) ? "mark_sensitive" : "allow");
 

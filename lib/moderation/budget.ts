@@ -24,6 +24,49 @@ export const CACHE_TTL_SECONDS = 6 * 3600;
 /** KV keys under which cache/budget entries are stored. */
 const CACHE_KEY = "guardian:ch";
 const BUDGET_KEY = "guardian:budget";
+const GLOBAL_BUDGET_KEY = "guardian:gbudget";
+
+/**
+ * Relative neuron cost per AI call type, used by the global daily budget.
+ * Coarse approximations — tune to match Workers AI pricing for your models.
+ */
+export const AI_UNITS_GUARD = 1;
+export const AI_UNITS_VISION = 5;
+export const AI_UNITS_REASON = 25;
+
+export interface GlobalBudgetEnv {
+  KV?: KVNamespace;
+  /** Instance-wide daily AI budget in abstract units; unset/0 = unlimited. */
+  AI_DAILY_BUDGET?: string | number;
+}
+
+/**
+ * Charge `units` against the instance-wide daily AI budget.
+ * Returns true when the call is allowed, false when today's budget is
+ * exhausted. Degrades gracefully: no KV → no limiting (local dev); a budget
+ * of 0/unset → unlimited.
+ */
+export async function chargeGlobalAI(env: GlobalBudgetEnv, units: number): Promise<boolean> {
+  const raw = env.AI_DAILY_BUDGET;
+  const budget = typeof raw === "string" ? Number(raw) : (raw ?? 0);
+  if (!env.KV || !(budget > 0)) return true;
+
+  const day = new Date().toISOString().slice(0, 10);
+  const key = `${GLOBAL_BUDGET_KEY}:${day}`;
+  try {
+    const rawUsed = await env.KV.get(key);
+    const used = rawUsed ? Number(rawUsed) : 0;
+    if (!Number.isFinite(used) || used < 0) {
+      await env.KV.put(key, String(units), { expirationTtl: 2 * 24 * 3600 });
+      return true;
+    }
+    if (used + units > budget) return false;
+    await env.KV.put(key, String(used + units), { expirationTtl: 2 * 24 * 3600 });
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 export interface AuthorTrustInput {
   accountAgeDays: number;

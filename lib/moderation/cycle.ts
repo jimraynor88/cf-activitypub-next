@@ -14,7 +14,7 @@ import { contentHash, computeAccountSignals, computeContentSignals } from "./heu
 import { screenStatus } from "./pipeline";
 import { warnAccount, suspendAccount, blockDomain, recordNoAction, type ModerationEnv } from "./actions";
 import { recordModeration, countWarnings } from "./log";
-import { isTrustedAuthor, chargeAI } from "./budget";
+import { isTrustedAuthor, chargeAI, chargeGlobalAI, AI_UNITS_REASON } from "./budget";
 
 export interface GuardianCycleEnv extends ModerationEnv {
   KV?: KVNamespace;
@@ -149,6 +149,20 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
           targetId: id,
           action: "no_action",
           reason: "Presupuesto de IA diario agotado; revisión de cuenta omitida.",
+          confidence: "low",
+          source: "heuristic",
+          model: "heuristic",
+          details: { stage: "account_scan", signals: signals.flags },
+        });
+        continue;
+      }
+
+      if (!(await chargeGlobalAI(env, AI_UNITS_REASON))) {
+        await recordNoAction(env, {
+          targetType: "account",
+          targetId: id,
+          action: "no_action",
+          reason: "Presupuesto global de IA diario agotado; revisión de cuenta omitida.",
           confidence: "low",
           source: "heuristic",
           model: "heuristic",

@@ -35,6 +35,8 @@ CALLS_API_TOKEN?: string;
   ADMIN_TOKEN?: string;
   /** Optional Cloudflare Vectorize index — semantic memory for AI moderation. */
   VECTORIZE?: VectorizeIndex;
+  /** Instance-wide daily AI budget in abstract units; unset/0 = unlimited. */
+  AI_DAILY_BUDGET?: string | number;
 }
 
 declare global {

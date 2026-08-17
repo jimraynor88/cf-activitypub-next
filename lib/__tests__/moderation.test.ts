@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { parseGuardOutput } from "@/lib/moderation/classifier";
 import {
   stripHtml,
@@ -7,6 +7,36 @@ import {
   computeContentSignals,
   computeAccountSignals,
 } from "@/lib/moderation/heuristics";
+import { chargeGlobalAI, AI_UNITS_REASON } from "@/lib/moderation/budget";
+
+describe("chargeGlobalAI", () => {
+  const store = new Map<string, string>();
+
+  const fakeKV = {
+    get: async (k: string) => store.get(k) ?? null,
+    put: async (k: string, v: string) => void store.set(k, v),
+  } as unknown as KVNamespace;
+
+  beforeEach(() => store.clear());
+
+  it("allows calls while under the daily budget", async () => {
+    const env = { KV: fakeKV, AI_DAILY_BUDGET: "100" };
+    expect(await chargeGlobalAI(env, AI_UNITS_REASON)).toBe(true);
+    expect(await chargeGlobalAI(env, AI_UNITS_REASON)).toBe(true);
+  });
+
+  it("refuses once the day's budget is exhausted", async () => {
+    const env = { KV: fakeKV, AI_DAILY_BUDGET: "100" };
+    await chargeGlobalAI(env, 100);
+    expect(await chargeGlobalAI(env, 1)).toBe(false);
+  });
+
+  it("is unlimited when the budget is unset or zero", async () => {
+    const env = { KV: fakeKV } as { KV: KVNamespace; AI_DAILY_BUDGET?: string };
+    expect(await chargeGlobalAI(env, 9999)).toBe(true);
+    expect(await chargeGlobalAI({ KV: fakeKV, AI_DAILY_BUDGET: "0" }, 9999)).toBe(true);
+  });
+});
 
 describe("parseGuardOutput", () => {
   it("parses a safe verdict", () => {

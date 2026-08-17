@@ -24,6 +24,8 @@ export interface ModerationEnv {
   INSTANCE_TITLE?: string;
   INSTANCE_URL?: string;
   FROM_EMAIL?: string;
+  /** Instance-wide daily AI budget in abstract units; unset/0 = unlimited. */
+  AI_DAILY_BUDGET?: string | number;
 }
 
 export interface ActionResult {

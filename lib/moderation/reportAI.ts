@@ -21,6 +21,7 @@ import {
 } from "./actions";
 import { GUARDIAN_MODEL } from "./ai";
 import { sendReportOutcomeEmail } from "@/lib/email";
+import { chargeGlobalAI, AI_UNITS_REASON } from "./budget";
 
 export interface ReportAIInput {
   reportId: string;
@@ -72,6 +73,21 @@ export async function evaluateReportWithAI(env: ModerationEnv, input: ReportAIIn
     invalidStatuses,
     mismatchedOwnership,
   };
+
+  if (!(await chargeGlobalAI(env, AI_UNITS_REASON))) {
+    await recordNoAction(env, {
+      targetType: "report",
+      targetId: reportId,
+      action: "no_action",
+      reason: "Presupuesto global de IA diario agotado; reporte diferido.",
+      confidence: "low",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "report", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+      relatedId: reporter.id,
+    });
+    return;
+  }
 
   const verdict = await evaluateReport(env, report);
 

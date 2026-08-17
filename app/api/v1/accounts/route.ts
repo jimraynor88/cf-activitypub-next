@@ -9,6 +9,7 @@ import { sendVerificationEmail } from "@/lib/email";
 import { evaluateRegistration } from "@/lib/moderation/ai";
 import { rejectAccount, approveAccount, GUARDIAN_MODEL } from "@/lib/moderation/actions";
 import { runWithTimeout } from "@/lib/moderation/util";
+import { chargeGlobalAI, AI_UNITS_REASON } from "@/lib/moderation/budget";
 
 // POST /api/v1/accounts — Register a new account
 export async function POST(request: NextRequest): Promise<Response> {
@@ -111,7 +112,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   // The account was just created, so this only affects the fresh row. When the
   // AI is unavailable the registration proceeds and the scheduled moderation
   // cycle reviews it later.
-  if (env.AI) {
+  if (env.AI && (await chargeGlobalAI(env, AI_UNITS_REASON))) {
     const review = await runWithTimeout(
       evaluateRegistration(env, {
         username: username.toLowerCase(),

@@ -1,6 +1,7 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
+import { chargeGlobalAI, AI_UNITS_VISION } from "@/lib/moderation/budget";
 
 // POST /api/v1/media — Upload a media attachment (stored in R2)
 export async function POST(request: NextRequest): Promise<Response> {
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   // Auto-describe images with Cloudflare Workers AI when no description provided
   let finalDescription = description;
-  if (!description && file.type.startsWith("image/") && env.AI) {
+  if (!description && file.type.startsWith("image/") && env.AI && (await chargeGlobalAI(env, AI_UNITS_VISION))) {
     try {
       const aiResult = await env.AI.run(
         "@cf/meta/llama-3.2-11b-vision-instruct" as Parameters<Ai["run"]>[0],
