@@ -31,7 +31,7 @@ npm run db:migrate   # wrangler d1 execute schema against the remote D1 DB
 npx tsc --noEmit && npx eslint . && npx vitest run
 ```
 
-tsc and eslint are separate from `npm run build` (build is slow and requires CF assets). Run all three after any change. The suite currently has 24 test files / 238 tests and must stay green.
+tsc and eslint are separate from `npm run build` (build is slow and requires CF assets). Run all three after any change and keep the suite green.
 
 ## Architecture (the mental model)
 
@@ -95,10 +95,3 @@ const { env } = getCloudflareContext(); // → { DB, KV, R2, DELIVERY_QUEUE, ...
 - Removing local accounts must also clean `oauth_tokens`, `activities` and `moderation_log` (they reference the actor without FKs) and, for local actors with a private key, federate a `Delete` tombstone to followers (see `app/api/v1/admin/accounts/[id]/route.ts` DELETE and `app/api/v1/accounts/delete/route.ts`).
 - Admin sections (nav + page titles) use emoji prefixes — keep that style when adding new admin pages.
 - Never re-ingest already-stored objects to change rendering — serializers read `objects.raw`, so rendering fixes are backward-compatible without migration.
-
-## Deploy / environment reference
-
-- Production D1 databases and the instance domain are defined in `wrangler.toml` (`[[d1_databases]]`, `INSTANCE_URL`, `[[routes]]`). Pattern for remote DB work:
-  `CLOUDFLARE_API_TOKEN="<token>" npx wrangler d1 execute <db> --remote --json --command "..."`
-- Secrets live only in Cloudflare (`wrangler secret put`); `wrangler.toml` `[vars]` are public.
-- More setup details: see `README.md` (English) and `README-es.md` (Spanish).
