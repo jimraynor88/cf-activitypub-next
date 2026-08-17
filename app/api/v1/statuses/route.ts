@@ -28,7 +28,7 @@ import {
 import { collectFollowerInboxes, fetchRemoteObject } from "@/lib/activitypub/federation";
 import { enqueueDeliveries } from "@/lib/activitypub/queue";
 import { processStatusContent } from "@/lib/activitypub/content";
-import { buildReplyMentions, mentionKey, type ThreadNode } from "@/lib/activitypub/replies";
+import { buildReplyMentions, collectThreadParticipants, expandBareMentions, mentionKey, type ThreadNode } from "@/lib/activitypub/replies";
 import { PUBLIC_ADDRESS } from "@/lib/activitypub/vocab";
 import { broadcastPublicStatus, broadcastHomeStatus } from "@/lib/streaming/broadcast";
 import { notify } from "@/lib/notify";
@@ -154,12 +154,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
   }
 
-  // ── Auto-mention conversation participants when replying ──────────────────
+  // ── Address conversation participants when replying ────────────────────────
   // Mastodon notifies the author of the replied-to status and everyone mentioned
   // anywhere in the thread, even when the reply names nobody: the reply is
   // addressed to them, delivered to their inboxes and they get a notification.
-  // Mirror that behaviour by prepending their @handles to the content (and, for
-  // accounts that can't be resolved, adding bare Mention tags).
+  // Only Mention tags are added here — the @handles themselves already live in
+  // the user's text (the composer pre-fills them with their full domain), so
+  // nothing is prepended to the visible content.
   const parent = inReplyToId ? await getObjectById(env.DB, inReplyToId) : null;
   const replyToAccountId = parent?.actorId ?? null;
   const parentNode: ThreadNode | null = parent
@@ -170,6 +171,13 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let replyMentionTags: APTag[] = [];
   if (inReplyToId && parentNode) {
+    // Resolve bare @username mentions against the conversation participants so
+    // that @santiago typed without a domain still links to the real remote
+    // account (santiago@mastodon.uy) instead of a dead local URL.
+    const participants = await collectThreadParticipants(env.DB, parentNode, baseUrl);
+    const localDomain = new URL(baseUrl).hostname;
+    content = expandBareMentions(content ?? "", participants, localDomain);
+
     // Which actors are already mentioned in the user's own text (avoid dupes)
     const { tags: userMentionTags } = processStatusContent(content ?? "", baseUrl, localEmojis);
     const alreadyMentioned = new Set<string>();
@@ -179,9 +187,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
     const mentions = await buildReplyMentions(env.DB, parentNode, baseUrl, actor.id, alreadyMentioned);
     replyMentionTags = mentions.tags;
-    if (mentions.text) {
-      content = `${mentions.text} ${content}`;
-    }
   }
 
   const { html: htmlContent, tags: contentTags } = processStatusContent(content ?? "", baseUrl, localEmojis);

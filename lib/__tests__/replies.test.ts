@@ -4,6 +4,7 @@ import {
   mentionKey,
   collectThreadParticipants,
   buildReplyMentions,
+  expandBareMentions,
 } from "@/lib/activitypub/replies";
 import type { LocalObject } from "@/lib/types";
 
@@ -138,8 +139,42 @@ describe("collectThreadParticipants", () => {
   });
 });
 
+describe("expandBareMentions", () => {
+  const participants = [
+    { iri: "https://mastodon.example/users/santiago", username: "santiago", domain: "mastodon.example", handle: "@santiago@mastodon.example" },
+    { iri: "https://example.test/users/localuser", username: "localuser", domain: "example.test", handle: "@localuser" },
+  ];
+
+  it("expands bare mentions matching a remote participant", () => {
+    const out = expandBareMentions("@santiago test", participants, "example.test");
+    expect(out).toBe("@santiago@mastodon.example test");
+  });
+
+  it("leaves remote handles already carrying a domain untouched", () => {
+    const out = expandBareMentions("@santiago@mastodon.example test", participants, "example.test");
+    expect(out).toBe("@santiago@mastodon.example test");
+  });
+
+  it("does not touch local participants", () => {
+    const out = expandBareMentions("@localuser test", participants, "example.test");
+    expect(out).toBe("@localuser test");
+  });
+
+  it("does not expand unknown bare mentions", () => {
+    const out = expandBareMentions("@nobody test", participants, "example.test");
+    expect(out).toBe("@nobody test");
+  });
+
+  it("keeps the domain off an email-like username edge", () => {
+    // a remote mention is written with its domain, so the bare match is only for
+    // usernames NOT followed by @domain
+    const out = expandBareMentions("write to @santiago today", participants, "example.test");
+    expect(out).toBe("write to @santiago@mastodon.example today");
+  });
+});
+
 describe("buildReplyMentions", () => {
-  it("prepends handles for participants not already mentioned, excluding self", async () => {
+  it("emits tags for participants not already mentioned, excluding self", async () => {
     mockGetActorById.mockImplementation(async (iri: string) => {
       if (iri === "https://remote.example/users/alice") {
         return { id: iri, username: "alice", domain: "remote.example", isLocal: false };
@@ -157,10 +192,10 @@ describe("buildReplyMentions", () => {
       }),
     });
 
-    // self = alice → bob is the only remaining participant
+    // self = alice → bob is the only remaining participant; it never builds
+    // visible text (the composer already pre-fills handles into the message).
     const result = await buildReplyMentions({} as never, parent, BASE, "https://remote.example/users/alice", new Set());
-    expect(result.text).toBe("@bob@remote.example");
-    expect(result.tags).toEqual([]);
+    expect(result.tags).toEqual([{ type: "Mention", href: "https://remote.example/users/bob", name: "@bob@remote.example" }]);
   });
 
   it("skips participants already mentioned by the user", async () => {
@@ -171,7 +206,20 @@ describe("buildReplyMentions", () => {
     const parent = makeObject({ actorId: "https://remote.example/users/alice" });
     const already = new Set(["alice@remote.example"]);
     const result = await buildReplyMentions({} as never, parent, BASE, "https://example.test/users/me", already);
-    expect(result.text).toBe("");
+    expect(result.tags).toEqual([]);
+  });
+
+  it("treats a local-resolved bare mention as covering a remote participant of the same username", async () => {
+    mockGetActorById.mockImplementation(async (iri: string) => {
+      return { id: iri, username: "santiago", domain: "mastodon.example", isLocal: false };
+    });
+
+    // The user typed @santiago (no domain); the linkifier resolves it to the
+    // local instance (santiago@example.test), which must still count as already
+    // mentioning the remote thread participant santiago@mastodon.example.
+    const parent = makeObject({ actorId: "https://mastodon.example/users/santiago" });
+    const already = new Set(["santiago@example.test"]);
+    const result = await buildReplyMentions({} as never, parent, BASE, "https://example.test/users/me", already);
     expect(result.tags).toEqual([]);
   });
 
@@ -189,8 +237,10 @@ describe("buildReplyMentions", () => {
     });
 
     const result = await buildReplyMentions({} as never, parent, BASE, "https://remote.example/users/alice", new Set());
-    // bob resolves via the tag name → text; carol has no name → tag-only
-    expect(result.text).toContain("@bob@remote.example");
-    expect(result.tags).toEqual([{ type: "Mention", href: "https://remote.example/users/carol" }]);
+    // bob resolves via the tag name → tag with name; carol has no name → bare tag
+    expect(result.tags).toEqual([
+      { type: "Mention", href: "https://remote.example/users/bob", name: "@bob@remote.example" },
+      { type: "Mention", href: "https://remote.example/users/carol" },
+    ]);
   });
 });

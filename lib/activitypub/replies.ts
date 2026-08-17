@@ -5,10 +5,13 @@
  * even if the reply text does not name anyone: the replied-to author and every
  * account mentioned anywhere in the thread are treated as mentions. This module
  * collects those participants so the status route can:
- *   - prepend their @handles to the reply content,
  *   - add Mention tags to the ActivityPub Note,
  *   - address them in `to` / `cc`,
  *   - and deliver the Create activity to their inboxes.
+ *
+ * The visible @handles are never inserted here: the reply composer already
+ * pre-fills them into the text, so prepending them again server-side would
+ * duplicate the accounts in the rendered message.
  */
 
 import type { D1Database } from "@cloudflare/workers-types";
@@ -137,18 +140,18 @@ async function resolveParticipant(
 }
 
 export interface ReplyMentions {
-  /** Text to prepend to the reply content (space-separated @handles), or "". */
-  text: string;
-  /** Mention tags for participants that could not be rendered in text. */
+  /** Mention tags for conversation participants not already named by the user. */
   tags: APTag[];
 }
 
 /**
- * Decide which conversation participants to auto-mention in a reply.
+ * Decide which conversation participants to address in a reply.
  *
  * `alreadyMentionedKeys` should contain the normalized keys (`username@domain`)
  * already present in the user's text so we don't duplicate mentions. `selfId`
- * (the replying account) is always excluded.
+ * (the replying account) is always excluded. Only tags are returned — the
+ * @handles stay in the user's own text (the composer pre-fills them), so they
+ * are never prepended here.
  */
 export async function buildReplyMentions(
   db: D1Database,
@@ -160,7 +163,28 @@ export async function buildReplyMentions(
 ): Promise<ReplyMentions> {
   const participants = await collectThreadParticipants(db, parent, baseUrl, opts);
 
-  const text: string[] = [];
+  // A bare local-style mention (@alice) is resolved by the linkifier to the
+  // local domain (alice@this.instance) even when the account actually lives
+  // remotely, so an exact username@domain comparison would fail to recognise it
+  // as covering a remote thread participant of the same username. Track the
+  // usernames of local-resolved mentions and treat a participant sharing that
+  // username as already mentioned.
+  let localDomain: string | null = null;
+  try {
+    localDomain = new URL(baseUrl).hostname;
+  } catch { /* not a URL — fall back to exact matching */ }
+  const localMentionedUsernames = new Set<string>();
+  if (localDomain) {
+    const lowerDomain = localDomain.toLowerCase();
+    for (const key of alreadyMentionedKeys) {
+      const at = key.indexOf("@");
+      if (at <= 0) continue;
+      if (key.slice(at + 1).toLowerCase() === lowerDomain) {
+        localMentionedUsernames.add(key.slice(0, at).toLowerCase());
+      }
+    }
+  }
+
   const tags: APTag[] = [];
   const seen = new Set<string>();
 
@@ -168,16 +192,17 @@ export async function buildReplyMentions(
     if (p.iri === selfId) continue;
     const key = p.username && p.domain ? `${p.username}@${p.domain}` : p.iri.toLowerCase();
     if (seen.has(key) || alreadyMentionedKeys.has(key)) continue;
+    if (p.username && localMentionedUsernames.has(p.username.toLowerCase())) continue;
     seen.add(key);
 
-    if (p.handle) {
-      text.push(p.handle);
-    } else {
-      tags.push({ type: "Mention", href: p.iri });
-    }
+    tags.push({
+      type: "Mention",
+      href: p.iri,
+      ...(p.username && p.domain ? { name: `@${p.username}@${p.domain}` } : {}),
+    });
   }
 
-  return { text: text.join(" "), tags };
+  return { tags };
 }
 
 /** Extract a normalized mention key from a content Mention tag (for dedup). */
@@ -195,4 +220,33 @@ export function mentionKey(tag: APTag): string | null {
   } catch {
     return tag.href;
   }
+}
+
+/**
+ * Expand bare `@username` mentions that match a REMOTE conversation participant
+ * into their full `@username@domain` handle. A bare mention in a reply is
+ * otherwise linkified to the local instance (`@santiago` → a dead local URL)
+ * even though the account actually lives on a remote server. Handles that
+ * already carry a domain and local participants are left untouched. Returns the
+ * original text when nothing matches.
+ */
+export function expandBareMentions(
+  text: string,
+  participants: ReplyParticipant[],
+  localDomain: string
+): string {
+  const remoteHandles = new Map<string, string>();
+  for (const p of participants) {
+    if (!p.username || !p.domain) continue;
+    if (p.domain.toLowerCase() === localDomain.toLowerCase()) continue;
+    const key = p.username.toLowerCase();
+    if (!remoteHandles.has(key)) {
+      remoteHandles.set(key, `@${p.username}@${p.domain}`);
+    }
+  }
+  if (remoteHandles.size === 0) return text;
+  return text.replace(
+    /(?<![a-zA-Z0-9_.-])@([a-zA-Z0-9_]+)(?![@a-zA-Z0-9_.-])/g,
+    (full, user: string) => remoteHandles.get(user.toLowerCase()) ?? full
+  );
 }

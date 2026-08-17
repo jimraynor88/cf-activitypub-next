@@ -135,33 +135,41 @@ function ReplyBox({
   const descRefs = useRef<Record<string, string>>({});
   const prefilled = useRef(false);
 
-  // By default a reply names everyone related to the replied-to status (the
-  // author plus the accounts mentioned in it), so the conversation participants
-  // all get notified — Mastodon's "reply to all" behaviour.
+  // A reply pre-fills the accounts related to the replied-to status (the author
+  // plus everyone mentioned in it), each with its full domain
+  // (@alice@remote.example), so the mentions resolve to the real accounts and
+  // the whole conversation gets notified — Mastodon's "reply to all". Accounts
+  // are scoped to `replyTo` (not the whole thread) so switching reply targets
+  // never reuses handles from a previous status.
   const relatedHandles = useMemo(() => {
     const parts: string[] = [];
     const seen = new Set<string>();
-    const add = (handle: string) => {
-      const key = handle.replace(/^@/, "").toLowerCase();
-      if (!handle || seen.has(key)) return;
+    const add = (acct: string | undefined) => {
+      if (!acct) return;
+      const key = acct.toLowerCase();
+      if (seen.has(key)) return;
       seen.add(key);
-      parts.push(handle);
+      parts.push(`@${acct}`);
     };
     if (replyTo.account && replyTo.account.id !== me?.id) {
-      add(`@${replyTo.account.acct}`);
+      add(replyTo.account.acct);
     }
     for (const m of replyTo.mentions ?? []) {
       if (m.id === me?.id) continue;
       if (m.acct === replyTo.account?.acct) continue;
-      add(`@${m.acct}`);
+      add(m.acct);
     }
     return parts.join(" ");
   }, [replyTo, me]);
 
+  // Pre-fill the handles exactly once, as soon as they are available. Only mark
+  // the box as pre-filled once a non-empty handle list has actually been
+  // inserted, so a late-loading thread still gets its handles.
   useEffect(() => {
-    if (prefilled.current || !me) return;
-    prefilled.current = true;
+    if (!me) return;
+    if (prefilled.current) return;
     if (relatedHandles && !text) {
+      prefilled.current = true;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setText(`${relatedHandles} `);
     }
