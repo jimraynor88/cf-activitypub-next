@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { isContentObjectType, isActivityType, isActorType, CONTENT_OBJECT_TYPES } from "@/lib/activitypub/vocab";
-import { extractAPMeta, rewriteProfileLinks, serializeStatus, serializeAccount } from "@/lib/mastodon/serializers";
-import type { LocalActor, LocalObject, ActorField } from "@/lib/types";
+import { extractAPMeta, rewriteProfileLinks, serializeStatus, serializeAccount, serializeAttachment } from "@/lib/mastodon/serializers";
+import type { LocalActor, LocalObject, ActorField, LocalAttachment } from "@/lib/types";
 
 function makeObject(type: string, extra: Record<string, unknown> = {}): LocalObject {
   const rawObj = { id: "https://remote.example/objects/1", type, ...extra };
@@ -106,6 +106,35 @@ describe("extractAPMeta", () => {
     // usable url instead of being null.
     expect(meta).toMatchObject({ url: "https://remote.example/objects/1" });
   });
+
+  it("resolves PeerTube-style top-level Video (watch page + media file)", () => {
+    const meta = extractAPMeta(makeObject("Video", {
+      name: "Le meilleur GIF l'emporte 🦎",
+      duration: "PT68S",
+      icon: [{ type: "Image", url: "https://koreus.tv/thumb.jpg", mediaType: "image/jpeg" }],
+      url: [
+        { type: "Link", mediaType: "text/html", href: "https://koreus.tv/w/4yrZgYN8GJ2rszErUULqe4" },
+        { type: "Link", mediaType: "video/mp4", href: "https://koreus.tv/static/web-videos/3c0c0742-e010-481f-82f8-c4089c01a1b4-0.mp4" },
+      ],
+    }));
+    expect(meta).toMatchObject({
+      url: "https://koreus.tv/w/4yrZgYN8GJ2rszErUULqe4",
+      mediaUrl: "https://koreus.tv/static/web-videos/3c0c0742-e010-481f-82f8-c4089c01a1b4-0.mp4",
+      imageUrl: "https://koreus.tv/thumb.jpg",
+      duration: 68,
+    });
+  });
+
+  it("keeps a single plain media URL as both url and mediaUrl", () => {
+    const meta = extractAPMeta(makeObject("Audio", { duration: "63s", url: "https://cdn.example/x.mp3" }));
+    expect(meta).toMatchObject({ url: "https://cdn.example/x.mp3", mediaUrl: "https://cdn.example/x.mp3" });
+    expect(meta?.duration).toBe(63);
+  });
+
+  it("resolves ISO 8601 durations with hours/minutes", () => {
+    const meta = extractAPMeta(makeObject("Video", { duration: "PT1H2M3S", url: "https://cdn.example/x.mp4" }));
+    expect(meta?.duration).toBe(3723);
+  });
 });
 
 describe("serializeStatus type passthrough", () => {
@@ -145,6 +174,39 @@ describe("serializeStatus type passthrough", () => {
     expect(status.ap_type).toBe("Tombstone");
     expect(status.ap_meta?.formerType).toBe("Note");
     expect(status.ap_meta?.deleted).toBe("2026-01-02T00:00:00Z");
+  });
+});
+
+describe("serializeAttachment type fallback", () => {
+  const base = (type: string, mimeType: string | null): LocalAttachment => ({
+    id: "att1",
+    objectId: "obj1",
+    type,
+    url: "https://cdn.example/video.mp4",
+    remoteUrl: null,
+    description: null,
+    blurhash: null,
+    width: null,
+    height: null,
+    fileSize: null,
+    mimeType,
+    createdAt: "2026-01-01T00:00:00.000Z",
+  });
+
+  it("classifies by mimeType when present", () => {
+    expect(serializeAttachment(base("Video", "video/mp4")).type).toBe("video");
+    expect(serializeAttachment(base("Image", "image/jpeg")).type).toBe("image");
+    expect(serializeAttachment(base("Document", "image/gif")).type).toBe("gifv");
+  });
+
+  it("falls back to the stored AP type when mimeType is missing (brid.gy / Instagram)", () => {
+    expect(serializeAttachment(base("video", null)).type).toBe("video");
+    expect(serializeAttachment(base("audio", null)).type).toBe("audio");
+    expect(serializeAttachment(base("image", null)).type).toBe("image");
+  });
+
+  it("returns unknown when neither mimeType nor type is recognizable", () => {
+    expect(serializeAttachment(base("bogus", null)).type).toBe("unknown");
   });
 });
 

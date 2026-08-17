@@ -20,6 +20,8 @@ export interface APMeta {
   latitude?: number | null;
   longitude?: number | null;
   url?: string | null;
+  mediaUrl?: string | null;
+  imageUrl?: string | null;
   subject?: string | null;
   relationshipObject?: string | null;
   relationship?: string | null;
@@ -294,21 +296,50 @@ export function APTypeBlock({
   // ── Top-level media (Audio / Video / Image objects with no attachments) ─
   if (apType === "Audio" || apType === "Video" || apType === "Image") {
     if (mediaAttachments.length > 0) return null; // rendered by MediaGrid
-    const src = apMeta?.url;
-    if (!src || !isMediaUrl(src)) return null;
-    if (apType === "Image") {
-      return (
-        <div style={{ marginTop: "0.6rem", borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--border)" }}>
-          <Image src={src} alt={apMeta.name ?? ""} width={640} height={360} style={{ width: "100%", objectFit: "cover" }} />
-        </div>
-      );
-    }
+    // Prefer the direct media file (mediaUrl) — watch pages like PeerTube's
+    // `…/w/…` are stored in `url`. Fall back to `url` only when it is itself
+    // a media file.
+    const meta = apMeta;
+    const src = meta?.mediaUrl
+      ? meta.mediaUrl
+      : meta?.url && isMediaUrl(meta.url)
+        ? meta.url
+        : null;
+    const page = meta?.url;
+    const pageIsMedia = !!src && page === src;
+    const pageHost: string | null = page && !pageIsMedia ? (() => { try { return new URL(page).hostname; } catch { return null; } })() : null;
+    if (!src && !page) return null;
     return (
       <div style={{ marginTop: "0.6rem" }}>
-        {apType === "Video" ? (
-          <video src={src} controls playsInline style={{ width: "100%", borderRadius: "var(--radius)", maxHeight: 420 }} />
-        ) : (
+        {src && apType === "Image" && (
+          <div style={{ borderRadius: "var(--radius)", overflow: "hidden", border: "1px solid var(--border)" }}>
+            <Image src={src} alt={meta?.name ?? ""} width={640} height={360} style={{ width: "100%", objectFit: "cover" }} />
+          </div>
+        )}
+        {src && apType === "Video" && (
+          <video
+            src={src}
+            controls
+            playsInline
+            poster={meta?.imageUrl ?? undefined}
+            style={{ width: "100%", borderRadius: "var(--radius)", maxHeight: 420 }}
+          />
+        )}
+        {src && apType === "Audio" && (
           <audio src={src} controls style={{ width: "100%" }} />
+        )}
+        {page && !pageIsMedia && (
+          <div style={{ marginTop: "0.35rem", display: "flex", flexWrap: "wrap", gap: "0.4rem", alignItems: "center" }}>
+            <Link
+              href={page}
+              target="_blank"
+              rel="nofollow noopener noreferrer"
+              style={{ fontSize: "0.8rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all", minWidth: 0 }}
+            >
+              {t.ap_open_original}
+            </Link>
+            {pageHost && <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>· {pageHost}</span>}
+          </div>
         )}
       </div>
     );

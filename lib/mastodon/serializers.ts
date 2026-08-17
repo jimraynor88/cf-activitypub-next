@@ -283,9 +283,21 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
   } else if (typeof raw.duration === "number") {
     duration = raw.duration;
   } else if (typeof raw.duration === "string") {
-    const trimmed = raw.duration.replace(/^(\d+)s$/, "$1");
-    const n = Number(trimmed);
-    if (Number.isFinite(n) && n > 0) duration = n;
+    const d = raw.duration.trim();
+    // ISO 8601 durations ("PT68S", "PT1M2S", "PT1H2M3S") or plain seconds.
+    const iso = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(d);
+    if (iso) {
+      const [, days, hours, mins, secs] = iso;
+      const total =
+        (days ? parseInt(days, 10) * 86400 : 0) +
+        (hours ? parseInt(hours, 10) * 3600 : 0) +
+        (mins ? parseInt(mins, 10) * 60 : 0) +
+        (secs ? parseFloat(secs) : 0);
+      if (total > 0) duration = total;
+    } else {
+      const n = Number(d.replace(/^(\d+)s$/, "$1"));
+      if (Number.isFinite(n) && n > 0) duration = n;
+    }
   }
 
   let latitude: number | null = null;
@@ -321,21 +333,53 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     }
   }
 
-  // The display URL may be a string, a list, or a Link object (href).
+  // The display URL may be a string, a list, or a Link object (href). For
+  // top-level Audio/Video/Image objects the url list often mixes the watch
+  // page (mediaType text/html) with the actual media file (mediaType
+  // video/mp4, image/jpeg, audio/…). We keep the page as `url` (the "open
+  // original" target) and the media file as `mediaUrl`.
   const rawUrl = raw.url;
-  let url: string | null = null;
-  if (typeof rawUrl === "string") url = rawUrl;
-  else if (Array.isArray(rawUrl)) {
-    for (const u of rawUrl) {
-      if (typeof u === "string") { url = u; break; }
-      if (u && typeof u === "object") {
-        const href = (u as Record<string, unknown>).href;
-        if (typeof href === "string") { url = href; break; }
+  const urlEntries: { href: string; mediaType?: string }[] = [];
+  const collectUrl = (u: unknown): void => {
+    if (typeof u === "string") { urlEntries.push({ href: u }); return; }
+    if (u && typeof u === "object") {
+      const rec = u as Record<string, unknown>;
+      if (typeof rec.href === "string") {
+        urlEntries.push({ href: rec.href, mediaType: typeof rec.mediaType === "string" ? rec.mediaType : undefined });
       }
     }
-  } else if (rawUrl && typeof rawUrl === "object") {
-    const href = (rawUrl as Record<string, unknown>).href;
-    if (typeof href === "string") url = href;
+  };
+  if (typeof rawUrl === "string") collectUrl(rawUrl);
+  else if (Array.isArray(rawUrl)) for (const u of rawUrl) collectUrl(u);
+  else if (rawUrl && typeof rawUrl === "object") collectUrl(rawUrl);
+
+  const isMediaMime = (mt?: string): boolean =>
+    !!mt && (mt.startsWith("video/") || mt.startsWith("audio/") || mt.startsWith("image/"));
+
+  // The canonical page link is the first html/any non-media entry, falling
+  // back to the first entry overall (single-URL objects, e.g. a direct media
+  // file string).
+  const mediaEntry = urlEntries.find((e) => isMediaMime(e.mediaType));
+  const pageEntry = urlEntries.find((e) => !isMediaMime(e.mediaType));
+  let url: string | null = pageEntry?.href ?? urlEntries[0]?.href ?? null;
+  let mediaUrl: string | null = mediaEntry?.href ?? null;
+  // Objects that expose a single media URL (plain string or a Link with a
+  // media mime) use that same URL as both the media source and the link
+  // target — there is no distinct watch page.
+  if (!mediaUrl && url && /\.(mp4|webm|ogg|ogv|mov|m4v|mp3|oga|wav|flac|m4a|jpg|jpeg|png|gif|webp|bmp|avif)(#|\?|$)/i.test(url)) {
+    mediaUrl = url;
+  }
+
+  // Poster/preview thumbnail from the object's icon or image (PeerTube sends
+  // icon, Mastodon uses icon/image, some servers send a Link object).
+  let imageUrl: string | null = null;
+  const icon = Array.isArray(raw.icon) ? raw.icon : raw.icon ? [raw.icon] : [];
+  const image = Array.isArray(raw.image) ? raw.image : raw.image ? [raw.image] : [];
+  for (const src of [...icon, ...image]) {
+    if (!src || typeof src !== "object") continue;
+    const rec = src as Record<string, unknown>;
+    if (typeof rec.url === "string") { imageUrl = rec.url; break; }
+    if (typeof rec.href === "string") { imageUrl = rec.href; break; }
   }
 
   // Fallback: the stored objects.url column is always resolved (falls back to
@@ -382,6 +426,8 @@ export function extractAPMeta(obj: LocalObject): APObjectMeta | null {
     latitude,
     longitude,
     url,
+    mediaUrl,
+    imageUrl,
     subject,
     relationshipObject,
     relationship,
@@ -521,6 +567,14 @@ export function serializeAttachment(att: LocalAttachment): MastodonAttachment {
     if (mime.startsWith("audio/")) return "audio";
     return "unknown";
   };
+  // The DB stores the remote AP attachment type (lowercased) even when the
+  // server omitted a mimeType (e.g. brid.gy / Instagram videos). Use it as a
+  // fallback so media still renders with the right player.
+  const type = mimeToType(att.mimeType) === "unknown"
+    ? (["gifv", "image", "video", "audio"].includes((att.type ?? "").toLowerCase())
+        ? (att.type.toLowerCase() as MastodonAttachment["type"])
+        : "unknown")
+    : mimeToType(att.mimeType);
   const meta: MastodonAttachmentMeta | undefined =
     att.width && att.height
       ? {
@@ -531,7 +585,7 @@ export function serializeAttachment(att: LocalAttachment): MastodonAttachment {
 
   return {
     id: att.id,
-    type: mimeToType(att.mimeType),
+    type,
     url: att.url,
     preview_url: att.url,
     remote_url: att.remoteUrl ?? null,

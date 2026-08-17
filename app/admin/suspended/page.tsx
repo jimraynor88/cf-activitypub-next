@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
 
@@ -125,7 +126,7 @@ export default function AdminSuspendedPage() {
                         style={{ width: 34, height: 34, background: "var(--bg-overlay)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.85rem", fontWeight: 600, color: "var(--text-muted)", borderRadius: "50%", overflow: "hidden", flexShrink: 0 }}
                       >
                         {a.account.avatar && !a.account.avatar.includes("/avatars/original/missing.png") ? (
-                          <img src={a.account.avatar} alt="" width={34} height={34} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
+                          <Image src={a.account.avatar} alt="" width={34} height={34} style={{ objectFit: "cover", width: "100%", height: "100%" }} />
                         ) : (
                           (a.account.display_name?.[0] ?? a.username[0]).toUpperCase()
                         )}

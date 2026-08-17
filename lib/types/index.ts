@@ -25,6 +25,10 @@ export interface APObjectMeta {
   longitude?: number | null;
   /** Author-facing display URL (resolved from obj.url or AP object id). */
   url?: string | null;
+  /** Direct media file URL for top-level Audio/Video/Image objects. */
+  mediaUrl?: string | null;
+  /** Poster/preview thumbnail URL (resolved from the object's icon/image). */
+  imageUrl?: string | null;
   /** Relationship: subject actor IRI (as:subject). */
   subject?: string | null;
   /** Relationship: object actor IRI (as:object). */
