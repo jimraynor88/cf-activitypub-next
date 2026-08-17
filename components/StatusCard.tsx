@@ -107,7 +107,7 @@ export function AvatarBubble({ account, size = 42 }: { account: Account; size?: 
         alt={account.display_name}
         width={size}
         height={size}
-        style={{ borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
+        style={{ width: size, height: size, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
         onError={() => setErr(true)}
       />
     );

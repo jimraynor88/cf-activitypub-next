@@ -206,7 +206,7 @@ export default function BlocksPage() {
                           alt=""
                           width={42}
                           height={42}
-                          style={{ borderRadius: "50%", objectFit: "cover" }}
+                          style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
                         />
                       ) : (
                         <div

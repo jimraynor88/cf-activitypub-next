@@ -178,6 +178,7 @@ export default function DirectoryPage() {
                         className="avatar"
                         width={56}
                         height={56}
+                        style={{ width: 56, height: 56, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
                       />
                     ) : (
                       <div

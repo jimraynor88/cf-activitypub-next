@@ -114,6 +114,7 @@ export default function EndorsementsPage() {
                       className="avatar"
                       width={46}
                       height={46}
+                      style={{ width: 46, height: 46, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }}
                     />
                   ) : (
                     <div

@@ -13,6 +13,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useCall } from "@/lib/webrtc/use-call";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 
@@ -106,10 +107,11 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
           }}
         >
           {event.callerAvatar ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={event.callerAvatar}
               alt={event.callerDisplayName}
+              width={80}
+              height={80}
               className="w-20 h-20 rounded-full object-cover"
             />
           ) : (
