@@ -10,10 +10,10 @@
 import { generateId } from "@/lib/activitypub/utils";
 import { getActorById } from "@/lib/db";
 import { evaluateAccount, GUARDIAN_MODEL } from "./ai";
-import { contentHash, computeAccountSignals } from "./heuristics";
+import { contentHash, computeAccountSignals, computeContentSignals } from "./heuristics";
 import { screenStatus } from "./pipeline";
 import { warnAccount, suspendAccount, blockDomain, recordNoAction, type ModerationEnv } from "./actions";
-import { recordModeration } from "./log";
+import { recordModeration, countWarnings } from "./log";
 import { isTrustedAuthor, chargeAI } from "./budget";
 
 export interface GuardianCycleEnv extends ModerationEnv {
@@ -126,13 +126,15 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
         followsLastHour: followsLastHour?.c ?? 0,
       });
 
-      const hasReviewFlag =
-        signals.flags.length > 0 ||
-        postsLastHour >= 10 ||
-        actor.followingCount >= 80 ||
-        actor.statusesCount >= 30;
+      // Volume alone (many posts / many follows) is normal for legit users on
+      // busy remote instances — it must never trigger a review on its own for
+      // remote accounts. Only concrete abuse signals justify looking closer:
+      // content- or behaviour-based flags, never pure volume counters.
+      const VOLUME_ONLY_FLAGS = new Set(["alta_tasa_publicacion", "inundacion_hora", "inundacion_dia", "cuenta_vacia"]);
+      const hasAbuseSignals = signals.flags.some((f) => !VOLUME_ONLY_FLAGS.has(f));
+      const volumeSignal = postsLastHour >= 10 || actor.followingCount >= 80 || actor.statusesCount >= 30;
 
-      if (!hasReviewFlag) continue;
+      if (!hasAbuseSignals && (!actor.isLocal ? false : volumeSignal)) continue;
 
       // Respect the per-account AI budget — a burst of new accounts must not
       // drain the whole daily neuron allowance on 70B account reviews.
@@ -177,7 +179,7 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
 
       const details = { stage: "account_scan", signals: signals.flags, postsLastHour, postsLastDay, followsLastHour, linkRatio: signals.linkRatio };
 
-      if (verdict?.action === "suspend" && verdict.confidence !== "low") {
+      if (verdict?.action === "suspend" && verdict.confidence === "high") {
         await suspendAccount(env, { actorId: id, reason: verdict.reason, confidence: verdict.confidence, source: "ai", model: GUARDIAN_MODEL, details });
       } else if (verdict?.action === "warn" && verdict.confidence !== "low") {
         await warnAccount(env, { actorId: id, reason: verdict.reason, confidence: verdict.confidence, source: "ai", model: GUARDIAN_MODEL, details });
@@ -200,15 +202,29 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
 }
 
 /** Detect accounts repeatedly posting the same content (spambot signature). */
-async function detectRepeatedSpam(env: GuardianCycleEnv): Promise<void> {
+export async function detectRepeatedSpam(env: GuardianCycleEnv): Promise<void> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
   const rows = await env.DB
     .prepare("SELECT id, actor_id, content FROM objects WHERE type = 'Note' AND content IS NOT NULL AND content != '' AND published >= ? LIMIT 3000")
     .bind(cutoff)
     .all<{ id: string; actor_id: string; content: string }>();
 
+  // Only content that looks like real spam can trigger an action. Repeating a
+  // harmless message (a greeting, hashtags, a meme caption) many times is normal
+  // human behaviour on busy instances — it must never be treated as a spambot.
   const groups = new Map<string, { actorId: string; count: number; sample: string }>();
   for (const row of rows.results) {
+    const signals = computeContentSignals(row.content);
+    const spamLike = signals.flags.some((f) =>
+      f === "patron_estafa" ||
+      f === "texto_casi_solo_enlaces" ||
+      f === "muchos_enlaces" ||
+      f === "mensaje_corto_con_enlace" ||
+      f === "mayusculas_excesivas" ||
+      f === "bot_spam_enlaces"
+    );
+    if (!spamLike) continue;
+
     const hash = contentHash(row.content);
     const key = `${row.actor_id}:${hash}`;
     const existing = groups.get(key);
@@ -220,21 +236,36 @@ async function detectRepeatedSpam(env: GuardianCycleEnv): Promise<void> {
   }
 
   for (const [, g] of groups) {
-    if (g.count < 3) continue;
+    if (g.count < 5) continue;
     if (env.KV && (await env.KV.get(`guardian:spamdup:${g.actorId}`))) continue;
     if (env.KV) await env.KV.put(`guardian:spamdup:${g.actorId}`, "1", { expirationTtl: 24 * 3600 });
 
     try {
       const actor = await getActorById(env.DB, g.actorId);
       if (!actor || actor.suspended) continue;
-      await suspendAccount(env, {
-        actorId: g.actorId,
-        reason: `Publicación repetida ${g.count} veces en 24h (patrón de spam).`,
-        confidence: "high",
-        source: "heuristic",
-        model: "heuristic",
-        details: { stage: "duplicate_spam", count: g.count, sample: stripForDetails(g.sample) },
-      });
+
+      // Warn on the first pattern; suspend only once the account reoffends.
+      const reason = `Publicación repetida ${g.count} veces en 24h con contenido tipo spam.`;
+      const warnings = await countWarnings(env.DB, g.actorId);
+      if (warnings >= 1) {
+        await suspendAccount(env, {
+          actorId: g.actorId,
+          reason,
+          confidence: "high",
+          source: "heuristic",
+          model: "heuristic",
+          details: { stage: "duplicate_spam", count: g.count, sample: stripForDetails(g.sample) },
+        });
+      } else {
+        await warnAccount(env, {
+          actorId: g.actorId,
+          reason,
+          confidence: "medium",
+          source: "heuristic",
+          model: "heuristic",
+          details: { stage: "duplicate_spam", count: g.count, sample: stripForDetails(g.sample) },
+        });
+      }
     } catch {
       // keep going
     }

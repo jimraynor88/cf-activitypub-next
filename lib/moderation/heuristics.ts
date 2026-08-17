@@ -101,11 +101,11 @@ export function computeAccountSignals(input: {
   if (input.ageDays < 2 && input.followingCount >= 50 && input.followersCount < 5) {
     flags.push("cuenta_joven_masivo_follow");
   }
-  if (input.ageDays < 2 && input.statusesCount >= 20) {
+  if (input.ageDays < 2 && input.statusesCount >= 50) {
     flags.push("alta_tasa_publicacion");
   }
-  if (input.postsLastHour >= 15) flags.push("inundacion_hora");
-  if (input.postsLastDay >= 60) flags.push("inundacion_dia");
+  if (input.postsLastHour >= 20) flags.push("inundacion_hora");
+  if (input.postsLastDay >= 100) flags.push("inundacion_dia");
   if (input.followsLastHour >= 30) flags.push("burst_seguimiento");
   if (linkRatio >= 0.8 && input.statusesCount >= 3) flags.push("mayoria_enlaces");
   if (input.isBot && linkRatio >= 0.5 && input.statusesCount >= 10) flags.push("bot_spam_enlaces");

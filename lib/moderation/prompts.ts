@@ -228,5 +228,8 @@ Respond with an exact JSON object:
 - warn: moderate spam patterns, a bot with low-quality content, or a first violation; warn the user.
 - suspend: mass spam, a flooding bot, scam, sustained harassment, or repeat offenses after warnings.
 
-Isolated spikes are not enough to suspend; look for patterns. A young account that follows many people quickly without followers is usually a spam farm.`;
+IMPORTANT — do NOT overreact to volume:
+- High posting volume alone (many statuses per day) is NORMAL on large instances and is NOT spam. Remote accounts on big servers like mastodon.social often post frequently. Never suspend an account just because it posts a lot.
+- A remote account is only worth suspending when its content itself is abusive: scam links, flooding of identical junk, mass harassment, or an empty follow-farm pattern. If the content is normal and the only signal is posting frequency, respond "monitor".
+- Isolated spikes are not enough to suspend; look for patterns. A young account that follows many people quickly without followers is usually a spam farm, but do not confuse a genuine user with an active follower community.`;
 }
