@@ -34,17 +34,17 @@ export default function Home() {
   ];
 
   return (
-    <main className="flex flex-col flex-1">
+    <main className="flex flex-col flex-1 -mt-14 md:mt-0">
       {/* Nav */}
-      <nav style={{ borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
-        <div className="container-wide flex items-center justify-between py-4">
+      <nav style={{ position: "sticky", top: 0, zIndex: 40, borderBottom: "1px solid var(--border)", background: "var(--bg-surface)" }}>
+        <div className="container-wide flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-4">
           <div className="flex items-center gap-3">
             <Image src="/logo.svg" alt="CF ActivityPub" width={36} height={36} />
-            <span className="font-bold text-lg" style={{ color: "var(--text-primary)" }}>
+            <span className="hidden sm:inline font-bold text-lg" style={{ color: "var(--text-primary)" }}>
               CF ActivityPub
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1" style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "0.15rem" }}>
               <button
                 onClick={() => setLocale("en")}

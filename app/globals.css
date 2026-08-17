@@ -123,6 +123,13 @@ a:hover { color: var(--accent); }
 .btn-sm { padding: 0.35rem 0.75rem; font-size: 0.8rem; }
 .btn-lg { padding: 0.75rem 1.5rem; font-size: 1rem; }
 
+/* Hide `.btn` elements below md (Tailwind's `hidden` loses to the unlayered
+   `.btn { display: inline-flex }` rule). Used for actions that move into the
+   status ⋯ menu on mobile. */
+@media (max-width: 767px) {
+  .btn-hide-mobile { display: none !important; }
+}
+
 .input {
   width: 100%; padding: 0.625rem 0.875rem; background: var(--bg-elevated);
   border: 1px solid var(--border); border-radius: var(--radius);
@@ -212,9 +219,9 @@ img.emojione { display: inline; vertical-align: middle; }
   /* Mobile top nav (fixed bar, 56px) rendered by the Sidebar — keep content below it */
   body { padding-top: 56px; }
   .page-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
-  .page-inner { grid-column: 1; }
+  .page-inner { grid-column: 1; min-width: 0; }
   .page-sidebar { display: none; }
   .page-main { border-right: none; }
 }

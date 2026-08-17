@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useSyncExternalStore } from "react";
+import { useState, useEffect, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import Image from "next/image";
@@ -27,6 +27,8 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   const me = propMe ?? localMe;
   const isStaff = me?.roles?.some((r) => r.name.toLowerCase() === "admin" || r.name.toLowerCase() === "moderator") ?? false;
   const [menuOpen, setMenuOpen] = useState(false);
+  const topBarRef = useRef<HTMLDivElement>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
   // Client-only flag so the mobile top bar (rendered via portal) never runs on
   // the server, avoiding a hydration mismatch. False during SSR, true on client.
   const mounted = useSyncExternalStore(
@@ -96,6 +98,30 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
     }
   });
 
+  // Mobile browsers move `position: fixed; top: 0` behind the URL bar when it
+  // expands/collapses during scroll, leaving a gap above the header. Sync the
+  // bar's top (and the drawer's) to the visual viewport so they hug the visible
+  // top edge. Depends on `mounted`: the portal bar only exists on the client,
+  // so the ref is null until `mounted` flips to true.
+  useEffect(() => {
+    if (!mounted) return;
+    const bar = topBarRef.current;
+    const drawer = drawerRef.current;
+    if (!bar || !window.visualViewport) return;
+    const sync = () => {
+      const top = window.visualViewport!.offsetTop;
+      bar.style.top = `${top}px`;
+      if (drawer) drawer.style.top = `${top + 56}px`;
+    };
+    sync();
+    window.visualViewport.addEventListener("scroll", sync);
+    window.visualViewport.addEventListener("resize", sync);
+    return () => {
+      window.visualViewport!.removeEventListener("scroll", sync);
+      window.visualViewport!.removeEventListener("resize", sync);
+    };
+  }, [mounted, menuOpen]);
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST", credentials: "include" });
     window.location.href = "/login";
@@ -131,7 +157,11 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
       style={{
         width: 260,
         flexShrink: 0,
-        padding: "1.5rem 1rem",
+        position: "sticky",
+        top: 0,
+        height: "100vh",
+        overflowY: "auto",
+        padding: "1rem 1rem 1.5rem",
         borderRight: "1px solid var(--border)",
         flexDirection: "column",
         gap: "1.5rem",
@@ -290,6 +320,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
         <div className="md:hidden">
           {/* Fixed top bar */}
           <div
+            ref={topBarRef}
             style={{
               position: "fixed",
               top: 0,
@@ -337,6 +368,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
           {/* Slide-down drawer */}
           {menuOpen && (
             <div
+              ref={drawerRef}
               style={{
                 position: "fixed",
                 top: 56,
@@ -346,6 +378,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                 zIndex: 49,
                 background: "var(--bg-surface)",
                 overflowY: "auto",
+                overflowX: "hidden",
                 padding: "0.5rem 0.75rem 1.5rem",
               }}
             >
@@ -366,9 +399,10 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                       textDecoration: "none",
                       fontWeight: currentPath === item.href ? 700 : 400,
                       position: "relative",
+                      minWidth: 0,
                     }}
                   >
-                    <span style={{ position: "relative", display: "inline-flex" }}>
+                    <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
                       {item.icon}
                       {item.badge > 0 && (
                         <span
@@ -392,7 +426,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                         </span>
                       )}
                     </span>
-                    <span>{item.label}</span>
+                    <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.label}</span>
                   </Link>
                 ))}
               </nav>

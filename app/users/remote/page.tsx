@@ -151,6 +151,8 @@ function RemoteProfileInner() {
   const [editText, setEditText] = useState("");
   const [editSpoiler, setEditSpoiler] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  // Profile header actions menu (⋯ on mobile)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
   const token = getToken();
   const { startCall: initiateCall } = useStartCallButton(token);
@@ -348,12 +350,24 @@ function RemoteProfileInner() {
     <PageLayout sidebar={<Sidebar me={me} currentPath={pathname} />}>
         {/* Header banner */}
         <div style={{
-          height: 180,
-          background: account.header && !account.header.endsWith("/default-header.png")
-            ? `url(${account.header}) center/cover no-repeat`
-            : "linear-gradient(135deg, var(--accent-bg) 0%, var(--bg-elevated) 100%)",
+          width: "100%", maxWidth: "100%", flexShrink: 0,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          aspectRatio: "3 / 1", minHeight: 140, maxHeight: 220,
           position: "relative",
+          overflow: "hidden",
+          background: account.header
+            ? undefined
+            : "linear-gradient(135deg, var(--accent-bg) 0%, var(--bg-elevated) 100%)",
         }}>
+          {account.header ? (
+            <Image
+              src={account.header}
+              alt=""
+              width={1500}
+              height={500}
+              style={{ width: "100%", height: "100%", minWidth: 0, minHeight: 0, aspectRatio: "1500 / 500", objectFit: "cover", objectPosition: "center" }}
+            />
+          ) : null}
           {/* Remote badge */}
           <div style={{
             position: "absolute", top: "0.75rem", right: "0.75rem",
@@ -371,7 +385,7 @@ function RemoteProfileInner() {
             <div style={{ border: "3px solid var(--bg)", borderRadius: "50%", background: "var(--bg)" }}>
               <AvatarImg account={account} size={76} />
             </div>
-            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+            <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", position: "relative", flexWrap: "wrap" }}>
               {/* View on original server */}
               <a href={account.url} target="_blank" rel="noopener noreferrer"
                 className="btn btn-ghost btn-sm"
@@ -390,7 +404,7 @@ function RemoteProfileInner() {
                     {followBusy ? "…" : isFollowing ? t.account_following : isRequested ? t.account_requested : t.account_follow}
                   </button>
                   <button
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm btn-hide-mobile"
                     style={{ border: "1px solid var(--border)", color: relationship?.blocking ? "var(--danger)" : "var(--text-muted)" }}
                     onClick={() => void handleBlock()}
                     disabled={blockBusy}
@@ -399,7 +413,7 @@ function RemoteProfileInner() {
                     {blockBusy ? "…" : relationship?.blocking ? `🚫 ${t.status_blocked}` : "🚫"}
                   </button>
                   <button
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm btn-hide-mobile"
                     style={{ border: "1px solid var(--border)", color: relationship?.muting ? "var(--danger)" : "var(--text-muted)" }}
                     onClick={() => void handleMute()}
                     disabled={muteBusy}
@@ -409,7 +423,7 @@ function RemoteProfileInner() {
                   </button>
                   {!relationship?.blocking && (
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)" }}
                       onClick={() => router.push("/messages")}
                       title="Mensaje directo"
@@ -419,7 +433,7 @@ function RemoteProfileInner() {
                   )}
                   {account.supports_calls && (<>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)" }}
                       title="Llamada de voz"
                       onClick={() => void initiateCall(account.acct, "audio")}
@@ -427,7 +441,7 @@ function RemoteProfileInner() {
                       📞
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)" }}
                       title="Videollamada"
                       onClick={() => void initiateCall(account.acct, "video")}
@@ -435,7 +449,7 @@ function RemoteProfileInner() {
                       📹
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)" }}
                       title="Compartir pantalla"
                       onClick={() => void initiateCall(account.acct, "screen")}
@@ -443,6 +457,85 @@ function RemoteProfileInner() {
                       🖥️
                     </button>
                   </>)}
+
+                  {/* ⋯ menu (mobile only) */}
+                  <div className="md:hidden" style={{ position: "relative" }}>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      style={{ border: "1px solid var(--border)" }}
+                      onClick={() => setProfileMenuOpen((v) => !v)}
+                      aria-label="More actions"
+                    >
+                      {profileMenuOpen ? "✕" : "⋯"}
+                    </button>
+                    {profileMenuOpen && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          right: 0,
+                          top: "calc(100% + 0.25rem)",
+                          zIndex: 50,
+                          minWidth: 180,
+                          background: "var(--bg-surface)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "var(--radius)",
+                          boxShadow: "var(--shadow-lg)",
+                          padding: "0.25rem",
+                          display: "flex",
+                          flexDirection: "column",
+                        }}
+                      >
+                        <button
+                          className="btn btn-ghost"
+                          style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", color: relationship?.blocking ? "var(--danger)" : undefined }}
+                          onClick={() => { setProfileMenuOpen(false); void handleBlock(); }}
+                          disabled={blockBusy}
+                        >
+                          {relationship?.blocking ? `🚫 ${t.status_blocked}` : `🚫 ${t.action_block}`}
+                        </button>
+                        <button
+                          className="btn btn-ghost"
+                          style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", color: relationship?.muting ? "var(--danger)" : undefined }}
+                          onClick={() => { setProfileMenuOpen(false); void handleMute(); }}
+                          disabled={muteBusy}
+                        >
+                          {relationship?.muting ? `🤫 ${t.mute_unmute}` : `🤫 ${t.mute_mute}`}
+                        </button>
+                        {!relationship?.blocking && (
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                            onClick={() => { setProfileMenuOpen(false); router.push("/messages"); }}
+                          >
+                            💬 {t.messages_title}
+                          </button>
+                        )}
+                        {account.supports_calls && (<>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                            onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "audio"); }}
+                          >
+                            📞 {t.profile_call_voice}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                            onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "video"); }}
+                          >
+                            📹 {t.profile_call_video}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                            onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "screen"); }}
+                          >
+                            🖥️ {t.profile_call_screen}
+                          </button>
+                        </>)}
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>

@@ -175,17 +175,7 @@ export default function ExplorePage() {
 
   return (
     <>
-    <PageLayout sidebar={<Sidebar me={me} currentPath="/explore" />} rightPanel={
-        <div style={{ background: "var(--bg-elevated)", borderRadius: "var(--radius-lg)", border: "1px solid var(--border)", padding: "1rem" }}>
-          <h3 style={{ fontWeight: 700, marginBottom: "0.625rem", fontSize: "0.95rem" }}>{t.explore_search_tips}</h3>
-          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            <div>👤 <code>@usuario</code> — {t.explore_tip_local}</div>
-            <div>🌐 <code>@user@server.com</code> — {t.explore_tip_remote}</div>
-            <div>#️⃣ <code>#hashtag</code> — {t.explore_tip_hashtag}</div>
-            <div>💬 {t.explore_tip_text}</div>
-          </div>
-        </div>
-      }>
+    <PageLayout sidebar={<Sidebar me={me} currentPath="/explore" />}>
 
         {/* Search bar */}
         <div style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10, background: "var(--bg)" }}>

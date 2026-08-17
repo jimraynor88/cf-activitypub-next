@@ -628,7 +628,10 @@ export function StatusCard({
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ {t.status_edited}</div>
         )}
         {!hideActions && (
-        <div className="flex gap-5 mt-3" style={{ color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "wrap" }}>
+        <div
+          className="flex mt-3 gap-2 md:gap-5"
+          style={{ color: "var(--text-muted)", fontSize: "0.82rem", flexWrap: "nowrap" }}
+        >
           <button
             className="btn btn-ghost btn-sm"
             style={{ padding: "0.2rem 0.4rem", gap: "0.35rem" }}
@@ -751,13 +754,44 @@ export function StatusCard({
                   </button>
                 </>
               )}
+              {(forceDelete || (me && me.id === status.account.id)) && (
+                <div className="md:hidden">
+                  {onEdit && me && me.id === status.account.id && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{
+                        width: "100%", justifyContent: "flex-start", gap: "0.5rem",
+                        padding: "0.5rem 0.75rem", fontSize: "0.85rem",
+                      }}
+                      onClick={() => { setMenuOpen(false); onEdit(status); }}
+                    >
+                      ✏️ {t.action_edit}
+                    </button>
+                  )}
+                  {onDelete && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{
+                        width: "100%", justifyContent: "flex-start", gap: "0.5rem",
+                        padding: "0.5rem 0.75rem", fontSize: "0.85rem",
+                        color: "var(--danger)",
+                      }}
+                      onClick={() => { setMenuOpen(false); onDelete(status); }}
+                    >
+                      🗑️ {t.action_delete}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
           {(forceDelete || (me && me.id === status.account.id)) && (
             <>
               {onEdit && me && me.id === status.account.id && (
                 <button
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-ghost btn-sm btn-hide-mobile"
                   style={{ padding: "0.2rem 0.4rem" }}
                   onClick={() => onEdit(status)}
                   title={t.action_edit}
@@ -767,7 +801,7 @@ export function StatusCard({
               )}
               {onDelete && (
                 <button
-                  className="btn btn-ghost btn-sm"
+                  className="btn btn-ghost btn-sm btn-hide-mobile"
                   style={{ padding: "0.2rem 0.4rem", color: "var(--danger)" }}
                   onClick={() => onDelete(status)}
                   title={t.action_delete}

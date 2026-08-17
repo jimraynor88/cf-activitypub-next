@@ -264,6 +264,9 @@ export default function ProfilePage() {
   const [editSpoiler, setEditSpoiler] = useState("");
   const [editBusy, setEditBusy] = useState(false);
 
+  // Profile header actions menu (⋯ on mobile)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+
   // Edit form state
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editNote, setEditNote] = useState("");
@@ -684,17 +687,31 @@ export default function ProfilePage() {
             {/* Header banner */}
             <div
               style={{
-                height: 160, position: "relative",
+                width: "100%", maxWidth: "100%", flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                aspectRatio: "3 / 1", minHeight: 140, maxHeight: 220,
+                position: "relative", overflow: "hidden",
                 background: account.header
-                  ? `url(${account.header}) center/cover no-repeat`
+                  ? undefined
                   : "linear-gradient(135deg, var(--accent-bg) 0%, var(--bg-elevated) 100%)",
               }}
-            />
+            >
+              {account.header ? (
+                <Image
+                  src={account.header}
+                  alt=""
+                  width={1500}
+                  height={500}
+                  style={{ width: "100%", height: "100%", minWidth: 0, minHeight: 0, aspectRatio: "1500 / 500", objectFit: "cover", objectPosition: "center" }}
+                />
+              ) : null}
+            </div>
 
             {/* Avatar + actions row */}
             <div
               style={{
                 display: "flex", alignItems: "flex-end", justifyContent: "space-between",
+                flexWrap: "wrap", gap: "0.5rem",
                 padding: "0 1rem",
                 marginTop: -44,
                 position: "relative",
@@ -726,7 +743,7 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              <div className="flex gap-2" style={{ paddingBottom: "0.5rem" }}>
+              <div className="flex gap-2" style={{ paddingBottom: "0.5rem", position: "relative" }}>
                 {isOwnProfile ? (
                   <button
                     className="btn btn-ghost btn-sm"
@@ -751,7 +768,7 @@ export default function ProfilePage() {
                         : t.account_follow}
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)", color: relationship?.blocking ? "var(--danger)" : "var(--text-muted)" }}
                       onClick={() => void toggleBlock()}
                       disabled={blockBusy}
@@ -760,7 +777,7 @@ export default function ProfilePage() {
                       {blockBusy ? "…" : relationship?.blocking ? `🚫 ${t.status_blocked}` : "🚫"}
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)", color: relationship?.muting ? "var(--danger)" : "var(--text-muted)" }}
                       onClick={() => void toggleMute()}
                       disabled={muteBusy}
@@ -770,7 +787,7 @@ export default function ProfilePage() {
                     </button>
                     {!relationship?.blocking && (
                       <button
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm btn-hide-mobile"
                         style={{ border: "1px solid var(--border)" }}
                         onClick={() => router.push("/messages")}
                         title={t.messages_title}
@@ -779,7 +796,7 @@ export default function ProfilePage() {
                       </button>
                     )}
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)", color: endorsed ? "var(--accent)" : "var(--text-muted)" }}
                       onClick={() => void toggleEndorse()}
                       disabled={endorseBusy}
@@ -788,7 +805,7 @@ export default function ProfilePage() {
                       {endorseBusy ? "…" : endorsed ? "⭐" : "☆"}
                     </button>
                     <button
-                      className="btn btn-ghost btn-sm"
+                      className="btn btn-ghost btn-sm btn-hide-mobile"
                       style={{ border: "1px solid var(--border)" }}
                       onClick={() => setNoteOpen(true)}
                       title={t.ap_type_note}
@@ -797,7 +814,7 @@ export default function ProfilePage() {
                     </button>
                     {account.supports_calls && (<>
                       <button
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm btn-hide-mobile"
                         style={{ border: "1px solid var(--border)" }}
                         title="Voice call"
                         onClick={() => void initiateCall(account.acct, "audio")}
@@ -805,7 +822,7 @@ export default function ProfilePage() {
                         📞
                       </button>
                       <button
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm btn-hide-mobile"
                         style={{ border: "1px solid var(--border)" }}
                         title="Video call"
                         onClick={() => void initiateCall(account.acct, "video")}
@@ -813,7 +830,7 @@ export default function ProfilePage() {
                         📹
                       </button>
                       <button
-                        className="btn btn-ghost btn-sm"
+                        className="btn btn-ghost btn-sm btn-hide-mobile"
                         style={{ border: "1px solid var(--border)" }}
                         title="Share screen"
                         onClick={() => void initiateCall(account.acct, "screen")}
@@ -821,6 +838,100 @@ export default function ProfilePage() {
                         🖥️
                       </button>
                     </>)}
+
+                    {/* ⋯ menu (mobile only) */}
+                    <div className="md:hidden" style={{ position: "relative" }}>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        style={{ border: "1px solid var(--border)" }}
+                        onClick={() => setProfileMenuOpen((v) => !v)}
+                        aria-label="More actions"
+                      >
+                        {profileMenuOpen ? "✕" : "⋯"}
+                      </button>
+                      {profileMenuOpen && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            right: 0,
+                            top: "calc(100% + 0.25rem)",
+                            zIndex: 50,
+                            minWidth: 180,
+                            background: "var(--bg-surface)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius)",
+                            boxShadow: "var(--shadow-lg)",
+                            padding: "0.25rem",
+                            display: "flex",
+                            flexDirection: "column",
+                          }}
+                        >
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", color: relationship?.blocking ? "var(--danger)" : undefined }}
+                            onClick={() => { setProfileMenuOpen(false); void toggleBlock(); }}
+                            disabled={blockBusy}
+                          >
+                            {relationship?.blocking ? `🚫 ${t.status_blocked}` : `🚫 ${t.action_block}`}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", color: relationship?.muting ? "var(--danger)" : undefined }}
+                            onClick={() => { setProfileMenuOpen(false); void toggleMute(); }}
+                            disabled={muteBusy}
+                          >
+                            {relationship?.muting ? `🤫 ${t.mute_unmute}` : `🤫 ${t.mute_mute}`}
+                          </button>
+                          {!relationship?.blocking && (
+                            <button
+                              className="btn btn-ghost"
+                              style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                              onClick={() => { setProfileMenuOpen(false); router.push("/messages"); }}
+                            >
+                              💬 {t.messages_title}
+                            </button>
+                          )}
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem", color: endorsed ? "var(--accent)" : undefined }}
+                            onClick={() => { setProfileMenuOpen(false); void toggleEndorse(); }}
+                            disabled={endorseBusy}
+                          >
+                            {endorsed ? "⭐ " : "☆ "}{endorsed ? "Dejar de recomendar" : "Recomendar"}
+                          </button>
+                          <button
+                            className="btn btn-ghost"
+                            style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                            onClick={() => { setProfileMenuOpen(false); setNoteOpen(true); }}
+                          >
+                            📝 {t.ap_type_note}
+                          </button>
+                          {account.supports_calls && (<>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                              onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "audio"); }}
+                            >
+                              📞 {t.profile_call_voice}
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                              onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "video"); }}
+                            >
+                              📹 {t.profile_call_video}
+                            </button>
+                            <button
+                              className="btn btn-ghost"
+                              style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
+                              onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "screen"); }}
+                            >
+                              🖥️ {t.profile_call_screen}
+                            </button>
+                          </>)}
+                        </div>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <Link href="/login" className="btn btn-primary btn-sm">{t.account_follow}</Link>
@@ -1085,19 +1196,29 @@ export default function ProfilePage() {
               <div
                 onClick={() => headerInputRef.current?.click()}
                 style={{
-                  height: 100, borderRadius: "var(--radius)",
-                  background: headerPreview
-                    ? `url(${headerPreview}) center/cover no-repeat`
-                    : account.header
-                    ? `url(${account.header}) center/cover no-repeat`
+                  width: "100%", maxWidth: "100%",
+                  aspectRatio: "3 / 1", minHeight: 120, maxHeight: 220,
+                  borderRadius: "var(--radius)",
+                  background: headerPreview || account.header
+                    ? undefined
                     : "linear-gradient(135deg, var(--accent-bg) 0%, var(--bg-elevated) 100%)",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   cursor: "pointer",
                   border: "1px solid var(--border)",
                   marginBottom: "0.75rem",
                   position: "relative",
+                  overflow: "hidden",
                 }}
               >
+                {headerPreview || account.header ? (
+                  <Image
+                    src={headerPreview ?? account.header}
+                    alt=""
+                    width={1500}
+                    height={500}
+                    style={{ width: "100%", height: "100%", minWidth: 0, minHeight: 0, aspectRatio: "1500 / 500", objectFit: "cover", objectPosition: "center" }}
+                  />
+                ) : null}
                 <div
                   style={{
                     background: "rgba(0,0,0,0.55)", borderRadius: "var(--radius-sm)",
