@@ -122,6 +122,7 @@ export default function HomePage() {
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
+    if (uploadingMedia) return;
     const hasPoll = pollMode && pollOptions.filter((o) => o.trim()).length >= 2;
     if (!composing.trim() && mediaFiles.length === 0 && !hasPoll) return;
     setPosting(true);
@@ -486,9 +487,9 @@ export default function HomePage() {
                 <button
                   type="submit"
                   className="btn btn-primary btn-sm"
-                  disabled={posting || (!composing.trim() && mediaFiles.length === 0 && !(pollMode && pollOptions.filter((o) => o.trim()).length >= 2))}
+                  disabled={posting || uploadingMedia || (!composing.trim() && mediaFiles.length === 0 && !(pollMode && pollOptions.filter((o) => o.trim()).length >= 2))}
                 >
-                  {posting ? t.compose_posting : t.compose_post}
+                  {posting ? t.compose_posting : uploadingMedia ? "⏳" : t.compose_post}
                 </button>
               </div>
             </div>

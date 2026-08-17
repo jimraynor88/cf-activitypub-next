@@ -210,6 +210,7 @@ function ReplyBox({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (uploadingMedia) return;
     if (!text.trim() && mediaFiles.length === 0 && !pollMode) return;
     setSubmitting(true);
     setError(null);
@@ -400,8 +401,8 @@ function ReplyBox({
               <button type="button" className="btn btn-ghost btn-sm" onClick={onCancel} disabled={submitting}>
                 {t.profile_cancel}
               </button>
-              <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || (!text.trim() && mediaFiles.length === 0 && !pollMode)}>
-                {submitting ? t.compose_posting : t.reply_button}
+              <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || uploadingMedia || (!text.trim() && mediaFiles.length === 0 && !pollMode)}>
+                {submitting ? t.compose_posting : uploadingMedia ? "⏳" : t.reply_button}
               </button>
             </div>
           </div>
