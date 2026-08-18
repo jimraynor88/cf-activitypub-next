@@ -321,6 +321,13 @@ img.emojione { display: inline; vertical-align: middle; }
     border-radius: 9999px;
   }
   .admin-nav-item.active { border-right: none; }
-  .admin-nav-back { display: none; }
+  .admin-nav-back {
+    margin-top: 0;
+    padding: 0 0 0 0.75rem;
+    border-top: none;
+    border-left: 1px solid var(--border);
+    margin-left: auto;
+    flex-shrink: 0;
+  }
   .admin-main { padding: 1rem; }
 }
