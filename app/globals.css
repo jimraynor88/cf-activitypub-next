@@ -225,3 +225,102 @@ img.emojione { display: inline; vertical-align: middle; }
   .page-sidebar { display: none; }
   .page-main { border-right: none; }
 }
+
+/* ── Admin layout: sidebar + content ── */
+.admin-layout {
+  display: flex;
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.admin-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  padding: 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.admin-sidebar-title {
+  padding: 0 1rem;
+  margin-bottom: 1rem;
+}
+.admin-sidebar-title a {
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.admin-nav-item {
+  display: block;
+  padding: 0.625rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  background: transparent;
+  border-right: 2px solid transparent;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.admin-nav-item:hover { background: var(--accent-bg); color: var(--accent-light); }
+.admin-nav-item.active {
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-bg);
+  border-right-color: var(--accent);
+}
+
+.admin-nav-back {
+  margin-top: auto;
+  padding: 1rem;
+  border-top: 1px solid var(--border);
+}
+.admin-nav-back a {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.admin-main {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem 2rem;
+  overflow: auto;
+}
+
+@media (max-width: 768px) {
+  /* Admin renders its own top nav — the global mobile bar padding must not apply */
+  body:has(.admin-layout) { padding-top: 0; }
+  .admin-layout { flex-direction: column; }
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.375rem;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 0.625rem 0.75rem;
+    overflow-x: auto;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    z-index: 20;
+  }
+  .admin-sidebar-title { padding: 0; margin: 0; flex-shrink: 0; }
+  .admin-sidebar-title a { font-size: 1rem; }
+  .admin-nav-item {
+    padding: 0.45rem 0.8rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    border-right: none;
+    border-radius: 9999px;
+  }
+  .admin-nav-item.active { border-right: none; }
+  .admin-nav-back { display: none; }
+  .admin-main { padding: 1rem; }
+}
