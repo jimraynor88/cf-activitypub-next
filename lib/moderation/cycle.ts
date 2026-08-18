@@ -39,8 +39,14 @@ async function recentLocalStatuses(db: D1Database, minutes: number) {
 async function screenRecentLocalStatuses(env: GuardianCycleEnv): Promise<void> {
   const rows = await recentLocalStatuses(env.DB, 20);
   for (const row of rows.results) {
-    if (env.KV && (await env.KV.get(`guardian:status:${row.id}`))) continue;
-    if (env.KV) await env.KV.put(`guardian:status:${row.id}`, "1", { expirationTtl: 3600 });
+    if (env.KV) {
+      try {
+        if (await env.KV.get(`guardian:status:${row.id}`)) continue;
+        await env.KV.put(`guardian:status:${row.id}`, "1", { expirationTtl: 3600 });
+      } catch {
+        // best-effort marker — keep screening
+      }
+    }
 
     try {
       const author = await getActorById(env.DB, row.actor_id);
@@ -86,11 +92,16 @@ async function countStatusesSince(db: D1Database, actorId: string, cutoffIso: st
 /** Review accounts showing suspicious behavior patterns. */
 async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
   // The candidate query scans the whole actors table, so gate the scan behind a
-  // KV cooldown instead of running it on every cron tick.
+  // KV cooldown instead of running it on every cron tick. A KV failure must not
+  // stop the scan (cooldown marker is best-effort).
   if (env.KV) {
-    const lastScan = await env.KV.get("guardian:account_scan_last");
-    if (lastScan && Date.now() - Number(lastScan) < ACCOUNT_SCAN_COOLDOWN_SECONDS * 1000) return;
-    await env.KV.put("guardian:account_scan_last", String(Date.now()), { expirationTtl: 2 * 3600 });
+    try {
+      const lastScan = await env.KV.get("guardian:account_scan_last");
+      if (lastScan && Date.now() - Number(lastScan) < ACCOUNT_SCAN_COOLDOWN_SECONDS * 1000) return;
+      await env.KV.put("guardian:account_scan_last", String(Date.now()), { expirationTtl: 2 * 3600 });
+    } catch {
+      // keep scanning even if the cooldown marker cannot be written
+    }
   }
 
   const candidates = await reviewableAccounts(env.DB);
@@ -143,6 +154,11 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
       // the cron from burning the daily AI budget on every cached remote
       // account on each pass.
       if (!hasAbuseSignals(signals)) continue;
+
+      // Without the AI binding there is no model to review the account with —
+      // skip it rather than charging the daily budget for a review that can't
+      // run. The heuristic-only stages (repeated spam, domains) still run.
+      if (!env.AI) continue;
 
       // Respect the per-account AI budget — a burst of new accounts must not
       // drain the whole daily neuron allowance on 70B account reviews.
@@ -368,10 +384,16 @@ export async function detectSpamDomains(env: GuardianCycleEnv): Promise<void> {
  * Full guardian patrol. Runs from the scheduled handler. Never throws.
  */
 export async function runModerationCycle(env: GuardianCycleEnv): Promise<void> {
-  if (!env.AI) return;
+  // Never early-return when the AI binding is unavailable: the heuristic stages
+  // (status screening, repeated-spam, domain blocking) take action without AI,
+  // and the AI paths inside them already degrade to "no verdict". An early
+  // `if (!env.AI) return` here silently disabled the whole cycle whenever the
+  // AI binding misbehaved in production.
+  console.log(`[moderation] cycle start at ${new Date().toISOString()} ai=${Boolean(env.AI)}`);
 
-  await screenRecentLocalStatuses(env);
-  await screenSuspiciousAccounts(env);
-  await detectRepeatedSpam(env);
-  await detectSpamDomains(env);
+  // Each stage is isolated so one failure (DB, KV, AI) never silences the rest.
+  await screenRecentLocalStatuses(env).catch((e) => console.error("[moderation] status screen failed", e));
+  await screenSuspiciousAccounts(env).catch((e) => console.error("[moderation] account scan failed", e));
+  await detectRepeatedSpam(env).catch((e) => console.error("[moderation] repeated spam failed", e));
+  await detectSpamDomains(env).catch((e) => console.error("[moderation] domain scan failed", e));
 }
