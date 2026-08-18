@@ -41,6 +41,8 @@ CREATE TABLE IF NOT EXISTS actors (
 CREATE INDEX IF NOT EXISTS idx_actors_domain       ON actors(domain);
 CREATE INDEX IF NOT EXISTS idx_actors_is_local     ON actors(is_local);
 CREATE INDEX IF NOT EXISTS idx_actors_email        ON actors(email);
+CREATE INDEX IF NOT EXISTS idx_actors_created_at   ON actors(created_at);
+CREATE INDEX IF NOT EXISTS idx_actors_follow_followers ON actors(following_count, followers_count);
 
 -- ─────────────────────────────────────────
 -- Objects / Notes / Statuses

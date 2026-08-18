@@ -46,6 +46,7 @@ export async function evaluateReportWithAI(env: ModerationEnv, input: ReportAIIn
   const reviewedStatuses: string[] = [];
   let invalidStatuses = false;
   let mismatchedOwnership = false;
+  let ownedStatuses = 0;
 
   for (const sid of statusIds) {
     const decoded = decodeStatusId(sid, domain);
@@ -56,6 +57,8 @@ export async function evaluateReportWithAI(env: ModerationEnv, input: ReportAIIn
     }
     if (obj.actorId !== target.id) {
       mismatchedOwnership = true;
+    } else {
+      ownedStatuses += 1;
     }
     reviewedStatuses.push(decoded);
     if (obj?.content) {
@@ -73,6 +76,55 @@ export async function evaluateReportWithAI(env: ModerationEnv, input: ReportAIIn
     invalidStatuses,
     mismatchedOwnership,
   };
+
+  // ── Heuristic pre-scan: the LLM is a last resort, not the first responder ──
+  // Reports with nothing concrete to review are resolved without spending AI
+  // neurons. A report whose statuses are all missing, or that points at statuses
+  // belonging to someone else entirely, is handled deterministically.
+  const allStatusesInvalid = statusIds.length > 0 && reviewedStatuses.length === 0;
+  const allStatusesMismatched = reviewedStatuses.length > 0 && ownedStatuses === 0;
+  const nothingToReview = statusContents.length === 0 && !(comment ?? "").trim();
+
+  if (allStatusesInvalid) {
+    await dismissReport(env, {
+      reportId,
+      reason: "Reporte descartado: ninguna de las publicaciones señaladas existe.",
+      confidence: "high",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "report_heuristic", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+      relatedId: reporter.id,
+    });
+    return;
+  }
+
+  if (allStatusesMismatched) {
+    await dismissReport(env, {
+      reportId,
+      reason: "Reporte descartado: las publicaciones señaladas no pertenecen a la cuenta denunciada.",
+      confidence: "high",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "report_heuristic", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+      relatedId: reporter.id,
+    });
+    return;
+  }
+
+  if (nothingToReview) {
+    await recordNoAction(env, {
+      targetType: "report",
+      targetId: reportId,
+      action: "no_action",
+      reason: "Reporte sin contenido sustancial que revisar; diferido para revisión manual.",
+      confidence: "low",
+      source: "heuristic",
+      model: "heuristic",
+      details: { stage: "report_heuristic", reporterId: reporter.id, targetId: target.id, category, reviewedStatuses, invalidStatuses, mismatchedOwnership },
+      relatedId: reporter.id,
+    });
+    return;
+  }
 
   if (!(await chargeGlobalAI(env, AI_UNITS_REASON))) {
     await recordNoAction(env, {

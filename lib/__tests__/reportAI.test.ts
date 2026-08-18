@@ -139,19 +139,46 @@ describe("evaluateReportWithAI", () => {
     expect(mockResolveReport).not.toHaveBeenCalled();
   });
 
-  it("flags invalid and mismatched statuses and skips them from deletion", async () => {
+  it("dismisses without AI when all reported statuses belong to someone else", async () => {
     mockGetObjectById.mockImplementation(async (_db: unknown, id: string) => {
       if (id === "s1") return makeObject("someone-else", "<p>not theirs</p>");
-      return null; // s2 missing entirely
+      if (id === "s2") return makeObject("someone-else", "<p>not theirs either</p>");
+      return null;
     });
-    mockEvaluateReport.mockResolvedValue({ action: "delete", reason: "spam", confidence: "high" });
     await evaluateReportWithAI(ENV, BASE_INPUT);
 
-    const details = mockDeleteStatus.mock.calls[0][1].details;
-    expect(details.invalidStatuses).toBe(true);
-    expect(details.mismatchedOwnership).toBe(true);
-    // Only s1 was reviewed (decoded, object found); s2 was invalid.
-    expect(details.reviewedStatuses).toEqual(["s1"]);
+    expect(mockEvaluateReport).not.toHaveBeenCalled();
+    expect(mockDismissReport).toHaveBeenCalledTimes(1);
+    expect(mockDismissReport.mock.calls[0][1]).toMatchObject({
+      reportId: "rep-1",
+      source: "heuristic",
+      confidence: "high",
+    });
+    expect(mockResolveReport).not.toHaveBeenCalled();
+  });
+
+  it("dismisses without AI when none of the reported statuses exist", async () => {
+    mockGetObjectById.mockResolvedValue(null);
+    await evaluateReportWithAI(ENV, BASE_INPUT);
+
+    expect(mockEvaluateReport).not.toHaveBeenCalled();
+    expect(mockDismissReport).toHaveBeenCalledTimes(1);
+    expect(mockDismissReport.mock.calls[0][1]).toMatchObject({
+      reportId: "rep-1",
+      source: "heuristic",
+      reason: expect.stringContaining("ninguna de las publicaciones"),
+    });
+  });
+
+  it("records no_action without AI when there is nothing to review", async () => {
+    mockGetObjectById.mockResolvedValue({ id: "https://remote.example/objects/s1", actorId: "actor-target", content: "" });
+    await evaluateReportWithAI(ENV, { ...BASE_INPUT, comment: "", statusIds: ["s1"] });
+
+    expect(mockEvaluateReport).not.toHaveBeenCalled();
+    expect(mockRecordNoAction).toHaveBeenCalledTimes(1);
+    expect(mockRecordNoAction.mock.calls[0][1]).toMatchObject({ targetId: "rep-1", targetType: "report" });
+    expect(mockDismissReport).not.toHaveBeenCalled();
+    expect(mockSendReportOutcomeEmail).not.toHaveBeenCalled();
   });
 
   it("emails the reporter about the outcome when an address is available", async () => {

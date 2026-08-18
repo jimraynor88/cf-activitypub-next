@@ -10,6 +10,7 @@ import { evaluateRegistration } from "@/lib/moderation/ai";
 import { rejectAccount, approveAccount, GUARDIAN_MODEL } from "@/lib/moderation/actions";
 import { runWithTimeout } from "@/lib/moderation/util";
 import { chargeGlobalAI, AI_UNITS_REASON } from "@/lib/moderation/budget";
+import { computeRegistrationSignals } from "@/lib/moderation/heuristics";
 
 // POST /api/v1/accounts — Register a new account
 export async function POST(request: NextRequest): Promise<Response> {
@@ -112,12 +113,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     autoDeleteAfter: null,
   });
 
-  // ── AI Guardian: screen the new account profile ──────────────────────────
-  // A clearly abusive registration (spam username/bio) is rejected immediately.
-  // The account was just created, so this only affects the fresh row. When the
-  // AI is unavailable the registration proceeds and the scheduled moderation
-  // cycle reviews it later.
-  if (env.AI && (await chargeGlobalAI(env, AI_UNITS_REASON))) {
+  // ── Guardian: screen the new account profile ──────────────────────────────
+  // The LLM is a last resort. A registration is only reviewed by the reasoning
+  // model when deterministic signals flag it (suspicious IP, disposable email,
+  // spammy username). Clean registrations are approved without spending AI
+  // neurons; the scheduled moderation cycle can revisit any account later.
+  const registrationSignals = computeRegistrationSignals({
+    username: username.toLowerCase(),
+    email: email.toLowerCase(),
+    ipSuspicious: remaining <= 2,
+  });
+
+  if (registrationSignals.flags.length > 0 && env.AI && (await chargeGlobalAI(env, AI_UNITS_REASON))) {
     const review = await runWithTimeout(
       evaluateRegistration(env, {
         username: username.toLowerCase(),
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         confidence: review.confidence,
         source: "ai",
         model: GUARDIAN_MODEL,
-        details: { stage: "registration", username: username.toLowerCase(), source: webRegistration ? "web" : "api" },
+        details: { stage: "registration", username: username.toLowerCase(), source: webRegistration ? "web" : "api", flags: registrationSignals.flags },
       });
       return json({ error: "Registration not approved: your account does not meet the community guidelines." }, 422);
     }
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         confidence: review.confidence,
         source: "ai",
         model: GUARDIAN_MODEL,
-        details: { stage: "registration", username: username.toLowerCase() },
+        details: { stage: "registration", username: username.toLowerCase(), flags: registrationSignals.flags },
       });
     }
   }

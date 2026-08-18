@@ -10,7 +10,7 @@
 import { generateId } from "@/lib/activitypub/utils";
 import { getActorById } from "@/lib/db";
 import { evaluateAccount, GUARDIAN_MODEL } from "./ai";
-import { contentHash, computeAccountSignals, computeContentSignals } from "./heuristics";
+import { contentHash, computeAccountSignals, computeContentSignals, hasAbuseSignals } from "./heuristics";
 import { screenStatus } from "./pipeline";
 import { warnAccount, suspendAccount, blockDomain, recordNoAction, type ModerationEnv } from "./actions";
 import { recordModeration, countWarnings } from "./log";
@@ -21,6 +21,8 @@ export interface GuardianCycleEnv extends ModerationEnv {
 }
 
 const MIN_ACCOUNT_AGE = 10; // seconds — ignore accounts created milliseconds ago
+/** How often the suspicious-account scan may run (KV cooldown, not every cron tick). */
+const ACCOUNT_SCAN_COOLDOWN_SECONDS = 10 * 60;
 
 /** Recent local statuses (published in the last N minutes). */
 async function recentLocalStatuses(db: D1Database, minutes: number) {
@@ -83,6 +85,14 @@ async function countStatusesSince(db: D1Database, actorId: string, cutoffIso: st
 
 /** Review accounts showing suspicious behavior patterns. */
 async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
+  // The candidate query scans the whole actors table, so gate the scan behind a
+  // KV cooldown instead of running it on every cron tick.
+  if (env.KV) {
+    const lastScan = await env.KV.get("guardian:account_scan_last");
+    if (lastScan && Date.now() - Number(lastScan) < ACCOUNT_SCAN_COOLDOWN_SECONDS * 1000) return;
+    await env.KV.put("guardian:account_scan_last", String(Date.now()), { expirationTtl: 2 * 3600 });
+  }
+
   const candidates = await reviewableAccounts(env.DB);
   if (candidates.length === 0) return;
 
@@ -127,14 +137,12 @@ async function screenSuspiciousAccounts(env: GuardianCycleEnv): Promise<void> {
       });
 
       // Volume alone (many posts / many follows) is normal for legit users on
-      // busy remote instances — it must never trigger a review on its own for
-      // remote accounts. Only concrete abuse signals justify looking closer:
-      // content- or behaviour-based flags, never pure volume counters.
-      const VOLUME_ONLY_FLAGS = new Set(["alta_tasa_publicacion", "inundacion_hora", "inundacion_dia", "cuenta_vacia"]);
-      const hasAbuseSignals = signals.flags.some((f) => !VOLUME_ONLY_FLAGS.has(f));
-      const volumeSignal = postsLastHour >= 10 || actor.followingCount >= 80 || actor.statusesCount >= 30;
-
-      if (!hasAbuseSignals && (!actor.isLocal ? false : volumeSignal)) continue;
+      // busy remote instances — it must never trigger a review on its own.
+      // Only concrete abuse signals justify an expensive 70B review: content-
+      // or behaviour-based flags, never pure volume counters. This also stops
+      // the cron from burning the daily AI budget on every cached remote
+      // account on each pass.
+      if (!hasAbuseSignals(signals)) continue;
 
       // Respect the per-account AI budget — a burst of new accounts must not
       // drain the whole daily neuron allowance on 70B account reviews.

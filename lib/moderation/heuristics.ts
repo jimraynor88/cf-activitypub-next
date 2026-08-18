@@ -114,5 +114,50 @@ export function computeAccountSignals(input: {
   return { flags, linkRatio, postsLastHour: input.postsLastHour, postsLastDay: input.postsLastDay, followsLastHour: input.followsLastHour };
 }
 
+/**
+ * Volume-only account signals that are normal for busy (especially remote)
+ * accounts and never justify an expensive AI review on their own.
+ */
+export const VOLUME_ONLY_ACCOUNT_FLAGS = new Set([
+  "alta_tasa_publicacion",
+  "inundacion_hora",
+  "inundacion_dia",
+  "cuenta_vacia",
+]);
+
+/** Whether account signals contain a concrete abuse signal worth an AI review. */
+export function hasAbuseSignals(signals: Pick<AccountSignals, "flags">): boolean {
+  return signals.flags.some((f) => !VOLUME_ONLY_ACCOUNT_FLAGS.has(f));
+}
+
 /** Suspicious-looking email domains for registration gating (heuristic). */
 export const DISPOSABLE_EMAIL_HINTS = ["tempmail", "mailinator", "guerrillamail", "10minutemail", "throwaway", "yopmail", "sharklasers"];
+
+export interface RegistrationSignals {
+  flags: string[];
+}
+
+const SUSPICIOUS_USERNAME_RE =
+  /(buy|free|earn|money|cash|crypto|bitcoin|eth|nft|win|prize|bet|casino|loan|hazte|gana|sigue|follow|telegram|whatsapp|vip|invest|bono|bonus|oferta|descuento|\d{6,})/i;
+
+/**
+ * Deterministic registration pre-screen. When these flags are present the
+ * registration is suspicious enough to warrant a reasoning-model review;
+ * otherwise the account is approved without spending AI neurons. A spammy
+ * username or a disposable-email address alone is a strong enough signal to
+ * escalate, because both are hallmarks of mass-created bot accounts.
+ */
+export function computeRegistrationSignals(input: {
+  username: string;
+  email: string;
+  ipSuspicious: boolean;
+}): RegistrationSignals {
+  const flags: string[] = [];
+  const emailDomain = input.email.split("@")[1]?.toLowerCase() ?? "";
+
+  if (input.ipSuspicious) flags.push("ip_sospechosa");
+  if (DISPOSABLE_EMAIL_HINTS.some((h) => emailDomain.includes(h))) flags.push("email_desechable");
+  if (SUSPICIOUS_USERNAME_RE.test(input.username)) flags.push("username_sospechoso");
+
+  return { flags };
+}

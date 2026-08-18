@@ -33,6 +33,20 @@ const SEVERE_GUARD_CODES = new Set(["S1", "S2", "S3", "S4", "S10", "S11"]);
 /** Categories that only warrant marking the content sensitive. */
 const SENSITIVE_GUARD_CODES = new Set(["S12"]);
 
+/**
+ * Heuristic flags strong enough to act on directly, without an LLM call.
+ * Deliberately conservative: only unmistakable spam patterns and content that
+ * is essentially nothing but links. Softer signals (muchos_enlaces,
+ * mensaje_corto_con_enlace, mayusculas, emoji) still go to the cheap Llama
+ * Guard screen rather than auto-blocking a possibly-legitimate post.
+ *
+ * `patron_estafa` is a keyword match (crypto, work-from-home, ...) that a
+ * trusted user could legitimately discuss, so it only auto-blocks new/low-trust
+ * accounts; `texto_casi_solo_enlaces` is structural (content is just links) and
+ * blocks regardless of trust.
+ */
+const STRONG_SPAM_FLAGS = new Set(["patron_estafa", "texto_casi_solo_enlaces"]);
+
 export interface ScreenStatusInput {
   contentHtml: string;
   spoilerText: string;
@@ -131,6 +145,38 @@ export async function screenStatus(
     flags: signals.flags,
     content: plainText.slice(0, 300),
   };
+
+  // ── Tier 0.5: heuristic auto-action — the LLM is a last resort, not the
+  // first responder. Unmistakable spam signals are acted on here directly,
+  // without spending a single neuron unit.
+  const strongSpam = signals.flags.some((f) => STRONG_SPAM_FLAGS.has(f)) && (!trusted || signals.flags.includes("texto_casi_solo_enlaces"));
+  if (strongSpam) {
+    const reason = `Contenido detectado como spam por heurísticas (${signals.flags.join(", ")}).`;
+    await cacheContentVerdict(env, input.authorId, hash, { action: "blocked", reason });
+    await warnOrSuspend(env, input, previousWarnings, reason, "high", "heuristic");
+    if (input.objectId) {
+      await deleteStatus(env, { objectId: input.objectId, reason, confidence: "high", source: "heuristic", model: "heuristic", details });
+    }
+    return { blocked: true, markedSensitive: false, reason };
+  }
+
+  // Clean content from an unknown/new author that contains no links and no
+  // other flag needs no AI either — allow on heuristics alone.
+  if (signals.flags.length === 0 && signals.links === 0) {
+    await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
+    await recordNoAction(env, {
+      targetType: "status",
+      targetId: input.objectId,
+      action: "no_action",
+      reason: "Revisado por heurísticas (sin señales ni enlaces).",
+      confidence: "high",
+      source: "heuristic",
+      model: "heuristic",
+      details,
+      relatedId: input.authorId,
+    });
+    return { blocked: false, markedSensitive: false };
+  }
 
   // ── AI budget gate: cap per-account AI spend per day ───────────────────────
   // Suspicious authors still get a generous allowance; once spent, we fall back

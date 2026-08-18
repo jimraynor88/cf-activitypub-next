@@ -6,6 +6,8 @@ import {
   contentHash,
   computeContentSignals,
   computeAccountSignals,
+  computeRegistrationSignals,
+  hasAbuseSignals,
 } from "@/lib/moderation/heuristics";
 import { chargeGlobalAI, AI_UNITS_REASON } from "@/lib/moderation/budget";
 
@@ -152,6 +154,50 @@ describe("computeAccountSignals", () => {
       linkStatuses: 0,
       followsLastHour: 0,
     });
+    expect(s.flags).toEqual([]);
+  });
+});
+
+describe("hasAbuseSignals", () => {
+  it("treats pure volume signals as normal (no AI review)", () => {
+    for (const flag of ["alta_tasa_publicacion", "inundacion_hora", "inundacion_dia", "cuenta_vacia"]) {
+      expect(hasAbuseSignals({ flags: [flag] })).toBe(false);
+    }
+  });
+
+  it("no signals → no AI review", () => {
+    expect(hasAbuseSignals({ flags: [] })).toBe(false);
+  });
+
+  it("behavior/content flags justify an AI review", () => {
+    for (const flag of ["cuenta_joven_masivo_follow", "burst_seguimiento", "mayoria_enlaces", "bot_spam_enlaces"]) {
+      expect(hasAbuseSignals({ flags: [flag] })).toBe(true);
+    }
+  });
+
+  it("mixed signals with at least one abuse flag → review", () => {
+    expect(hasAbuseSignals({ flags: ["alta_tasa_publicacion", "burst_seguimiento"] })).toBe(true);
+  });
+});
+
+describe("computeRegistrationSignals", () => {
+  it("flags a suspicious IP", () => {
+    const s = computeRegistrationSignals({ username: "maria", email: "maria@example.com", ipSuspicious: true });
+    expect(s.flags).toContain("ip_sospechosa");
+  });
+
+  it("flags a disposable email domain", () => {
+    const s = computeRegistrationSignals({ username: "juan", email: "juan@guerrillamail.com", ipSuspicious: false });
+    expect(s.flags).toContain("email_desechable");
+  });
+
+  it("flags a spammy username", () => {
+    const s = computeRegistrationSignals({ username: "gana-dinero-facil", email: "a@example.com", ipSuspicious: false });
+    expect(s.flags).toContain("username_sospechoso");
+  });
+
+  it("returns no flags for a clean registration", () => {
+    const s = computeRegistrationSignals({ username: "ana", email: "ana@example.com", ipSuspicious: false });
     expect(s.flags).toEqual([]);
   });
 });
