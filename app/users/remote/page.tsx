@@ -86,6 +86,7 @@ interface Relationship {
   requested: boolean;
   blocking: boolean;
   muting?: boolean;
+  followed_by?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -217,6 +218,7 @@ function RemoteProfileInner() {
           following: data.following ?? (prev?.following ?? false),
           requested: data.requested ?? (prev?.requested ?? false),
           blocking: prev?.blocking ?? false,
+          followed_by: prev?.followed_by ?? false,
         }));
       }
     } catch {
@@ -242,6 +244,7 @@ function RemoteProfileInner() {
           following: blocking ? (prev?.following ?? false) : false,
           requested: blocking ? (prev?.requested ?? false) : false,
           blocking: !blocking,
+          followed_by: prev?.followed_by ?? false,
         }));
       }
     } catch {
@@ -548,6 +551,28 @@ function RemoteProfileInner() {
             )}
             {account.roles?.some((r) => r.name.toLowerCase() === "moderator") && (
               <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator">🥈</span>
+            )}
+            {account.bot && (
+              <span
+                style={{
+                  marginLeft: "0.5rem", fontSize: "0.7rem", padding: "0.1rem 0.4rem",
+                  borderRadius: "var(--radius-sm)", background: "var(--accent-bg)",
+                  color: "var(--accent)", verticalAlign: "middle",
+                }}
+              >
+                BOT
+              </span>
+            )}
+            {!isOwnAccount && relationship?.followed_by && (
+              <span
+                style={{
+                  marginLeft: "0.5rem", fontSize: "0.7rem", padding: "0.1rem 0.45rem",
+                  borderRadius: "var(--radius-sm)", background: "rgba(52,211,153,0.12)",
+                  color: "var(--success)", verticalAlign: "middle", whiteSpace: "nowrap",
+                }}
+              >
+                {t.account_follows_you}
+              </span>
             )}
           </div>
           <div style={{ fontSize: "0.875rem", color: "var(--text-muted)", marginBottom: "0.5rem" }}>@{account.acct}</div>

@@ -59,6 +59,7 @@ const EN = {
   // Account actions
   account_follow: "Follow",
   account_following: "Following",
+  account_follows_you: "Follows you",
   account_requested: "Requested",
   account_view_profile: "Profile",
   notif_accept: "Accept",
@@ -686,6 +687,7 @@ const ES: typeof EN = {
   // Account actions
   account_follow: "Seguir",
   account_following: "Siguiendo",
+  account_follows_you: "Te sigue",
   account_requested: "Solicitado",
   account_view_profile: "Perfil",
   notif_accept: "Aceptar",

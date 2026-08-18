@@ -115,6 +115,7 @@ interface Relationship {
   requested: boolean;
   blocking: boolean;
   muting?: boolean;
+  followed_by?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -958,6 +959,17 @@ export default function ProfilePage() {
                     }}
                   >
                     BOT
+                  </span>
+                )}
+                {!isOwnProfile && relationship?.followed_by && (
+                  <span
+                    style={{
+                      marginLeft: "0.5rem", fontSize: "0.7rem", padding: "0.1rem 0.45rem",
+                      borderRadius: "var(--radius-sm)", background: "rgba(52,211,153,0.12)",
+                      color: "var(--success)", verticalAlign: "middle", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {t.account_follows_you}
                   </span>
                 )}
               </div>
