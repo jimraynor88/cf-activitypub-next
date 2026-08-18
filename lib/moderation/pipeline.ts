@@ -238,9 +238,25 @@ export async function screenStatus(
   }
 
   // 3. Guard fast screen: nothing flagged and no vector signal → allow.
+  //    Log the outcome (the AI being unavailable makes `screen` null, and
+  //    without this entry those statuses would silently disappear from the
+  //    moderation log).
   if (!screen || screen.safe) {
     if (!vector.flagged) {
       await cacheContentVerdict(env, input.authorId, hash, { action: "allow" });
+      await recordNoAction(env, {
+        targetType: "status",
+        targetId: input.objectId,
+        action: "no_action",
+        reason: screen
+          ? "Revisado por el filtro de seguridad (sin señales)."
+          : "Revisado sin modelo de IA disponible (sin señales).",
+        confidence: "high",
+        source: "heuristic",
+        model: "heuristic",
+        details,
+        relatedId: input.authorId,
+      });
       return { blocked: false, markedSensitive: false };
     }
     // Only a moderate vector signal — let the reasoning model decide.
