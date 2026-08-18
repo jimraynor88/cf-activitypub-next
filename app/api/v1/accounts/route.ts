@@ -58,8 +58,13 @@ export async function POST(request: NextRequest): Promise<Response> {
   const webRegistration = Boolean(turnstileToken);
   if (webRegistration) {
     const remoteIp = request.headers.get("CF-Connecting-IP") ?? undefined;
-    const valid = await verifyTurnstileToken(turnstileToken, env.TURNSTILE_SECRET, remoteIp);
-    if (!valid) {
+    const valid = await verifyTurnstileToken(turnstileToken, {
+      secret: env.TURNSTILE_SECRET,
+      remoteIp,
+      expectedHostname: domain,
+      expectedAction: "register",
+    });
+    if (!valid.success) {
       return json({ error: "Security check failed. Please try again." }, 422);
     }
   }

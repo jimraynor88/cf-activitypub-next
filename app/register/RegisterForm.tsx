@@ -14,6 +14,7 @@ declare global {
         container: HTMLElement,
         options: {
           sitekey: string;
+          action?: string;
           callback?: (token: string) => void;
           "expired-callback"?: () => void;
           "error-callback"?: () => void;
@@ -77,6 +78,7 @@ export default function RegisterForm({ turnstileSiteKey }: Props) {
     if (!window.turnstile || !turnstileRef.current || widgetIdRef.current) return;
     widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
       sitekey: turnstileSiteKey,
+      action: "register",
       callback: (token) => setTurnstileToken(token),
       "expired-callback": () => setTurnstileToken(""),
       "error-callback": () => setTurnstileToken(""),

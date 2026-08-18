@@ -66,10 +66,14 @@ function insertActor(id: string, domain: string, opts: { suspended?: boolean } =
 
 function insertStatus(actorId: string, content: string, hoursAgo: number) {
   const id = `${actorId}/posts/${Math.random().toString(36).slice(2)}`;
+  // Production stores ISO timestamps (toISOString), so the test must too — the
+  // space-vs-T difference between `datetime('now')` and ISO makes string
+  // comparisons time-of-day dependent around midnight.
+  const published = new Date(Date.now() - hoursAgo * 3_600_000).toISOString();
   db.prepare(
     `INSERT INTO objects (id, type, actor_id, content, content_warning, sensitive, visibility, is_local, published)
-     VALUES (?, 'Note', ?, ?, NULL, 0, 'public', 0, datetime('now', ?))`
-  ).bind(id, actorId, content, `-${hoursAgo} hours`).run();
+     VALUES (?, 'Note', ?, ?, NULL, 0, 'public', 0, ?)`
+  ).bind(id, actorId, content, published).run();
 }
 
 async function actionsFor(actorId: string): Promise<Array<{ action: string }>> {

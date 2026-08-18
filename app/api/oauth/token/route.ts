@@ -36,8 +36,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     const turnstileToken = body["cf-turnstile-response"];
     if (turnstileToken) {
       const remoteIp = request.headers.get("CF-Connecting-IP") ?? undefined;
-      const valid = await verifyTurnstileToken(turnstileToken, env.TURNSTILE_SECRET, remoteIp);
-      if (!valid) {
+      const valid = await verifyTurnstileToken(turnstileToken, {
+        secret: env.TURNSTILE_SECRET,
+        remoteIp,
+        expectedHostname: new URL(request.url).hostname,
+        expectedAction: "login",
+      });
+      if (!valid.success) {
         return json({ error: "invalid_grant", error_description: "Security check failed. Please try again." }, 401);
       }
     }
