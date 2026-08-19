@@ -27,6 +27,31 @@ const NOTIFICATION_TYPES: { key: NotificationType; labelKey: keyof Translations 
   { key: "encrypted", labelKey: "notif_type_encrypted" },
 ];
 
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = "=".repeat((4 - base64String.length % 4) % 4);
+  const base64 = `${base64String}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray as Uint8Array<ArrayBuffer>;
+}
+
+function keyToBytes(key: BufferSource | null | undefined): Uint8Array<ArrayBuffer> | undefined {
+  if (!key) return undefined;
+  if (key instanceof ArrayBuffer) return new Uint8Array(key);
+  const view = key as ArrayBufferView;
+  return new Uint8Array(view.buffer as ArrayBuffer, view.byteOffset, view.byteLength) as Uint8Array<ArrayBuffer>;
+}
+
+function sameKey(a: Uint8Array<ArrayBuffer> | undefined, b: Uint8Array<ArrayBuffer> | undefined): boolean {
+  if (!a && !b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; ++i) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export default function PushNotificationsPage() {
   const [subscription, setSubscription] = useState<PushSubscriptionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,9 +112,20 @@ export default function PushNotificationsPage() {
           vapidPublicKey = inst.vapid_public_key;
         }
       } catch { /* fall back to a non-VAPID subscription */ }
-      const pushSubscription = await registration.pushManager.subscribe({
+      const wantedKey = vapidPublicKey ? urlBase64ToUint8Array(vapidPublicKey) : undefined;
+
+      // The browser only keeps one push subscription per origin. If a previous
+      // one exists (possibly bound to a different/absent VAPID key), Chrome
+      // rejects a new subscribe() call. Reuse it when the key matches, otherwise
+      // drop it first and subscribe fresh.
+      let pushSubscription = await registration.pushManager.getSubscription();
+      if (pushSubscription && !sameKey(keyToBytes(pushSubscription.options.applicationServerKey), wantedKey)) {
+        await pushSubscription.unsubscribe();
+        pushSubscription = null;
+      }
+      pushSubscription ??= await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: vapidPublicKey,
+        applicationServerKey: wantedKey,
       });
 
       const subJSON = pushSubscription.toJSON();
@@ -143,6 +179,14 @@ export default function PushNotificationsPage() {
     setUnsubscribing(true);
 
     try {
+      // Also drop the browser-level push subscription so a later re-enable
+      // (from this page or Elk) can subscribe fresh with the current VAPID key.
+      try {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const existing = await registration?.pushManager.getSubscription();
+        if (existing) await existing.unsubscribe();
+      } catch { /* best-effort */ }
+
       const res = await fetch("/api/v1/push/subscription", {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
