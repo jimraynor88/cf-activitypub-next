@@ -7,6 +7,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { AvatarBubble } from "@/components/StatusCard";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 function LoadingFallback() {
   return (
@@ -158,7 +159,7 @@ function NewReportPage() {
             onClick={() => router.back()}
             style={{ fontSize: "1.1rem" }}
           >
-            ←
+            <Icon name="arrow-left" />
           </button>
           <span style={{ fontWeight: 600 }}>New Report</span>
         </div>

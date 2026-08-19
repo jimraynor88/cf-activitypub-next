@@ -9,7 +9,9 @@ import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { StatusCard } from "@/components/StatusCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { useEmojiAutocomplete, EmojiAutocompleteDropdown } from "@/components/EmojiAutocomplete";
 import { BackToTop } from "@/components/BackToTop";
+import { Icon } from "@/components/Icon";
 import type { Status, Me, MediaAttachment } from "@/components/StatusCard";
 
 export default function HomePage() {
@@ -28,6 +30,7 @@ export default function HomePage() {
   const [editSpoiler, setEditSpoiler] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const emojiRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -36,6 +39,8 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const { t, locale } = useLocale();
+  const emojiAuto = useEmojiAutocomplete(composing, setComposing, textareaRef);
+  const editEmojiAuto = useEmojiAutocomplete(editText, setEditText, editTextareaRef);
 
   // Real-time home feed streaming
   useTimelineStream("user", (event, payload) => {
@@ -301,15 +306,21 @@ export default function HomePage() {
               />
             )}
             {/* Textarea */}
-            <div>
+            <div style={{ position: "relative" }}>
               <textarea
                 ref={textareaRef}
                 className="input"
                 style={{ resize: "none", minHeight: 80, fontFamily: "inherit" }}
                 placeholder={t.compose_placeholder}
                 value={composing}
-                onChange={(e) => setComposing(e.target.value)}
+                onChange={emojiAuto.onChange}
+                onKeyDown={emojiAuto.onKeyDown}
                 maxLength={500}
+              />
+              <EmojiAutocompleteDropdown
+                suggestions={emojiAuto.suggestions}
+                activeIndex={emojiAuto.activeIndex}
+                onSelect={emojiAuto.select}
               />
             </div>
 
@@ -329,7 +340,7 @@ export default function HomePage() {
                       style={{ flex: 1, fontSize: "0.875rem" }}
                     />
                     {pollOptions.length > 2 && (
-                      <button type="button" className="btn btn-ghost btn-sm" style={{ color: "var(--danger)", padding: "0.25rem 0.4rem" }} onClick={() => setPollOptions((p) => p.filter((_, j) => j !== i))}>✕</button>
+                      <button type="button" className="btn btn-ghost btn-sm" style={{ color: "var(--danger)", padding: "0.25rem 0.4rem" }} onClick={() => setPollOptions((p) => p.filter((_, j) => j !== i))}><Icon name="times" color="var(--danger)" /></button>
                     )}
                   </div>
                 ))}
@@ -374,10 +385,10 @@ export default function HomePage() {
                       {f.type === "image" || f.type === "gifv" ? (
                         <Image src={f.preview_url ?? f.url} alt={f.description ?? ""} width={72} height={72} style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
                       ) : (
-                        <div style={{ width: 72, height: 72, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>{f.type === "audio" ? "🎵" : "🎬"}</div>
+                        <div style={{ width: 72, height: 72, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}><Icon name={f.type === "audio" ? "music" : "film"} size="1.5rem" /></div>
                       )}
                       <button type="button" onClick={() => setMediaFiles((prev) => prev.filter((x) => x.id !== f.id))}
-                        style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", color: "#fff", border: "none", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: "0.65rem", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                        style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", color: "#fff", border: "none", borderRadius: "50%", width: 18, height: 18, cursor: "pointer", fontSize: "0.65rem", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="times" color="#fff" /></button>
                     </div>
                     <input
                       type="text"
@@ -391,7 +402,7 @@ export default function HomePage() {
                   </div>
                 ))}
                 {uploadingMedia && (
-                  <div style={{ width: 72, height: 72, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>⏳</div>
+                  <div style={{ width: 72, height: 72, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}><Icon name="hourglass" spin size="1.5rem" /></div>
                 )}
               </div>
             )}
@@ -408,7 +419,7 @@ export default function HomePage() {
                     onClick={() => setEmojiOpen((o) => !o)}
                     title={t.composer_emoji}
                   >
-                    😊
+                    <Icon name="smile-o" size="1.15rem" />
                   </button>
                   <EmojiPicker
                     onInsert={insertEmoji}
@@ -425,7 +436,7 @@ export default function HomePage() {
                   disabled={mediaFiles.length >= 4 || uploadingMedia}
                   title={t.compose_attach}
                 >
-                  {uploadingMedia ? "⏳" : "📎"}
+                  {uploadingMedia ? <Icon name="hourglass" spin size="1.15rem" /> : <Icon name="paperclip" size="1.15rem" />}
                 </button>
                 <input
                   ref={fileInputRef}
@@ -443,7 +454,7 @@ export default function HomePage() {
                   onClick={() => setShowCw((v) => !v)}
                   title={t.cw_placeholder}
                 >
-                  ⚠️
+                  <Icon name="exclamation-triangle" size="1rem" />
                 </button>
                 {/* Poll button */}
                 <button
@@ -454,7 +465,7 @@ export default function HomePage() {
                   disabled={mediaFiles.length > 0}
                   title={t.composer_poll}
                 >
-                  📊
+                  <Icon name="bar-chart" size="1rem" />
                 </button>
                 {/* Schedule button */}
                 <button
@@ -464,7 +475,7 @@ export default function HomePage() {
                   onClick={() => setScheduling((v) => !v)}
                   title={t.composer_schedule}
                 >
-                  🕐
+                  <Icon name="clock-o" size="1rem" />
                 </button>
                 {/* Visibility selector */}
                 <select
@@ -474,10 +485,10 @@ export default function HomePage() {
                   style={{ fontSize: "0.8rem", padding: "0.3rem 0.4rem", cursor: "pointer", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text)", maxWidth: "7rem" }}
                   title={t.compose_visibility}
                 >
-                  <option value="public">🌍 {t.vis_public}</option>
-                  <option value="unlisted">🔓 {t.vis_unlisted}</option>
-                  <option value="followers">👥 {t.vis_followers}</option>
-                  <option value="direct">📩 {t.vis_direct}</option>
+                  <option value="public">{t.vis_public}</option>
+                  <option value="unlisted">{t.vis_unlisted}</option>
+                  <option value="followers">{t.vis_followers}</option>
+                  <option value="direct">{t.vis_direct}</option>
                 </select>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
@@ -489,7 +500,7 @@ export default function HomePage() {
                   className="btn btn-primary btn-sm"
                   disabled={posting || uploadingMedia || (!composing.trim() && mediaFiles.length === 0 && !(pollMode && pollOptions.filter((o) => o.trim()).length >= 2))}
                 >
-                  {posting ? t.compose_posting : uploadingMedia ? "⏳" : t.compose_post}
+                  {posting ? t.compose_posting : uploadingMedia ? <Icon name="hourglass" spin /> : t.compose_post}
                 </button>
               </div>
             </div>
@@ -515,7 +526,7 @@ export default function HomePage() {
             className="flex flex-col items-center justify-center"
             style={{ padding: "4rem 2rem", color: "var(--text-muted)", textAlign: "center" }}
           >
-            <span style={{ fontSize: "3rem", marginBottom: "1rem" }}>🌐</span>
+            <span style={{ fontSize: "3rem", marginBottom: "1rem" }}><Icon name="globe" size="3rem" /></span>
             <p>{t.timeline_empty}</p>
             <p style={{ fontSize: "0.875rem" }}>{t.timeline_empty_sub}</p>
           </div>
@@ -553,7 +564,7 @@ export default function HomePage() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input
@@ -565,15 +576,24 @@ export default function HomePage() {
                 style={{ width: "100%" }}
               />
             ) : null}
-            <textarea
-              autoFocus
-              value={editText}
-              onChange={(e) => setEditText(e.target.value)}
-              placeholder={t.edit_status_placeholder}
-              maxLength={500}
-              className="input"
-              style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
-            />
+            <div style={{ position: "relative" }}>
+              <textarea
+                autoFocus
+                ref={editTextareaRef}
+                value={editText}
+                onChange={editEmojiAuto.onChange}
+                onKeyDown={editEmojiAuto.onKeyDown}
+                placeholder={t.edit_status_placeholder}
+                maxLength={500}
+                className="input"
+                style={{ resize: "none", minHeight: 120, fontFamily: "inherit", width: "100%" }}
+              />
+              <EmojiAutocompleteDropdown
+                suggestions={editEmojiAuto.suggestions}
+                activeIndex={editEmojiAuto.activeIndex}
+                onSelect={editEmojiAuto.select}
+              />
+            </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{editText.length}/500</span>
               <div style={{ display: "flex", gap: "0.5rem" }}>

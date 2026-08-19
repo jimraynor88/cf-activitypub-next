@@ -3,6 +3,12 @@
 import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { EMOJI_CATEGORIES } from "@/lib/emoji-data";
+import { EMOJI_NAMES } from "@/lib/emoji-names";
+
+const EMOJI_NAME_MAP = new Map<string, string>();
+for (const [char, name] of EMOJI_NAMES) {
+  if (name) EMOJI_NAME_MAP.set(char, name);
+}
 
 interface CustomEmoji {
   shortcode: string;
@@ -134,7 +140,7 @@ export function EmojiPicker({ onInsert, open, onClose, anchorRef, direction = "d
                       fontSize: "1.25rem", lineHeight: 1, padding: "0.2rem 0.25rem",
                       borderRadius: "var(--radius-sm)",
                     }}
-                    title={emoji}
+                    title={EMOJI_NAME_MAP.get(emoji) ?? emoji}
                   >
                     {emoji}
                   </button>

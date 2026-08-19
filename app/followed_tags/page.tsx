@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface Tag {
   name: string;
@@ -76,7 +77,7 @@ export default function FollowedTagsPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
         ) : tags.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🏷️</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="tag" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>{t.followed_tags_empty}</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.followed_tags_empty_sub}</div>
           </div>

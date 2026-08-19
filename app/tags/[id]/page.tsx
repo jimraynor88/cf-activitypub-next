@@ -7,6 +7,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
+import { Icon } from "@/components/Icon";
 
 interface TagInfo {
   id: string;
@@ -228,7 +229,7 @@ export default function TagPage() {
               className="btn btn-ghost btn-sm"
               style={{ padding: "0.3rem 0.5rem", fontSize: "1rem" }}
             >
-              ←
+              <Icon name="arrow-left" />
             </button>
             <div style={{ flex: 1 }}>
               <h1 style={{ fontWeight: 700, fontSize: "1.15rem", margin: 0 }}>
@@ -322,7 +323,7 @@ export default function TagPage() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input

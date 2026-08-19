@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Icon } from "@/components/Icon";
 
 /**
  * Floating "back to top" button. Appears bottom-right once the page has been
@@ -45,7 +46,7 @@ export function BackToTop() {
         justifyContent: "center",
       }}
     >
-      ↑
+      <Icon name="arrow-up" />
     </button>
   );
 }

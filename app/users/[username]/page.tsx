@@ -14,6 +14,7 @@ import type { Status as SharedStatus } from "@/components/StatusCard";
 import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -177,8 +178,8 @@ function ProfileMediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 style={{ objectFit: "cover" }}
               />
             ) : (
-              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>
-                {att.type === "video" ? "🎬" : "🎵"}
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Icon name={att.type === "video" ? "film" : "music"} size="2rem" />
               </div>
             )}
           </button>
@@ -679,7 +680,7 @@ export default function ProfilePage() {
           <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
         ) : notFound || !account ? (
           <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>👤</div>
+            <div style={{ fontSize: "3rem", marginBottom: "1rem" }}><Icon name="user" size="3rem" /></div>
             <p style={{ fontWeight: 600 }}>{t.profile_not_found}</p>
             <Link href="/explore" className="btn btn-ghost btn-sm" style={{ marginTop: "1rem" }}>{t.nav_explore}</Link>
           </div>
@@ -775,7 +776,7 @@ export default function ProfilePage() {
                       disabled={blockBusy}
                       title={relationship?.blocking ? t.action_unblock : t.action_block}
                     >
-                      {blockBusy ? "…" : relationship?.blocking ? `🚫 ${t.status_blocked}` : "🚫"}
+                      {blockBusy ? "…" : (<><Icon name="ban" color={relationship?.blocking ? "var(--danger)" : undefined} />{relationship?.blocking ? ` ${t.status_blocked}` : ""}</>)}
                     </button>
                     <button
                       className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -784,7 +785,7 @@ export default function ProfilePage() {
                       disabled={muteBusy}
                       title={relationship?.muting ? t.mute_unmute : t.mute_mute}
                     >
-                      {muteBusy ? "…" : relationship?.muting ? `🤫 ${t.status_muted}` : "🤫"}
+                      {muteBusy ? "…" : (<><Icon name="microphone-slash" color={relationship?.muting ? "var(--danger)" : undefined} />{relationship?.muting ? ` ${t.status_muted}` : ""}</>)}
                     </button>
                     {!relationship?.blocking && (
                       <button
@@ -793,7 +794,7 @@ export default function ProfilePage() {
                         onClick={() => router.push("/messages")}
                         title={t.messages_title}
                       >
-                        💬
+                        <Icon name="comment" />
                       </button>
                     )}
                     <button
@@ -803,7 +804,7 @@ export default function ProfilePage() {
                       disabled={endorseBusy}
                       title={endorsed ? "Dejar de recomendar" : "Recomendar"}
                     >
-                      {endorseBusy ? "…" : endorsed ? "⭐" : "☆"}
+                      {endorseBusy ? "…" : <Icon name={endorsed ? "star" : "star-o"} color={endorsed ? "var(--accent)" : undefined} />}
                     </button>
                     <button
                       className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -811,7 +812,7 @@ export default function ProfilePage() {
                       onClick={() => setNoteOpen(true)}
                       title={t.ap_type_note}
                     >
-                      📝
+                      <Icon name="pencil" />
                     </button>
                     {account.supports_calls && (<>
                       <button
@@ -820,7 +821,7 @@ export default function ProfilePage() {
                         title="Voice call"
                         onClick={() => void initiateCall(account.acct, "audio")}
                       >
-                        📞
+                        <Icon name="phone" />
                       </button>
                       <button
                         className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -828,7 +829,7 @@ export default function ProfilePage() {
                         title="Video call"
                         onClick={() => void initiateCall(account.acct, "video")}
                       >
-                        📹
+                        <Icon name="video-camera" />
                       </button>
                       <button
                         className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -836,7 +837,7 @@ export default function ProfilePage() {
                         title="Share screen"
                         onClick={() => void initiateCall(account.acct, "screen")}
                       >
-                        🖥️
+                        <Icon name="desktop" />
                       </button>
                     </>)}
 
@@ -848,7 +849,7 @@ export default function ProfilePage() {
                         onClick={() => setProfileMenuOpen((v) => !v)}
                         aria-label="More actions"
                       >
-                        {profileMenuOpen ? "✕" : "⋯"}
+                        {profileMenuOpen ? <Icon name="times" /> : <Icon name="ellipsis-h" />}
                       </button>
                       {profileMenuOpen && (
                         <div
@@ -873,7 +874,7 @@ export default function ProfilePage() {
                             onClick={() => { setProfileMenuOpen(false); void toggleBlock(); }}
                             disabled={blockBusy}
                           >
-                            {relationship?.blocking ? `🚫 ${t.status_blocked}` : `🚫 ${t.action_block}`}
+                            <Icon name="ban" color={relationship?.blocking ? "var(--danger)" : undefined} /> {relationship?.blocking ? t.status_blocked : t.action_block}
                           </button>
                           <button
                             className="btn btn-ghost"
@@ -881,7 +882,7 @@ export default function ProfilePage() {
                             onClick={() => { setProfileMenuOpen(false); void toggleMute(); }}
                             disabled={muteBusy}
                           >
-                            {relationship?.muting ? `🤫 ${t.mute_unmute}` : `🤫 ${t.mute_mute}`}
+                            <Icon name="microphone-slash" color={relationship?.muting ? "var(--danger)" : undefined} /> {relationship?.muting ? t.mute_unmute : t.mute_mute}
                           </button>
                           {!relationship?.blocking && (
                             <button
@@ -889,7 +890,7 @@ export default function ProfilePage() {
                               style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                               onClick={() => { setProfileMenuOpen(false); router.push("/messages"); }}
                             >
-                              💬 {t.messages_title}
+                              <Icon name="comment" /> {t.messages_title}
                             </button>
                           )}
                           <button
@@ -898,14 +899,14 @@ export default function ProfilePage() {
                             onClick={() => { setProfileMenuOpen(false); void toggleEndorse(); }}
                             disabled={endorseBusy}
                           >
-                            {endorsed ? "⭐ " : "☆ "}{endorsed ? "Dejar de recomendar" : "Recomendar"}
+                            <Icon name={endorsed ? "star" : "star-o"} />{endorsed ? ` ${"Dejar de recomendar"}` : ` ${"Recomendar"}`}
                           </button>
                           <button
                             className="btn btn-ghost"
                             style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                             onClick={() => { setProfileMenuOpen(false); setNoteOpen(true); }}
                           >
-                            📝 {t.ap_type_note}
+                            <Icon name="pencil" /> {t.ap_type_note}
                           </button>
                           {account.supports_calls && (<>
                             <button
@@ -913,21 +914,21 @@ export default function ProfilePage() {
                               style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                               onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "audio"); }}
                             >
-                              📞 {t.profile_call_voice}
+                              <Icon name="phone" /> {t.profile_call_voice}
                             </button>
                             <button
                               className="btn btn-ghost"
                               style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                               onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "video"); }}
                             >
-                              📹 {t.profile_call_video}
+                              <Icon name="video-camera" /> {t.profile_call_video}
                             </button>
                             <button
                               className="btn btn-ghost"
                               style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                               onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "screen"); }}
                             >
-                              🖥️ {t.profile_call_screen}
+                              <Icon name="desktop" /> {t.profile_call_screen}
                             </button>
                           </>)}
                         </div>
@@ -945,10 +946,10 @@ export default function ProfilePage() {
               <div style={{ fontWeight: 700, fontSize: "1.15rem" }}>
                 {account.display_name || account.username}
                 {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
-                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
+                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin"><Icon name="trophy" size="0.9rem" /></span>
                 )}
                 {account.roles?.some((r) => r.name.toLowerCase() === "moderator") && (
-                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator">🥈</span>
+                  <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator"><Icon name="trophy" size="0.9rem" color="var(--text-muted)" /></span>
                 )}
                 {account.bot && (
                   <span
@@ -1023,7 +1024,7 @@ export default function ProfilePage() {
               {([
                 { key: "posts" as ActiveTab, label: t.profile_posts, count: account.statuses_count },
                 { key: "replies" as ActiveTab, label: t.profile_replies },
-                { key: "pinned" as ActiveTab, label: "📌", count: pinnedStatuses.length },
+                { key: "pinned" as ActiveTab, label: <Icon name="thumb-tack" size="0.9rem" />, count: pinnedStatuses.length },
                 { key: "media" as ActiveTab, label: t.profile_media, count: allAttachments.length },
                 { key: "following" as ActiveTab, label: t.profile_following, count: account.following_count },
                 { key: "followers" as ActiveTab, label: t.profile_followers, count: account.followers_count },
@@ -1055,7 +1056,7 @@ export default function ProfilePage() {
             {activeTab === "posts" && (
               statuses.length === 0 ? (
                 <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}>📝</span>
+                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}><Icon name="pencil" size="2rem" /></span>
                   {t.profile_no_posts}
                 </div>
               ) : (
@@ -1084,7 +1085,7 @@ export default function ProfilePage() {
                 <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
               ) : replies.length === 0 ? (
                 <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}>💬</span>
+                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}><Icon name="comment" size="2rem" /></span>
                   {t.profile_no_replies}
                 </div>
               ) : (
@@ -1108,7 +1109,7 @@ export default function ProfilePage() {
                 <div style={{ padding: "2rem", textAlign: "center", color: "var(--text-muted)" }}>{t.loading}</div>
               ) : pinnedStatuses.length === 0 ? (
                 <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}>📌</span>
+                  <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}><Icon name="thumb-tack" size="2rem" /></span>
                   {t.profile_no_pinned}
                 </div>
               ) : (
@@ -1199,7 +1200,7 @@ export default function ProfilePage() {
                 onClick={() => setEditOpen(false)}
                 style={{ fontSize: "1.2rem", padding: "0.25rem 0.5rem" }}
               >
-                ✕
+                <Icon name="times" />
               </button>
             </div>
 
@@ -1237,7 +1238,7 @@ export default function ProfilePage() {
                     padding: "0.25rem 0.625rem", fontSize: "0.8rem", color: "#fff",
                   }}
                 >
-                  📷 {t.profile_edit_header}
+                  <Icon name="camera" color="#fff" /> {t.profile_edit_header}
                 </div>
                 <input
                   ref={headerInputRef}
@@ -1367,7 +1368,7 @@ export default function ProfilePage() {
                       onClick={() => removeField(i)}
                       style={{ padding: "0.2rem 0.5rem", color: "var(--danger)", flexShrink: 0 }}
                     >
-                      ✕
+                      <Icon name="times" color="var(--danger)" />
                     </button>
                   </div>
                 ))}
@@ -1457,7 +1458,7 @@ export default function ProfilePage() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input

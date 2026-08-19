@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
 import { RichText } from "@/components/RichText";
 import { useLocale, type Translations } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 interface Report {
   id: string;
@@ -140,7 +141,7 @@ export default function AdminReportsPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>
-        {t.admin_reports_title}
+        <Icon name="flag" /> {t.admin_reports_title}
         {openReports.length > 0 && (
           <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 400, marginLeft: "0.5rem" }}>
             ({openReports.length} {t.admin_reports_open.toLowerCase()})

@@ -8,6 +8,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { AvatarBubble, formatTime } from "@/components/StatusCard";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 interface TargetAccount {
   id: string;
@@ -103,7 +104,7 @@ export default function ReportsPage() {
             onClick={() => router.back()}
             style={{ fontSize: "1.1rem" }}
           >
-            ←
+            <Icon name="arrow-left" />
           </button>
           <span style={{ fontWeight: 600 }}>Reports</span>
         </div>
@@ -114,7 +115,7 @@ export default function ReportsPage() {
           </div>
         ) : reports.length === 0 ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "var(--text-muted)" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🚩</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="flag" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>You haven&apos;t submitted any reports</div>
           </div>
         ) : (

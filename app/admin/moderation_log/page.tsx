@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
 import { useLocale, type Translations } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 interface LogEntry {
   id: string;
@@ -107,7 +108,7 @@ export default function AdminModerationLogPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "0.25rem" }}>
-        {t.admin_log_title}
+        <Icon name="file-text-o" /> {t.admin_log_title}
       </h1>
       <p style={{ color: "var(--text-muted)", fontSize: "0.875rem", marginBottom: "1.5rem" }}>
         {t.admin_log_desc}

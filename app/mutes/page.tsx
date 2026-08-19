@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface Account {
   id: string;
@@ -78,7 +79,7 @@ export default function MutesPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
         ) : muted.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🤫</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="microphone-slash" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>{t.mutes_empty}</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.mutes_empty_sub}</div>
           </div>

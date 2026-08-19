@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { LocaleProvider } from "@/lib/i18n";
 import { CallOverlayWrapper } from "@/components/CallOverlayWrapper";
+import "fork-awesome/css/fork-awesome.min.css";
 import "./globals.css";
 
 const inter = Inter({

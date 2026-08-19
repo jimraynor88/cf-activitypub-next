@@ -11,6 +11,7 @@ import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { statusHtmlToPlain } from "@/lib/activitypub/content";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
 import { BackToTop } from "@/components/BackToTop";
+import { Icon } from "@/components/Icon";
 
 type TimelineView = "local" | "federated";
 
@@ -230,7 +231,7 @@ export default function TimelinesPage() {
                   fontWeight: view === v ? 600 : 400,
                 }}
               >
-                {v === "local" ? `🏘️ ${t.timeline_local}` : `🌐 ${t.timeline_federated}`}
+                {v === "local" ? <><Icon name="home" /> {t.timeline_local}</> : <><Icon name="globe" /> {t.timeline_federated}</>}
               </button>
             ))}
           </div>
@@ -269,7 +270,7 @@ export default function TimelinesPage() {
         {!loading && statuses.length === 0 && (
           <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
             <span style={{ fontSize: "2.5rem", display: "block", marginBottom: "0.75rem" }}>
-              {view === "local" ? "🏘️" : "🌐"}
+              {view === "local" ? <Icon name="home" size="2.5rem" /> : <Icon name="globe" size="2.5rem" />}
             </span>
             <p style={{ fontWeight: 600 }}>
               {view === "local" ? t.timeline_public_empty : t.timeline_federated_empty}
@@ -320,7 +321,7 @@ export default function TimelinesPage() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input

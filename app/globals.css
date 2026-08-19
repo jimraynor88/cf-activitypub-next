@@ -163,7 +163,7 @@ img.emojione { display: inline; vertical-align: middle; }
 .badge-success { background: rgba(52,211,153,0.12); color: var(--success); }
 
 .container-app { max-width: 600px; margin: 0 auto; }
-.container-wide { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+.container-wide { max-width: 1100px; margin: 0 auto; padding-inline: 1.5rem; }
 
 .gradient-text { background: linear-gradient(135deg, var(--accent-light), #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
 

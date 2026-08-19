@@ -7,6 +7,7 @@ import { getToken } from "@/lib/client-api";
 import { PageLayout } from "@/components/PageLayout";
 import { Sidebar } from "@/components/Sidebar";
 import { StatusCard, type Status, type Account, type Me } from "@/components/StatusCard";
+import { Icon, type IconName } from "@/components/Icon";
 import {
   generateKeyPackage,
   storeSessionInitKey,
@@ -575,7 +576,7 @@ export default function E2EEPage() {
     return (
       <PageLayout sidebar={<Sidebar me={null} currentPath="/e2ee" />}>
         <div className="flex flex-col items-center justify-center" style={{ padding: "5rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-          <span style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔒</span>
+          <span style={{ fontSize: "3rem", marginBottom: "1rem" }}><Icon name="lock" size="3rem" /></span>
           <h2 style={{ margin: 0 }}>{t.e2ee_signed_out_title}</h2>
           <p style={{ maxWidth: 420, fontSize: "0.9rem" }}>{t.e2ee_signed_out_body}</p>
           <Link href="/login" className="btn btn-primary">{t.e2ee_sign_in}</Link>
@@ -593,7 +594,7 @@ export default function E2EEPage() {
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
             <h1 style={{ fontSize: "1.35rem", margin: 0, display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-              🔒 {t.e2ee_title}
+              <Icon name="lock" /> {t.e2ee_title}
               <span className="badge badge-accent">{t.e2ee_badge_mls}</span>
             </h1>
             <p style={{ margin: "0.25rem 0 0", color: "var(--text-muted)", fontSize: "0.85rem" }}>
@@ -620,11 +621,11 @@ export default function E2EEPage() {
       <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>🗝️ {t.e2ee_publish_button}</h2>
+            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}><Icon name="key" /> {t.e2ee_publish_button}</h2>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_publish_desc}</p>
           </div>
           <button className="btn btn-primary btn-sm" onClick={handlePublish} disabled={publishing}>
-            {publishing ? "…" : `➕ ${t.e2ee_publish_button}`}
+            {publishing ? "…" : <><Icon name="plus" /> {t.e2ee_publish_button}</>}
           </button>
         </div>
         {publishMsg && <p style={{ margin: "0.5rem 0 0", fontSize: "0.82rem", color: publishMsg.ok ? "var(--success)" : "var(--danger)" }}>{publishMsg.text}</p>}
@@ -634,16 +635,16 @@ export default function E2EEPage() {
       <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>💾 {t.e2ee_keys_title}</h2>
+            <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}><Icon name="save" /> {t.e2ee_keys_title}</h2>
             <p style={{ margin: "0.25rem 0 0", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_keys_desc}</p>
             <p style={{ margin: "0.35rem 0 0", fontSize: "0.78rem", color: "var(--text-muted)" }}>{t.e2ee_keys_note}</p>
           </div>
           <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", alignItems: "center" }}>
             <button className="btn btn-outline btn-sm" onClick={handleExportKeys} disabled={keysBusy}>
-              {keysBusy ? "…" : `⬇️ ${t.e2ee_export_button}`}
+              {keysBusy ? "…" : <><Icon name="arrow-down" /> {t.e2ee_export_button}</>}
             </button>
             <button className="btn btn-outline btn-sm" onClick={() => fileInputRef.current?.click()} disabled={keysBusy}>
-              {`⬆️ ${t.e2ee_import_button}`}
+              <><Icon name="arrow-up" /> {t.e2ee_import_button}</>
             </button>
             <input
               ref={fileInputRef}
@@ -659,7 +660,7 @@ export default function E2EEPage() {
 
       {/* Enviar mensaje cifrado */}
       <section style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}>
-        <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>✉️ {t.e2ee_send_title}</h2>
+        <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}><Icon name="envelope" /> {t.e2ee_send_title}</h2>
         <p style={{ margin: "0.25rem 0 0.75rem", fontSize: "0.82rem", color: "var(--text-muted)" }}>{t.e2ee_send_desc}</p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "0.6rem" }}>
@@ -672,7 +673,7 @@ export default function E2EEPage() {
               style={{ flex: 1, minWidth: 160 }}
             />
             <button type="button" className="btn btn-outline btn-sm" onClick={handleResolve} disabled={!recipient.trim()}>
-              🔍
+              <Icon name="search" />
             </button>
           </div>
           {resolvedIri && <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", wordBreak: "break-all" }}>{resolvedIri}</div>}
@@ -730,7 +731,7 @@ export default function E2EEPage() {
           const localOnlyIds = listSessionInitKeys().filter((id) => !serverIds.has(id));
           const isEmpty = data.keyPackages.length === 0 && localOnlyIds.length === 0;
           if (isEmpty) {
-            return <EmptyState icon="🗝️" title={t.e2ee_no_key_packages} sub={t.e2ee_no_key_packages_sub} />;
+            return <EmptyState icon="key" title={t.e2ee_no_key_packages} sub={t.e2ee_no_key_packages_sub} />;
           }
           return (
             <>
@@ -740,7 +741,7 @@ export default function E2EEPage() {
                   className="status-card"
                   style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "1rem", flexWrap: "wrap" }}
                 >
-                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🗝️</span>
+                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}><Icon name="key" size="1.2rem" /></span>
                   <div className="flex-1" style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                       <span
@@ -761,7 +762,7 @@ export default function E2EEPage() {
                           disabled={deleting === kp.objectId}
                           title={t.e2ee_delete}
                         >
-                          🗑️
+                          <Icon name="trash" color="var(--danger)" />
                         </button>
                       </span>
                     </div>
@@ -775,7 +776,7 @@ export default function E2EEPage() {
                   className="status-card"
                   style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem", padding: "1rem", flexWrap: "wrap" }}
                 >
-                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}>🗝️</span>
+                  <span style={{ fontSize: "1.2rem", lineHeight: 1 }}><Icon name="key" size="1.2rem" /></span>
                   <div className="flex-1" style={{ minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                       <span className="badge" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", color: "var(--text-muted)" }}>
@@ -795,7 +796,7 @@ export default function E2EEPage() {
                         disabled={deleting === objectId}
                         title={t.e2ee_kp_delete_local}
                       >
-                        🗑️
+                        <Icon name="trash" color="var(--danger)" />
                       </button>
                     </div>
                     <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "var(--text-muted)", wordBreak: "break-all" }}>{objectId}</div>
@@ -813,7 +814,7 @@ export default function E2EEPage() {
           <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>{t.e2ee_conversations_title}</h2>
         </div>
         {data.conversations.length === 0 ? (
-          <EmptyState icon="💬" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
+          <EmptyState icon="comment" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
         ) : (
           data.conversations.map((c) => (
             <StatusCard
@@ -837,7 +838,7 @@ export default function E2EEPage() {
           <h2 style={{ margin: 0, fontSize: "0.95rem", fontWeight: 600 }}>{t.e2ee_messages_title}</h2>
         </div>
         {data.messages.length === 0 ? (
-          <EmptyState icon="💬" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
+          <EmptyState icon="comment" title={t.e2ee_no_messages} sub={t.e2ee_no_messages_sub} />
         ) : (
           data.messages.map((m) => (
             <StatusCard
@@ -871,13 +872,13 @@ function Stat({ value, label }: { value: number; label: string }) {
   );
 }
 
-function EmptyState({ icon, title, sub }: { icon: string; title: string; sub: string }) {
+function EmptyState({ icon, title, sub }: { icon: IconName; title: string; sub: string }) {
   return (
     <div
       className="flex flex-col items-center justify-center"
       style={{ padding: "3.5rem 1.5rem", color: "var(--text-muted)", textAlign: "center" }}
     >
-      <span style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}>{icon}</span>
+      <span style={{ fontSize: "2.5rem", marginBottom: "0.75rem" }}><Icon name={icon} size="2.5rem" /></span>
       <p style={{ margin: 0, fontWeight: 600, color: "var(--text-secondary)" }}>{title}</p>
       <p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem" }}>{sub}</p>
     </div>

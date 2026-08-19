@@ -10,6 +10,7 @@ import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
 import { BackToTop } from "@/components/BackToTop";
+import { Icon, type IconName } from "@/components/Icon";
 
 interface Account {
   id: string;
@@ -30,16 +31,16 @@ interface Notification {
   };
 }
 
-const NOTIF_LABELS: Record<string, { icon: string; key: string }> = {
-  follow:         { icon: "👤", key: "notif_followed_you" },
-  follow_request: { icon: "👤", key: "notif_follow_request" },
-  mention:        { icon: "💬", key: "notif_mentioned" },
-  reblog:         { icon: "🔁", key: "notif_boosted" },
-  favourite:      { icon: "❤️", key: "notif_liked" },
-  poll:           { icon: "📊", key: "notif_poll" },
-  update:         { icon: "✏️",  key: "notif_edited" },
-  direct:         { icon: "✉️", key: "notif_dm" },
-  encrypted:      { icon: "🔒", key: "notif_encrypted" },
+const NOTIF_LABELS: Record<string, { icon: IconName; key: string }> = {
+  follow:         { icon: "user", key: "notif_followed_you" },
+  follow_request: { icon: "user-plus", key: "notif_follow_request" },
+  mention:        { icon: "comment", key: "notif_mentioned" },
+  reblog:         { icon: "retweet", key: "notif_boosted" },
+  favourite:      { icon: "heart", key: "notif_liked" },
+  poll:           { icon: "bar-chart", key: "notif_poll" },
+  update:         { icon: "pencil", key: "notif_edited" },
+  direct:         { icon: "envelope", key: "notif_dm" },
+  encrypted:      { icon: "lock", key: "notif_encrypted" },
 };
 
 export default function NotificationsPage() {
@@ -194,7 +195,7 @@ export default function NotificationsPage() {
                     style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}
                   >
                     <div style={{ fontSize: "1.5rem", flexShrink: 0, width: 42, textAlign: "center", paddingTop: "0.1rem" }}>
-                      👤
+                      <Icon name="user" size="1.5rem" />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="flex items-baseline gap-2" style={{ marginBottom: "0.25rem" }}>
@@ -246,7 +247,7 @@ export default function NotificationsPage() {
             className="flex flex-col items-center justify-center"
             style={{ padding: "4rem 2rem", color: "var(--text-muted)", textAlign: "center" }}
           >
-            <span style={{ fontSize: "3rem", marginBottom: "1rem" }}>🔔</span>
+            <span style={{ fontSize: "3rem", marginBottom: "1rem" }}><Icon name="bell" size="3rem" /></span>
             <p style={{ fontWeight: 600 }}>{t.notif_empty}</p>
             <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>
               {t.notif_empty_sub}
@@ -255,7 +256,7 @@ export default function NotificationsPage() {
         ) : (
           <div className="flex flex-col">
             {notifications.map((n) => {
-              const meta = NOTIF_LABELS[n.type] ?? { icon: "🔔", key: "" };
+              const meta = NOTIF_LABELS[n.type] ?? { icon: "bell" as IconName, key: "" };
               const metaText = meta.key ? (t[meta.key as keyof typeof t] ?? n.type) : n.type;
               const accountHref = getProfileHref(n.account);
               return (
@@ -265,7 +266,7 @@ export default function NotificationsPage() {
                   style={{ padding: "1rem", borderBottom: "1px solid var(--border)" }}
                 >
                   <div style={{ fontSize: "1.5rem", flexShrink: 0, width: 42, textAlign: "center", paddingTop: "0.1rem" }}>
-                    {meta.icon}
+                    <Icon name={meta.icon} size="1.5rem" />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="flex items-baseline gap-2" style={{ marginBottom: "0.25rem" }}>

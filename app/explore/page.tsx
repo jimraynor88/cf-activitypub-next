@@ -11,6 +11,7 @@ import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { BackToTop } from "@/components/BackToTop";
+import { Icon, type IconName } from "@/components/Icon";
 import { StatusCard, Status, Me, AvatarBubble } from "@/components/StatusCard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ export default function ExplorePage() {
         {/* Search bar */}
         <div style={{ padding: "0.875rem 1rem", borderBottom: "1px solid var(--border)", position: "sticky", top: 0, zIndex: 10, background: "var(--bg)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-full)", padding: "0.5rem 1rem", border: "1px solid var(--border)" }}>
-            <span style={{ fontSize: "1rem", flexShrink: 0 }}>🔍</span>
+            <span style={{ fontSize: "1rem", flexShrink: 0 }}><Icon name="search" /></span>
             <input
               type="search"
               placeholder={t.explore_search_ph}
@@ -200,13 +201,13 @@ export default function ExplorePage() {
             {query && !loading && (
               <button onClick={() => { setQuery(""); setDebouncedQuery(""); }}
                 style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1rem", padding: 0, flexShrink: 0 }}>
-                ✕
+                <Icon name="times" color="var(--text-muted)" />
               </button>
             )}
           </div>
           {query.includes("@") && !query.startsWith("#") && (
             <p style={{ fontSize: "0.75rem", color: "var(--accent)", marginTop: "0.4rem", paddingLeft: "0.5rem" }}>
-              {t.explore_resolving}
+              <Icon name="lightbulb-o" /> {t.explore_resolving}
             </p>
           )}
         </div>
@@ -229,7 +230,7 @@ export default function ExplorePage() {
         {/* Trending tab */}
         {tab === "trending" && (
           trendingLoading ? <LoadingSkeletons /> :
-          trendingStatuses.length === 0 && trendingTags.length === 0 ? <EmptyState emoji="🌐" text={t.explore_trending_empty} /> :
+          trendingStatuses.length === 0 && trendingTags.length === 0 ? <EmptyState icon="globe" text={t.explore_trending_empty} /> :
           <>
             {trendingTags.length > 0 && (
               <div style={{ padding: "0.75rem 1rem 0.25rem", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
@@ -249,27 +250,27 @@ export default function ExplorePage() {
         {/* Trending tags tab */}
         {tab === "trending_tags" && (
           trendingLoading ? <LoadingSkeletons /> :
-          trendingTags.length === 0 ? <EmptyState emoji="#️⃣" text={t.explore_trending_empty} /> :
+          trendingTags.length === 0 ? <EmptyState icon="hashtag" text={t.explore_trending_empty} /> :
           <>{trendingTags.map((tag) => <HashtagCard key={tag.name} tag={tag} />)}</>
         )}
 
         {/* Search result tabs */}
         {tab === "accounts" && isSearching && (
-          results.accounts.length === 0 && !loading ? <EmptyState emoji="👤" text={t.explore_no_accounts} /> :
+          results.accounts.length === 0 && !loading ? <EmptyState icon="user" text={t.explore_no_accounts} /> :
           <>{results.accounts.map((a) => <AccountCard key={a.id} account={a} />)}</>
         )}
         {tab === "hashtags" && isSearching && (
-          results.hashtags.length === 0 && !loading ? <EmptyState emoji="#️⃣" text={t.explore_no_hashtags} /> :
+          results.hashtags.length === 0 && !loading ? <EmptyState icon="hashtag" text={t.explore_no_hashtags} /> :
           <>{results.hashtags.map((tag) => <HashtagCard key={tag.name} tag={tag} />)}</>
         )}
         {tab === "statuses" && isSearching && (
-          results.statuses.length === 0 && !loading ? <EmptyState emoji="📝" text={t.explore_no_posts} /> :
+          results.statuses.length === 0 && !loading ? <EmptyState icon="pencil" text={t.explore_no_posts} /> :
           <>{results.statuses.map((s) => <StatusCard key={s.id} status={s} onFav={handleFav} onReblog={handleReblog} onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)} me={me ?? undefined} onEdit={openEdit} onDelete={handleDelete} />)}</>
         )}
 
         {isSearching && !loading && !hasResults && (
           <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-            <span style={{ fontSize: "2.5rem", display: "block", marginBottom: "0.75rem" }}>🔍</span>
+            <span style={{ fontSize: "2.5rem", display: "block", marginBottom: "0.75rem" }}><Icon name="search" size="2.5rem" /></span>
             <p style={{ fontWeight: 600 }}>{t.explore_no_results} &ldquo;{debouncedQuery}&rdquo;</p>
             <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>{t.explore_remote_tip}</p>
           </div>
@@ -288,7 +289,7 @@ export default function ExplorePage() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input
@@ -343,10 +344,10 @@ function LoadingSkeletons() {
   );
 }
 
-function EmptyState({ emoji, text }: { emoji: string; text: string }) {
+function EmptyState({ icon, text }: { icon: IconName; text: string }) {
   return (
     <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-      <span style={{ fontSize: "2.5rem", display: "block", marginBottom: "0.75rem" }}>{emoji}</span>
+      <span style={{ fontSize: "2.5rem", display: "block", marginBottom: "0.75rem" }}><Icon name={icon} size="2.5rem" /></span>
       <p>{text}</p>
     </div>
   );
@@ -405,7 +406,7 @@ function AccountCard({ account }: { account: Account }) {
             {account.display_name || account.username}
           </Link>
           {account.bot && <span style={{ fontSize: "0.68rem", padding: "0.1rem 0.35rem", borderRadius: "var(--radius-sm)", background: "var(--accent-bg)", color: "var(--accent)" }}>BOT</span>}
-          {isRemote && <span style={{ fontSize: "0.68rem", padding: "0.1rem 0.35rem", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text-muted)" }}>🌐 {t.explore_tip_remote}</span>}
+          {isRemote && <span style={{ fontSize: "0.68rem", padding: "0.1rem 0.35rem", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text-muted)", display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><Icon name="globe" /> {t.explore_tip_remote}</span>}
         </div>
         <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.1rem" }}>@{account.acct}</div>
         {account.note && (
@@ -431,7 +432,7 @@ function AccountCard({ account }: { account: Account }) {
       {isRemote && (
         <a href={account.url ?? "#"} target="_blank" rel="noopener noreferrer"
           style={{ flexShrink: 0, color: "var(--text-muted)", fontSize: "0.85rem", textDecoration: "none" }}
-          title="Ver perfil remoto">🌐</a>
+          title="Ver perfil remoto"><Icon name="globe" /></a>
       )}
     </div>
   );
@@ -450,7 +451,7 @@ function HashtagCard({ tag }: { tag: TrendingTag }) {
         <div style={{ fontWeight: 600 }}>#{tag.name}</div>
         {uses > 0 && <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.1rem" }}>{uses} {t.explore_trending_uses}</div>}
       </div>
-      <span style={{ marginLeft: "auto", color: "var(--text-muted)", fontSize: "1rem" }}>→</span>
+      <span style={{ marginLeft: "auto", color: "var(--text-muted)", fontSize: "1rem" }}><Icon name="chevron-right" /></span>
     </Link>
   );
 }

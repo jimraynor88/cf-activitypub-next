@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
+import { Icon, type IconName } from "@/components/Icon";
 
 export default function Home() {
   const { authenticated, loading } = useAuth();
@@ -19,18 +20,18 @@ export default function Home() {
   if (loading) return null;
   if (authenticated) return null;
 
-  const features = [
-    { icon: "⚡", title: t.f_edge_title, desc: t.f_edge_desc },
-    { icon: "🌐", title: t.f_mastodon_title, desc: t.f_mastodon_desc },
-    { icon: "🔗", title: t.f_federation_title, desc: t.f_federation_desc },
-    { icon: "🔒", title: t.f_http_title, desc: t.f_http_desc },
-    { icon: "🔁", title: t.f_streaming_title, desc: t.f_streaming_desc },
-    { icon: "🔔", title: t.f_push_title, desc: t.f_push_desc },
-    { icon: "🤖", title: t.f_moderation_title, desc: t.f_moderation_desc },
-    { icon: "🎨", title: t.f_alttext_title, desc: t.f_alttext_desc },
-    { icon: "📞", title: t.f_webrtc_title, desc: t.f_webrtc_desc },
-    { icon: "🗄️", title: t.f_d1_title, desc: t.f_d1_desc },
-    { icon: "🛡️", title: t.f_mls_title, desc: t.f_mls_desc },
+  const features: { icon: IconName; title: string; desc: string }[] = [
+    { icon: "bolt", title: t.f_edge_title, desc: t.f_edge_desc },
+    { icon: "globe", title: t.f_mastodon_title, desc: t.f_mastodon_desc },
+    { icon: "link", title: t.f_federation_title, desc: t.f_federation_desc },
+    { icon: "lock", title: t.f_http_title, desc: t.f_http_desc },
+    { icon: "refresh", title: t.f_streaming_title, desc: t.f_streaming_desc },
+    { icon: "bell", title: t.f_push_title, desc: t.f_push_desc },
+    { icon: "microchip", title: t.f_moderation_title, desc: t.f_moderation_desc },
+    { icon: "paint-brush", title: t.f_alttext_title, desc: t.f_alttext_desc },
+    { icon: "phone", title: t.f_webrtc_title, desc: t.f_webrtc_desc },
+    { icon: "database", title: t.f_d1_title, desc: t.f_d1_desc },
+    { icon: "shield", title: t.f_mls_title, desc: t.f_mls_desc },
   ];
 
   return (
@@ -117,14 +118,14 @@ export default function Home() {
       </section>
 
       {/* Features */}
-      <section className="container-wide py-24">
+      <section className="container-wide pt-24 pb-40">
         <h2 className="text-center mb-14" style={{ fontSize: "1.8rem" }}>
           {t.landing_features_title}
         </h2>
         <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
           {features.map((f) => (
             <div key={f.title} className="card p-6 flex flex-col gap-3">
-              <div style={{ fontSize: "2rem" }}>{f.icon}</div>
+              <div style={{ fontSize: "2rem" }}><Icon name={f.icon} size="2rem" /></div>
               <h3 style={{ fontSize: "1.05rem", margin: 0 }}>{f.title}</h3>
               <p style={{ color: "var(--text-secondary)", fontSize: "0.9rem", margin: 0 }}>{f.desc}</p>
             </div>

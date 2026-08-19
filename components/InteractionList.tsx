@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { AvatarBubble } from "./StatusCard";
+import { Icon } from "@/components/Icon";
 
 interface Account {
   id: string;
@@ -99,7 +100,7 @@ export function InteractionList({
               padding: "0.25rem",
             }}
           >
-            ✕
+            <Icon name="times" color="var(--text-muted)" />
           </button>
         </div>
         <div style={{ overflowY: "auto", flex: 1 }}>

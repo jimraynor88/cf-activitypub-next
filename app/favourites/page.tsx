@@ -8,6 +8,7 @@ import { StatusCard } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import type { Status, Me } from "@/components/StatusCard";
+import { Icon } from "@/components/Icon";
 
 export default function FavouritesPage() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function FavouritesPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
         ) : statuses.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>❤️</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="heart" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>{t.favourites_empty}</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.favourites_empty_sub}</div>
           </div>

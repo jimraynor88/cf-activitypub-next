@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { SettingsHeader } from "@/components/SettingsHeader";
+import { Icon } from "@/components/Icon";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 
@@ -90,7 +91,7 @@ export default function ImportExportPage() {
             {t.settings_export_desc}
           </p>
           <button className="btn btn-outline btn-sm" onClick={() => void handleExport()} disabled={exporting}>
-            {exporting ? "…" : t.settings_export_button}
+            {exporting ? "…" : <><Icon name="arrow-down" /> {t.settings_export_button}</>}
           </button>
         </div>
 

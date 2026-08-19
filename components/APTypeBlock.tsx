@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useLocale, type Translations } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 /**
  * ActivityStreams type-specific renderer.
@@ -140,13 +141,13 @@ export function APTypeBlock({
     return (
       <div style={cardStyle()}>
         {title && (
-          <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>📅 {title}</span>
+          <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}><Icon name="calendar" /> {title}</span>
         )}
-        {start && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>🕑 {start}{end ? ` → ${end}` : ""}</span>}
-        {apMeta?.location && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}>📍 {apMeta.location}</span>}
+        {start && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}><Icon name="clock-o" /> {start}{end ? ` → ${end}` : ""}</span>}
+        {apMeta?.location && <span style={{ fontSize: "0.85rem", color: "var(--text-secondary)" }}><Icon name="map-marker" /> {apMeta.location}</span>}
         {apMeta?.duration && (
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }} className="flex items-center gap-1">
-            ⏱ {formatDuration(apMeta.duration)}
+            <Icon name="hourglass-o" /> {formatDuration(apMeta.duration)}
           </span>
         )}
         {apMeta?.url && <Link href={apMeta.url} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none" }}>{t.ap_open_event}</Link>}
@@ -162,7 +163,7 @@ export function APTypeBlock({
       : undefined;
     return (
       <div style={cardStyle()}>
-        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>📍 {apMeta?.name ?? t.ap_type_place}</span>
+        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}><Icon name="map-marker" /> {apMeta?.name ?? t.ap_type_place}</span>
         {hasCoords && (
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{apMeta!.latitude!.toFixed(5)}, {apMeta!.longitude!.toFixed(5)}</span>
         )}
@@ -218,7 +219,7 @@ export function APTypeBlock({
     if (!name && !href) return null;
     return (
       <div style={cardStyle()}>
-        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>👤 {name ?? t.ap_type_profile}</span>
+        <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}><Icon name="user" /> {name ?? t.ap_type_profile}</span>
         {href && (
           <Link href={href} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
             {href}
@@ -250,7 +251,7 @@ export function APTypeBlock({
     return (
       <div style={cardStyle()}>
         <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-          🗑 {t.ap_tombstone_deleted} {formerType}{deleted ? ` · ${deleted}` : ""}
+          <Icon name="trash" /> {t.ap_tombstone_deleted} {formerType}{deleted ? ` · ${deleted}` : ""}
         </span>
       </div>
     );
@@ -264,7 +265,7 @@ export function APTypeBlock({
     return (
       <div style={cardStyle()}>
         <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>
-          📚 {name ?? t.ap_type_collection}{totalItems != null ? ` · ${totalItems}` : ""}
+          <Icon name="book" /> {name ?? t.ap_type_collection}{totalItems != null ? ` · ${totalItems}` : ""}
         </span>
         {target && (
           <Link href={target} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
@@ -283,7 +284,7 @@ export function APTypeBlock({
     if (!name && !target) return null;
     return (
       <div style={cardStyle()}>
-        {name && <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}>❓ {name}</span>}
+        {name && <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "var(--text)" }}><Icon name="question-circle" /> {name}</span>}
         {target && (
           <Link href={target} target="_blank" rel="nofollow noopener noreferrer" style={{ fontSize: "0.85rem", color: "var(--accent)", textDecoration: "none", wordBreak: "break-all" }}>
             {t.ap_open_original}

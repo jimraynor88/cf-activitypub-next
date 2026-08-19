@@ -11,6 +11,7 @@ import { renderEmojiInHtml } from "@/lib/emoji";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { APTypeBlock, TypeBadge, type APMeta } from "./APTypeBlock";
+import { Icon } from "./Icon";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -199,7 +200,7 @@ export function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 }}
               >
                 <video src={att.url} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2rem" }}>▶</div>
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="play" color="rgba(255,255,255,0.9)" /></div>
               </button>
             );
           }
@@ -222,7 +223,7 @@ export function MediaGrid({ attachments }: { attachments: MediaAttachment[] }) {
                 }}
               >
                 <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "0.25rem" }}>
-                  <span style={{ fontSize: "2rem" }}>🎵</span>
+                  <span style={{ fontSize: "2rem", lineHeight: 1 }}><Icon name="music" size="2rem" /></span>
                   {att.description && (
                     <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", maxWidth: "90%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {att.description}
@@ -284,7 +285,7 @@ export function PollView({ poll: initialPoll }: { poll: Poll }) {
               <div style={{ position: "relative", borderRadius: "var(--radius-sm)", overflow: "hidden", background: "var(--bg-elevated)", padding: "0.35rem 0.75rem" }}>
                 <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`, background: isOwn ? "var(--accent-bg)" : "color-mix(in srgb, var(--accent-bg) 40%, transparent)", transition: "width 0.4s" }} />
                 <div style={{ position: "relative", display: "flex", justifyContent: "space-between", fontSize: "0.875rem" }}>
-                  <span style={{ fontWeight: isOwn ? 600 : 400 }}>{opt.title}{isOwn ? " ✓" : ""}</span>
+                  <span style={{ fontWeight: isOwn ? 600 : 400 }}>{opt.title}{isOwn && <> <Icon name="check" size="0.85rem" color="var(--accent)" /></>}</span>
                   <span style={{ color: "var(--text-muted)" }}>{pct}%</span>
                 </div>
               </div>
@@ -460,10 +461,10 @@ export function StatusCard({
 
   const visibilityInfo = (() => {
     switch (status.visibility) {
-      case "unlisted": return { icon: "🔓", label: t.vis_unlisted };
-      case "followers": return { icon: "🔒", label: t.vis_followers };
-      case "direct": return { icon: "✉️", label: t.vis_direct };
-      default: return { icon: "🌐", label: t.vis_public };
+      case "unlisted": return { icon: "unlock", label: t.vis_unlisted };
+      case "followers": return { icon: "lock", label: t.vis_followers };
+      case "direct": return { icon: "envelope", label: t.vis_direct };
+      default: return { icon: "globe", label: t.vis_public };
     }
   })();
 
@@ -570,12 +571,12 @@ export function StatusCard({
             {status.account.display_name || status.account.username}
           </Link>
           <span style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>@{status.account.acct}</span>
-          {pinned && <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "0.25rem" }}>📌</span>}
+          {pinned && <span style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "0.25rem", display: "inline-flex" }}><Icon name="thumb-tack" size="0.7rem" /></span>}
           <span
             title={visibilityInfo.label}
-            style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "auto", whiteSpace: "nowrap" }}
+            style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginLeft: "auto", whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}
           >
-            {visibilityInfo.icon} {visibilityInfo.label}
+            <Icon name={visibilityInfo.icon} size="0.7rem" /> {visibilityInfo.label}
           </span>
           <Link href={threadHref} title={new Date(status.created_at).toLocaleString()} style={{ fontSize: "0.78rem", color: "var(--text-muted)", textDecoration: "none" }}>
             {formatTime(status.created_at)}
@@ -597,7 +598,7 @@ export function StatusCard({
               gap: "0.5rem",
             }}
           >
-            <span>⚠️ {status.spoiler_text}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Icon name="exclamation-triangle" size="0.8rem" /> {status.spoiler_text}</span>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
@@ -625,7 +626,7 @@ export function StatusCard({
         {showContent && <MediaGrid attachments={status.media_attachments ?? []} />}
         {showContent && status.poll && <PollView poll={status.poll} />}
         {status.edited_at && (
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem" }}>✏️ {t.status_edited}</div>
+          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.3rem", display: "inline-flex", alignItems: "center", gap: "0.3rem" }}><Icon name="pencil" size="0.7rem" /> {t.status_edited}</div>
         )}
         {!hideActions && (
         <div
@@ -638,7 +639,7 @@ export function StatusCard({
             onClick={() => onReply(status)}
             disabled={!token}
           >
-            💬 {status.replies_count}
+            <Icon name="comment" /> {status.replies_count}
           </button>
           <button
             className="btn btn-ghost btn-sm"
@@ -652,7 +653,7 @@ export function StatusCard({
             onClick={() => void handleReblog()}
             disabled={!token}
           >
-            🔁 {reblogsCount}
+            <Icon name="retweet" /> {reblogsCount}
           </button>
           <button
             className="btn btn-ghost btn-sm"
@@ -666,7 +667,7 @@ export function StatusCard({
             onClick={() => void handleFav()}
             disabled={!token}
           >
-            {favourited ? "❤️" : "🤍"} {favouritesCount}
+            {favourited ? <Icon name="heart" color="var(--danger)" /> : <Icon name="heart-o" />} {favouritesCount}
           </button>
           <button
             className="btn btn-ghost btn-sm"
@@ -681,7 +682,7 @@ export function StatusCard({
             disabled={!token}
             title={bookmarked ? t.bookmark_remove : t.bookmark_add}
           >
-            {bookmarked ? "🔖" : "🏷️"}
+            {bookmarked ? <Icon name="bookmark" /> : <Icon name="bookmark-o" />}
           </button>
           {status.language && (
             <button
@@ -701,7 +702,7 @@ export function StatusCard({
               style={{ padding: "0.2rem 0.4rem", fontSize: "1rem", lineHeight: 1 }}
               onClick={() => setMenuOpen((v) => !v)}
             >
-              ⋯
+              <Icon name="ellipsis-h" />
             </button>
             {menuOpen && (
               <div
@@ -724,7 +725,7 @@ export function StatusCard({
                     router.push(`/reports/new?status_id=${encodeURIComponent(status.id)}&account_id=${encodeURIComponent(status.account.id)}`);
                   }}
               >
-                🚩 Report @{status.account.acct}
+                <Icon name="flag" /> Report @{status.account.acct}
               </button>
               {me && me.id === status.account.id && (
                 <>
@@ -738,7 +739,7 @@ export function StatusCard({
                     }}
                     onClick={() => { setMenuOpen(false); void handlePin(); }}
                   >
-                    📌 {pinned ? t.pin_unpin : t.pin_pin}
+                    <Icon name="thumb-tack" /> {pinned ? t.pin_unpin : t.pin_pin}
                   </button>
                   <button
                     type="button"
@@ -750,7 +751,7 @@ export function StatusCard({
                     }}
                     onClick={() => { setMenuOpen(false); void handleMute(); }}
                   >
-                    🔇 {muted ? t.mute_unmute : t.mute_mute}
+                    <Icon name="volume-off" /> {muted ? t.mute_unmute : t.mute_mute}
                   </button>
                 </>
               )}
@@ -766,7 +767,7 @@ export function StatusCard({
                       }}
                       onClick={() => { setMenuOpen(false); onEdit(status); }}
                     >
-                      ✏️ {t.action_edit}
+                      <Icon name="pencil" /> {t.action_edit}
                     </button>
                   )}
                   {onDelete && (
@@ -780,7 +781,7 @@ export function StatusCard({
                       }}
                       onClick={() => { setMenuOpen(false); onDelete(status); }}
                     >
-                      🗑️ {t.action_delete}
+                      <Icon name="trash" color="var(--danger)" /> {t.action_delete}
                     </button>
                   )}
                 </div>
@@ -796,7 +797,7 @@ export function StatusCard({
                   onClick={() => onEdit(status)}
                   title={t.action_edit}
                 >
-                  ✏️
+                  <Icon name="pencil" />
                 </button>
               )}
               {onDelete && (
@@ -806,7 +807,7 @@ export function StatusCard({
                   onClick={() => onDelete(status)}
                   title={t.action_delete}
                 >
-                  🗑️
+                  <Icon name="trash" color="var(--danger)" />
                 </button>
               )}
             </>
@@ -823,7 +824,7 @@ export function StatusCard({
                 onClick={() => onEdit(status)}
                 title={t.action_edit}
               >
-                ✏️
+                <Icon name="pencil" />
               </button>
             )}
             {onDelete && (
@@ -833,7 +834,7 @@ export function StatusCard({
                 onClick={() => onDelete(status)}
                 title={t.action_delete}
               >
-                🗑️
+                <Icon name="trash" color="var(--danger)" />
               </button>
             )}
           </>

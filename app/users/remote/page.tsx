@@ -13,6 +13,7 @@ import { RichText } from "@/components/RichText";
 import type { Status as SharedStatus } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -335,7 +336,7 @@ function RemoteProfileInner() {
     return (
       <PageLayout sidebar={<Sidebar me={me} currentPath={pathname} />}>
         <div style={{ padding: "3rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-          <span style={{ fontSize: "3rem" }}>🌐</span>
+          <span style={{ fontSize: "3rem" }}><Icon name="globe" size="3rem" /></span>
           <p style={{ marginTop: "1rem" }}>Cuenta no encontrada</p>
           <p style={{ fontSize: "0.875rem", marginTop: "0.5rem" }}>{actorUrl}</p>
         </div>
@@ -378,7 +379,7 @@ function RemoteProfileInner() {
             padding: "0.25rem 0.6rem", borderRadius: "var(--radius)",
             fontSize: "0.75rem", display: "flex", alignItems: "center", gap: "0.3rem",
           }}>
-            🌐 {t.profile_remote_badge}
+            <Icon name="globe" color="#fff" /> {t.profile_remote_badge}
           </div>
         </div>
 
@@ -394,7 +395,7 @@ function RemoteProfileInner() {
                 className="btn btn-ghost btn-sm"
                 style={{ display: "flex", alignItems: "center", gap: "0.3rem", textDecoration: "none" }}
                 title={t.profile_remote_view}>
-                🌐 {t.profile_remote_view}
+                <Icon name="globe" /> {t.profile_remote_view}
               </a>
               {/* Follow / Unfollow / Block */}
               {token && !isOwnAccount && (
@@ -413,7 +414,7 @@ function RemoteProfileInner() {
                     disabled={blockBusy}
                     title={relationship?.blocking ? t.action_unblock : t.action_block}
                   >
-                    {blockBusy ? "…" : relationship?.blocking ? `🚫 ${t.status_blocked}` : "🚫"}
+                    {blockBusy ? "…" : (<><Icon name="ban" color={relationship?.blocking ? "var(--danger)" : undefined} />{relationship?.blocking ? ` ${t.status_blocked}` : ""}</>)}
                   </button>
                   <button
                     className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -422,7 +423,7 @@ function RemoteProfileInner() {
                     disabled={muteBusy}
                     title={relationship?.muting ? t.mute_unmute : t.mute_mute}
                   >
-                    {muteBusy ? "…" : relationship?.muting ? `🤫 ${t.status_muted}` : "🤫"}
+                    {muteBusy ? "…" : (<><Icon name="microphone-slash" color={relationship?.muting ? "var(--danger)" : undefined} />{relationship?.muting ? ` ${t.status_muted}` : ""}</>)}
                   </button>
                   {!relationship?.blocking && (
                     <button
@@ -431,7 +432,7 @@ function RemoteProfileInner() {
                       onClick={() => router.push("/messages")}
                       title="Mensaje directo"
                     >
-                      💬
+                      <Icon name="comment" />
                     </button>
                   )}
                   {account.supports_calls && (<>
@@ -441,7 +442,7 @@ function RemoteProfileInner() {
                       title="Llamada de voz"
                       onClick={() => void initiateCall(account.acct, "audio")}
                     >
-                      📞
+                      <Icon name="phone" />
                     </button>
                     <button
                       className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -449,7 +450,7 @@ function RemoteProfileInner() {
                       title="Videollamada"
                       onClick={() => void initiateCall(account.acct, "video")}
                     >
-                      📹
+                      <Icon name="video-camera" />
                     </button>
                     <button
                       className="btn btn-ghost btn-sm btn-hide-mobile"
@@ -457,7 +458,7 @@ function RemoteProfileInner() {
                       title="Compartir pantalla"
                       onClick={() => void initiateCall(account.acct, "screen")}
                     >
-                      🖥️
+                      <Icon name="desktop" />
                     </button>
                   </>)}
 
@@ -469,7 +470,7 @@ function RemoteProfileInner() {
                       onClick={() => setProfileMenuOpen((v) => !v)}
                       aria-label="More actions"
                     >
-                      {profileMenuOpen ? "✕" : "⋯"}
+                      {profileMenuOpen ? <Icon name="times" /> : <Icon name="ellipsis-h" />}
                     </button>
                     {profileMenuOpen && (
                       <div
@@ -494,7 +495,7 @@ function RemoteProfileInner() {
                           onClick={() => { setProfileMenuOpen(false); void handleBlock(); }}
                           disabled={blockBusy}
                         >
-                          {relationship?.blocking ? `🚫 ${t.status_blocked}` : `🚫 ${t.action_block}`}
+                          <Icon name="ban" color={relationship?.blocking ? "var(--danger)" : undefined} /> {relationship?.blocking ? t.status_blocked : t.action_block}
                         </button>
                         <button
                           className="btn btn-ghost"
@@ -502,7 +503,7 @@ function RemoteProfileInner() {
                           onClick={() => { setProfileMenuOpen(false); void handleMute(); }}
                           disabled={muteBusy}
                         >
-                          {relationship?.muting ? `🤫 ${t.mute_unmute}` : `🤫 ${t.mute_mute}`}
+                          <Icon name="microphone-slash" color={relationship?.muting ? "var(--danger)" : undefined} /> {relationship?.muting ? t.mute_unmute : t.mute_mute}
                         </button>
                         {!relationship?.blocking && (
                           <button
@@ -510,7 +511,7 @@ function RemoteProfileInner() {
                             style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                             onClick={() => { setProfileMenuOpen(false); router.push("/messages"); }}
                           >
-                            💬 {t.messages_title}
+                            <Icon name="comment" /> {t.messages_title}
                           </button>
                         )}
                         {account.supports_calls && (<>
@@ -519,21 +520,21 @@ function RemoteProfileInner() {
                             style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                             onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "audio"); }}
                           >
-                            📞 {t.profile_call_voice}
+                            <Icon name="phone" /> {t.profile_call_voice}
                           </button>
                           <button
                             className="btn btn-ghost"
                             style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                             onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "video"); }}
                           >
-                            📹 {t.profile_call_video}
+                            <Icon name="video-camera" /> {t.profile_call_video}
                           </button>
                           <button
                             className="btn btn-ghost"
                             style={{ width: "100%", justifyContent: "flex-start", gap: "0.5rem", padding: "0.5rem 0.75rem", fontSize: "0.85rem" }}
                             onClick={() => { setProfileMenuOpen(false); void initiateCall(account.acct, "screen"); }}
                           >
-                            🖥️ {t.profile_call_screen}
+                            <Icon name="desktop" /> {t.profile_call_screen}
                           </button>
                         </>)}
                       </div>
@@ -547,10 +548,10 @@ function RemoteProfileInner() {
           <div style={{ fontWeight: 700, fontSize: "1.1rem", marginBottom: "0.1rem" }}>
             {displayName}
             {account.roles?.some((r) => r.name.toLowerCase() === "admin") && (
-              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin">🏅</span>
+              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Admin"><Icon name="trophy" size="0.9rem" /></span>
             )}
             {account.roles?.some((r) => r.name.toLowerCase() === "moderator") && (
-              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator">🥈</span>
+              <span style={{ marginLeft: "0.4rem", verticalAlign: "middle" }} title="Moderator"><Icon name="trophy" size="0.9rem" color="var(--text-muted)" /></span>
             )}
             {account.bot && (
               <span
@@ -679,7 +680,7 @@ function RemoteProfileInner() {
           <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+              <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
             </div>
             {editSpoiler !== "" || editingStatus.spoiler_text ? (
               <input

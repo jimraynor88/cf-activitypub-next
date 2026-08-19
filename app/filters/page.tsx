@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface Filter {
   id: string;
@@ -254,7 +255,7 @@ export default function FiltersPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>Loading…</div>
         ) : filters.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>🗂️</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="folder-o" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>No filters yet</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>
               Create a filter to hide or warn posts matching certain words.

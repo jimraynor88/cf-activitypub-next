@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
+import { Icon } from "@/components/Icon";
 import { getToken } from "@/lib/client-api";
 
 interface PollOption {
@@ -122,7 +123,7 @@ export default function PollPage() {
             onClick={() => router.back()}
             style={{ fontSize: "1.1rem" }}
           >
-            ←
+            <Icon name="arrow-left" />
           </button>
           <span style={{ fontWeight: 600 }}>Poll</span>
         </div>
@@ -305,7 +306,7 @@ export default function PollPage() {
                     textDecoration: "none",
                   }}
                 >
-                  ← View original post
+                  <Icon name="arrow-left" /> View original post
                 </Link>
               </div>
             )}

@@ -94,7 +94,7 @@ describe("Sidebar", () => {
     render(<Sidebar me={null} currentPath="/home" />);
     const buttons = screen.getAllByTitle("Light");
     expect(buttons.length).toBeGreaterThanOrEqual(1);
-    const sunIcons = screen.getAllByText("☀️");
+    const sunIcons = document.querySelectorAll(".fa-sun");
     expect(sunIcons.length).toBeGreaterThanOrEqual(1);
   });
 

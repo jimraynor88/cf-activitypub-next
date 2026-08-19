@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface Account {
   id: string;
@@ -311,7 +312,7 @@ export default function BlocksPage() {
                       justifyContent: "center", fontSize: "1.25rem",
                     }}
                   >
-                    🌐
+                    <Icon name="globe" size="1.25rem" />
                   </div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: "0.95rem" }}>{domain}</div>

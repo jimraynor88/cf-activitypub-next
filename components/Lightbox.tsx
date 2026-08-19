@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { Icon } from "@/components/Icon";
 
 interface LightboxItem {
   url: string;
@@ -77,7 +78,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
           zIndex: 2,
         }}
       >
-        ✕
+        <Icon name="times" color="#fff" />
       </button>
 
       {/* Prev */}
@@ -92,7 +93,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
             display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2,
           }}
         >
-          ‹
+          <Icon name="chevron-left" color="#fff" />
         </button>
       )}
 
@@ -107,7 +108,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
             display: "flex", alignItems: "center", justifyContent: "center",
             color: "rgba(255,255,255,0.4)", fontSize: "2rem",
           }}>
-            ⏳
+            <Icon name="hourglass" spin color="rgba(255,255,255,0.4)" size="2rem" />
           </div>
         )}
         {item.type === "video" ? (
@@ -122,7 +123,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
           />
         ) : item.type === "audio" ? (
           <div style={{ textAlign: "center", padding: "2rem 1rem" }}>
-            <div style={{ fontSize: "5rem", marginBottom: "1.25rem" }}>🎵</div>
+            <div style={{ fontSize: "5rem", marginBottom: "1.25rem" }}><Icon name="music" size="5rem" color="#fff" /></div>
             <audio
               src={item.url}
               controls
@@ -173,7 +174,7 @@ export function Lightbox({ media, index, onClose, onNav }: LightboxProps) {
             display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2,
           }}
         >
-          ›
+          <Icon name="chevron-right" color="#fff" />
         </button>
       )}
 

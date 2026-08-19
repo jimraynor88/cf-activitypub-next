@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface ScheduledStatus {
   id: string;
@@ -81,7 +82,7 @@ export default function ScheduledPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
         ) : items.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📅</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="calendar" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>{t.scheduled_empty}</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.scheduled_empty_sub}</div>
           </div>
@@ -91,19 +92,19 @@ export default function ScheduledPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1 min-w-0">
                   <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "0.25rem" }}>
-                    📅 {new Date(s.scheduled_at + (s.scheduled_at.includes("T") || s.scheduled_at.includes("Z") ? "" : "Z")).toLocaleString()}
+                    <Icon name="calendar" /> {new Date(s.scheduled_at + (s.scheduled_at.includes("T") || s.scheduled_at.includes("Z") ? "" : "Z")).toLocaleString()}
                   </div>
                   <div style={{ fontSize: "0.9rem", color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {s.params.status || s.params.text || "(sin contenido)"}
                   </div>
                   {s.params.spoiler_text && (
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "0.2rem" }}>
-                      ⚠️ {s.params.spoiler_text}
+                      <Icon name="exclamation-triangle" /> {s.params.spoiler_text}
                     </div>
                   )}
                   <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.2rem", display: "flex", gap: "0.5rem" }}>
                     <span>{s.params.visibility || "public"}</span>
-                    {s.params.sensitive && <span>🔞</span>}
+                    {s.params.sensitive && <span><Icon name="eye-slash" /></span>}
                   </div>
                 </div>
                 <button

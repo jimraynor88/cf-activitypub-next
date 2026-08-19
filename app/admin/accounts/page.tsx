@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/client-api";
 import { useLocale, type Translations } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 interface AdminAccount {
   id: string;
@@ -106,7 +107,7 @@ export default function AdminAccountsPage() {
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>
-        {t.admin_accounts_title}
+        <Icon name="users" /> {t.admin_accounts_title}
         <span style={{ fontSize: "0.9rem", color: "var(--text-muted)", fontWeight: 400, marginLeft: "0.5rem" }}>
           ({total})
         </span>

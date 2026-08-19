@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
 interface AccountSummary {
   id: string;
@@ -62,7 +63,7 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}>{t.admin_dashboard}</h1>
+      <h1 style={{ fontSize: "1.5rem", marginBottom: "1.5rem" }}><Icon name="bar-chart" /> {t.admin_dashboard}</h1>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem", marginBottom: "2rem" }}>
         <StatCard label={t.admin_users} value={totalUsers ?? 0} />
         <StatCard label={t.admin_pending} value={pendingApprovals ?? 0} accent />
@@ -70,10 +71,10 @@ export default function AdminDashboard() {
       </div>
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
         <Link href="/admin/accounts" className="btn btn-primary">
-          {t.admin_accounts}
+          <Icon name="users" /> {t.admin_accounts}
         </Link>
         <Link href="/admin/reports" className="btn btn-outline">
-          {t.admin_reports}
+          <Icon name="flag" /> {t.admin_reports}
         </Link>
       </div>
     </div>

@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface List {
   id: string;
@@ -122,7 +123,7 @@ export default function ListsPage() {
               ))}
             </select>
             <div className="flex gap-2">
-              <button type="submit" className="btn btn-primary btn-sm" disabled={!newTitle.trim()}>✓</button>
+              <button type="submit" className="btn btn-primary btn-sm" disabled={!newTitle.trim()}><Icon name="check" /></button>
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCreating(false)}>{t.profile_cancel}</button>
             </div>
           </form>
@@ -132,7 +133,7 @@ export default function ListsPage() {
           <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
         ) : lists.length === 0 ? (
           <div className="p-4" style={{ color: "var(--text-muted)", textAlign: "center", padding: "3rem 1rem" }}>
-            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>📋</div>
+            <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}><Icon name="list-alt" size="2rem" /></div>
             <div style={{ fontWeight: 600 }}>{t.lists_empty}</div>
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.lists_empty_sub}</div>
           </div>
@@ -148,7 +149,7 @@ export default function ListsPage() {
                     ))}
                   </select>
                   <div className="flex gap-2">
-                    <button className="btn btn-primary btn-sm" onClick={() => void handleSaveEdit(list)} disabled={!editTitle.trim()}>✓</button>
+                    <button className="btn btn-primary btn-sm" onClick={() => void handleSaveEdit(list)} disabled={!editTitle.trim()}><Icon name="check" /></button>
                     <button className="btn btn-ghost btn-sm" onClick={() => setEditingId(null)}>{t.profile_cancel}</button>
                   </div>
                 </div>
@@ -159,10 +160,10 @@ export default function ListsPage() {
                     <div style={{ fontSize: "0.8rem", color: "var(--text-muted)" }}>{t.lists_manage_accounts}</div>
                   </Link>
                   <button className="btn btn-ghost btn-sm" onClick={() => { setEditingId(list.id); setEditTitle(list.title); setEditPolicy(list.replies_policy); }}>
-                    ✏️
+                    <Icon name="pencil" />
                   </button>
                   <button className="btn btn-ghost btn-sm" style={{ color: "var(--danger)" }} onClick={() => void handleDelete(list)}>
-                    🗑️
+                    <Icon name="trash" color="var(--danger)" />
                   </button>
                 </div>
               )}

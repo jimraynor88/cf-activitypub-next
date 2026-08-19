@@ -8,6 +8,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { StatusCard, type Status } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { Icon } from "@/components/Icon";
 
 interface List {
   id: string;
@@ -122,7 +123,7 @@ export default function ListDetailPage() {
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/lists" />}>
         <div className="sticky top-0" style={{ background: "var(--bg)", borderBottom: "1px solid var(--border)", padding: "0.75rem 1rem", zIndex: 10, display: "flex", alignItems: "center", gap: "0.75rem" }}>
-          <button className="btn btn-ghost btn-sm" onClick={() => router.push("/lists")}>←</button>
+          <button className="btn btn-ghost btn-sm" onClick={() => router.push("/lists")}><Icon name="arrow-left" /></button>
           <h1 className="text-lg font-bold">{list?.title || t.lists_title}</h1>
         </div>
 
@@ -198,7 +199,7 @@ export default function ListDetailPage() {
         {activeTab === "timeline" && (
           statuses.length === 0 ? (
             <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-              <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}>📭</div>
+              <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}><Icon name="inbox" size="2rem" /></div>
               <div>{t.timeline_empty}</div>
             </div>
           ) : (

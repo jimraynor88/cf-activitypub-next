@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { useCall } from "@/lib/webrtc/use-call";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { Icon } from "@/components/Icon";
 
 interface CallOverlayProps {
   /** Mastodon OAuth access token for the authenticated user. */
@@ -132,14 +133,14 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               className="w-14 h-14 rounded-full bg-error text-white flex items-center justify-center text-2xl shadow"
               aria-label="Decline call"
             >
-              📵
+              <Icon name="times" color="#fff" />
             </button>
             <button
               onClick={acceptCall}
               className="w-14 h-14 rounded-full bg-success text-white flex items-center justify-center text-2xl shadow"
               aria-label="Accept call"
             >
-              📞
+              <Icon name="phone" color="#fff" />
             </button>
           </div>
         </div>
@@ -159,7 +160,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
             color: "var(--color-base-content, #cdd6f4)",
           }}
         >
-          <span className="text-2xl">🚫</span>
+          <Icon name="ban" size="2rem" />
           <div>
             <p className="font-semibold text-sm">Llamada bloqueada</p>
             <p className="text-xs opacity-70">{callState.targetAcct} te ha bloqueado.</p>
@@ -178,7 +179,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
             Calling {callState.targetAcct}…
           </p>
           <div className="flex gap-2 items-center">
-            <span className="animate-pulse text-2xl">📞</span>
+            <span className="animate-pulse text-2xl"><Icon name="phone" size="2rem" /></span>
           </div>
           <button
             onClick={endCall}
@@ -218,7 +219,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
       : "relative w-full aspect-video bg-black";
 
     // Size button icon: show what the *next* action will do
-    const sizeIcon = callSize === "mini" ? "⬜" : callSize === "normal" ? "⛶" : "⊟";
+    const sizeIcon = callSize === "mini" ? <Icon name="expand" /> : callSize === "normal" ? <Icon name="arrows-alt" /> : <Icon name="compress" />;
     const sizeTitle = callSize === "mini" ? "Ampliar" : callSize === "normal" ? "Pantalla completa" : "Restaurar";
 
     return (
@@ -248,7 +249,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
             </div>
           ) : (
             <div className={`flex flex-col items-center justify-center gap-2 ${isFullscreen ? "flex-1" : "p-4"}`}>
-              <span className="text-3xl">🎙️</span>
+              <Icon name="microphone" size="3rem" />
               <p className="text-sm font-medium">{callState.peerAcct}</p>
               {/* Hidden audio element for remote audio */}
               <audio ref={remoteVideoRef as React.RefObject<HTMLAudioElement>} autoPlay />
@@ -268,7 +269,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               aria-label={isMuted ? "Unmute" : "Mute"}
               title={isMuted ? "Activar micrófono" : "Silenciar micrófono"}
             >
-              {isMuted ? "🔇" : "🎙️"}
+              {isMuted ? <Icon name="microphone-slash" color="#fff" /> : <Icon name="microphone" />}
             </button>
             <button
               onClick={() => void toggleVideo()}
@@ -276,7 +277,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               aria-label={isVideoOff ? "Enable camera" : "Disable camera"}
               title={isVideoOff ? "Activar cámara" : "Desactivar cámara"}
             >
-              {isVideoOff ? "📷" : "📹"}
+              {isVideoOff ? <Icon name="camera" /> : <Icon name="video-camera" />}
             </button>
             <button
               onClick={() => void toggleScreenShare()}
@@ -284,7 +285,7 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               aria-label={isSharingScreen ? "Stop sharing screen" : "Share screen"}
               title={isSharingScreen ? "Dejar de compartir pantalla" : "Compartir pantalla"}
             >
-              🖥️
+              <Icon name="desktop" />
             </button>
             <button
               onClick={cycleSize}
@@ -301,8 +302,8 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
               aria-label="End call"
               title="Colgar"
             >
-              📵
-            </button>
+<Icon name="times" color="#fff" />
+          </button>
           </div>
         </div>
       </div>

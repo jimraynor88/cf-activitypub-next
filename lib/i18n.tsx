@@ -43,7 +43,7 @@ const EN = {
   explore_searching: "Searching…",
   explore_no_results: "No results for",
   explore_remote_tip: "For remote accounts use @user@domain.social",
-  explore_resolving: "💡 Resolving remote account via WebFinger",
+  explore_resolving: "Resolving remote account via WebFinger",
   explore_tab_trending: "Recent",
   explore_tab_accounts: "Accounts",
   explore_tab_hashtags: "Hashtags",
@@ -281,7 +281,7 @@ const EN = {
   // Settings — import & export
   settings_export_title: "Following list export",
   settings_export_desc: "Download the accounts you follow as a CSV file, usable as a backup or to move to another instance.",
-  settings_export_button: "⬇ Export following list",
+  settings_export_button: "Export following list",
   settings_import_title: "Following list import",
   settings_import_desc: "Restore a backup or import a list from another instance. The CSV must have an Account address column (e.g. user@example.com), one per line.",
   settings_export_failed: "Export failed",
@@ -337,7 +337,7 @@ const EN = {
   // E2EE
   e2ee_title: "Encrypted messages",
   e2ee_badge_mls: "MLS · RFC 9420",
-  e2ee_badge_encrypted: "🔒 MLS",
+  e2ee_badge_encrypted: "MLS",
   e2ee_account_line: "End-to-end encrypted messages for",
   e2ee_stat_messages: "messages",
   e2ee_stat_key_packages: "key packages",
@@ -527,12 +527,12 @@ const EN = {
   loading: "Loading…",
   network_error: "Network error. Please try again.",
   // Admin — navigation
-  admin_dashboard: "📊 Dashboard",
-  admin_accounts: "👥 Accounts",
-  admin_suspended: "🚫 Suspended",
-  admin_blocked: "🚷 Blocked",
-  admin_reports: "📢 Reports",
-  admin_moderation_log: "📜 Moderation Log",
+  admin_dashboard: "Dashboard",
+  admin_accounts: "Accounts",
+  admin_suspended: "Suspended",
+  admin_blocked: "Blocked",
+  admin_reports: "Reports",
+  admin_moderation_log: "Moderation Log",
   admin_logout: "Log out",
   admin_back_to_app: "Back to app",
   // Admin — dashboard
@@ -542,7 +542,7 @@ const EN = {
   admin_dashboard_desc: "Moderation overview",
   admin_view: "View",
   // Admin — accounts
-  admin_accounts_title: "👥 Accounts",
+  admin_accounts_title: "Accounts",
   admin_search_username: "Search by username...",
   admin_all_roles: "All roles",
   admin_role_admin: "Admin",
@@ -570,7 +570,7 @@ const EN = {
   admin_btn_delete: "Delete",
   admin_delete_confirm: "Delete this account permanently? Remote servers will be notified to remove the profile too.",
   // Admin — blocked domains
-  admin_blocked_title: "🚷 Blocked",
+  admin_blocked_title: "Blocked",
   admin_loading_blocked: "Loading blocked domains...",
   admin_no_blocked: "No blocked domains.",
   admin_col_domain: "Domain",
@@ -580,7 +580,7 @@ const EN = {
   admin_severity_silenced: "Silenced",
   admin_btn_unblock: "Unblock",
   // Admin — moderation log
-  admin_log_title: "📜 Moderation Log",
+  admin_log_title: "Moderation Log",
   admin_log_desc: "Audit trail of every automated and manual moderation decision.",
   admin_loading_log: "Loading moderation log...",
   admin_no_log: "No moderation log entries.",
@@ -612,7 +612,7 @@ const EN = {
   admin_action_warned: "Warned",
   admin_action_unknown: "Unknown",
   // Admin — reports
-  admin_reports_title: "📢 Reports",
+  admin_reports_title: "Reports",
   admin_loading_reports: "Loading reports...",
   admin_no_reports: "No reports yet.",
   admin_reports_open: "Open",
@@ -671,7 +671,7 @@ const ES: typeof EN = {
   explore_searching: "Buscando…",
   explore_no_results: "Sin resultados para",
   explore_remote_tip: "Para cuentas remotas usa @usuario@dominio.social",
-  explore_resolving: "💡 Buscando cuenta remota — se resolverá via WebFinger",
+  explore_resolving: "Buscando cuenta remota — se resolverá via WebFinger",
   explore_tab_trending: "Recientes",
   explore_tab_accounts: "Cuentas",
   explore_tab_hashtags: "Etiquetas",
@@ -909,7 +909,7 @@ const ES: typeof EN = {
   // Settings — import & export
   settings_export_title: "Exportar lista de seguidos",
   settings_export_desc: "Descarga las cuentas que sigues como archivo CSV, útil como copia de seguridad o para mudarte a otra instancia.",
-  settings_export_button: "⬇ Exportar lista de seguidos",
+  settings_export_button: "Exportar lista de seguidos",
   settings_import_title: "Importar lista de seguidos",
   settings_import_desc: "Restaura una copia de seguridad o importa una lista de otra instancia. El CSV debe tener una columna Account address (p. ej. user@example.com), una por línea.",
   settings_export_failed: "Error al exportar",
@@ -965,7 +965,7 @@ const ES: typeof EN = {
   // E2EE
   e2ee_title: "Mensajes cifrados",
   e2ee_badge_mls: "MLS · RFC 9420",
-  e2ee_badge_encrypted: "🔒 MLS",
+  e2ee_badge_encrypted: "MLS",
   e2ee_account_line: "Mensajes protegidos de extremo a extremo para",
   e2ee_stat_messages: "mensajes",
   e2ee_stat_key_packages: "key packages",
@@ -1155,12 +1155,12 @@ const ES: typeof EN = {
   loading: "Cargando…",
   network_error: "Error de red. Por favor, inténtalo de nuevo.",
   // Admin — navegación
-  admin_dashboard: "📊 Panel",
-  admin_accounts: "👥 Cuentas",
-  admin_suspended: "🚫 Suspendidas",
-  admin_blocked: "🚷 Bloqueadas",
-  admin_reports: "📢 Reportes",
-  admin_moderation_log: "📜 Registro de moderación",
+  admin_dashboard: "Panel",
+  admin_accounts: "Cuentas",
+  admin_suspended: "Suspendidas",
+  admin_blocked: "Bloqueadas",
+  admin_reports: "Reportes",
+  admin_moderation_log: "Registro de moderación",
   admin_logout: "Cerrar sesión",
   admin_back_to_app: "Volver a la app",
   // Admin — panel
@@ -1170,7 +1170,7 @@ const ES: typeof EN = {
   admin_dashboard_desc: "Resumen de moderación",
   admin_view: "Ver",
   // Admin — cuentas
-  admin_accounts_title: "👥 Cuentas",
+  admin_accounts_title: "Cuentas",
   admin_search_username: "Buscar por nombre de usuario...",
   admin_all_roles: "Todos los roles",
   admin_role_admin: "Admin",
@@ -1198,7 +1198,7 @@ const ES: typeof EN = {
   admin_btn_delete: "Eliminar",
   admin_delete_confirm: "¿Eliminar esta cuenta permanentemente? Se notificará a los servidores remotos para que retiren el perfil.",
   // Admin — dominios bloqueados
-  admin_blocked_title: "🚷 Bloqueadas",
+  admin_blocked_title: "Bloqueadas",
   admin_loading_blocked: "Cargando dominios bloqueados...",
   admin_no_blocked: "No hay dominios bloqueados.",
   admin_col_domain: "Dominio",
@@ -1208,7 +1208,7 @@ const ES: typeof EN = {
   admin_severity_silenced: "Silenciado",
   admin_btn_unblock: "Desbloquear",
   // Admin — registro de moderación
-  admin_log_title: "📜 Registro de moderación",
+  admin_log_title: "Registro de moderación",
   admin_log_desc: "Auditoría de cada decisión de moderación automática y manual.",
   admin_loading_log: "Cargando registro de moderación...",
   admin_no_log: "No hay entradas en el registro.",
@@ -1240,7 +1240,7 @@ const ES: typeof EN = {
   admin_action_warned: "Avisado",
   admin_action_unknown: "Desconocido",
   // Admin — reportes
-  admin_reports_title: "📢 Reportes",
+  admin_reports_title: "Reportes",
   admin_loading_reports: "Cargando reportes...",
   admin_no_reports: "No hay reportes todavía.",
   admin_reports_open: "Abiertos",

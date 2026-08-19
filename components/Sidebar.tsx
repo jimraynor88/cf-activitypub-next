@@ -7,6 +7,7 @@ import Image from "next/image";
 import { getToken } from "@/lib/client-api";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { Icon } from "@/components/Icon";
 
 interface SidebarAccount {
   username: string;
@@ -128,27 +129,27 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
   }
 
   const navItems = [
-    { label: t.nav_home, icon: "🏠", href: "/home", badge: 0 },
-    { label: t.nav_explore, icon: "🔍", href: "/explore", badge: 0 },
-    { label: t.nav_timelines, icon: "🌐", href: "/timelines", badge: 0 },
-    { label: t.nav_notifications, icon: "🔔", href: "/notifications", badge: unreadCount, onClick: () => setUnreadCount(0) },
-    { label: t.nav_messages, icon: "💬", href: "/messages", badge: 0 },
-    { label: t.nav_e2ee, icon: "🔒", href: "/e2ee", badge: 0 },
-    { label: t.nav_bookmarks, icon: "🔖", href: "/bookmarks", badge: 0 },
-    { label: t.nav_favourites, icon: "❤️", href: "/favourites", badge: 0 },
-    { label: t.nav_lists, icon: "📋", href: "/lists", badge: 0 },
-    { label: t.nav_followed_tags, icon: "🏷️", href: "/followed_tags", badge: 0 },
-    { label: t.nav_mutes, icon: "🤫", href: "/mutes", badge: 0 },
-    { label: t.nav_scheduled, icon: "📅", href: "/scheduled", badge: 0 },
-    { label: t.nav_profile, icon: "👤", href: me ? `/users/${me.username}` : "/login", badge: 0 },
-    { label: t.nav_settings, icon: "⚙️", href: "/settings", badge: 0 },
-    { label: t.nav_blocks, icon: "🚫", href: "/blocks", badge: 0 },
-    { label: t.nav_emojis, icon: "😊", href: "/emojis", badge: 0 },
-    { label: t.nav_announcements, icon: "📢", href: "/announcements", badge: 0 },
+    { label: t.nav_home, icon: "home", href: "/home", badge: 0 },
+    { label: t.nav_explore, icon: "search", href: "/explore", badge: 0 },
+    { label: t.nav_timelines, icon: "globe", href: "/timelines", badge: 0 },
+    { label: t.nav_notifications, icon: "bell", href: "/notifications", badge: unreadCount, onClick: () => setUnreadCount(0) },
+    { label: t.nav_messages, icon: "comment", href: "/messages", badge: 0 },
+    { label: t.nav_e2ee, icon: "lock", href: "/e2ee", badge: 0 },
+    { label: t.nav_bookmarks, icon: "bookmark", href: "/bookmarks", badge: 0 },
+    { label: t.nav_favourites, icon: "heart", href: "/favourites", badge: 0 },
+    { label: t.nav_lists, icon: "list-alt", href: "/lists", badge: 0 },
+    { label: t.nav_followed_tags, icon: "tags", href: "/followed_tags", badge: 0 },
+    { label: t.nav_mutes, icon: "microphone-slash", href: "/mutes", badge: 0 },
+    { label: t.nav_scheduled, icon: "calendar", href: "/scheduled", badge: 0 },
+    { label: t.nav_profile, icon: "user", href: me ? `/users/${me.username}` : "/login", badge: 0 },
+    { label: t.nav_settings, icon: "cog", href: "/settings", badge: 0 },
+    { label: t.nav_blocks, icon: "ban", href: "/blocks", badge: 0 },
+    { label: t.nav_emojis, icon: "smile-o", href: "/emojis", badge: 0 },
+    { label: t.nav_announcements, icon: "bullhorn", href: "/announcements", badge: 0 },
   ];
 
   if (isStaff) {
-    navItems.push({ label: t.nav_admin, icon: "🛡️", href: "/admin", badge: 0 });
+    navItems.push({ label: t.nav_admin, icon: "shield", href: "/admin", badge: 0 });
   }
 
   return (
@@ -191,7 +192,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
             }}
           >
             <span style={{ position: "relative", display: "inline-flex" }}>
-              {item.icon}
+              <Icon name={item.icon} fixedWidth />
               {item.badge > 0 && (
                 <span
                   style={{
@@ -227,7 +228,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
           style={{ width: "100%", justifyContent: "flex-start", gap: "0.75rem" }}
           title={theme === "dark" ? t.theme_dark : t.theme_light}
         >
-          <span>{theme === "dark" ? "🌙" : "☀️"}</span>
+          <Icon name={theme === "dark" ? "moon" : "sun"} fixedWidth />
           <span>{theme === "dark" ? t.theme_dark : t.theme_light}</span>
         </button>
 
@@ -298,7 +299,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
               style={{ flexShrink: 0, padding: "0.3rem 0.45rem", fontSize: "1rem", lineHeight: 1 }}
               title={t.nav_logout}
             >
-              🚪
+              <Icon name="sign-out" />
             </button>
           </div>
         ) : (
@@ -307,7 +308,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
             className="btn btn-ghost btn-sm"
             style={{ width: "100%", justifyContent: "center", color: "var(--text-muted)" }}
           >
-            🚪 {t.nav_logout}
+            <Icon name="sign-out" /> {t.nav_logout}
           </button>
         )}
       </div>
@@ -350,7 +351,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                 borderRadius: "var(--radius)",
               }}
             >
-              {menuOpen ? "✕" : "☰"}
+              {menuOpen ? <Icon name="times" color="var(--text)" /> : <Icon name="bars" color="var(--text)" />}
             </button>
             <Link href="/" style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontWeight: 700, color: "var(--text)", textDecoration: "none" }}>
               <Image src="/logo.svg" alt="CF ActivityPub" width={26} height={26} />
@@ -361,7 +362,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
               style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: "1.3rem", lineHeight: 1, color: "var(--text-muted)" }}
               title={theme === "dark" ? t.theme_dark : t.theme_light}
             >
-              {theme === "dark" ? "🌙" : "☀️"}
+              <Icon name={theme === "dark" ? "moon" : "sun"} color="var(--text-muted)" />
             </button>
           </div>
 
@@ -403,7 +404,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                     }}
                   >
                     <span style={{ position: "relative", display: "inline-flex", flexShrink: 0 }}>
-                      {item.icon}
+                      <Icon name={item.icon} fixedWidth />
                       {item.badge > 0 && (
                         <span
                           style={{
@@ -499,7 +500,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                       style={{ flexShrink: 0, padding: "0.3rem 0.45rem", fontSize: "1rem", lineHeight: 1 }}
                       title={t.nav_logout}
                     >
-                      🚪
+                      <Icon name="sign-out" />
                     </button>
                   </div>
                 ) : (
@@ -508,7 +509,7 @@ export function Sidebar({ me: propMe, currentPath }: SidebarProps) {
                     className="btn btn-ghost btn-sm"
                     style={{ width: "100%", justifyContent: "center", color: "var(--text-muted)" }}
                   >
-                    🚪 {t.nav_logout}
+                    <Icon name="sign-out" /> {t.nav_logout}
                   </button>
                 )}
               </div>

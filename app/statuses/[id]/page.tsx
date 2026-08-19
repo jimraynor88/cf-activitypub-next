@@ -6,8 +6,10 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { EmojiPicker } from "@/components/EmojiPicker";
+import { useEmojiAutocomplete, EmojiAutocompleteDropdown } from "@/components/EmojiAutocomplete";
 import { StatusCard } from "@/components/StatusCard";
 import { RichText } from "@/components/RichText";
+import { Icon } from "@/components/Icon";
 import type { APMeta } from "@/components/APTypeBlock";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
@@ -175,6 +177,7 @@ function ReplyBox({
     }
   }, [me, relatedHandles, text]);
   const closeEmoji = useCallback(() => setEmojiOpen(false), []);
+  const emojiAuto = useEmojiAutocomplete(text, setText, textareaRef);
 
   const insertEmoji = useCallback((emoji: string) => {
     const ta = textareaRef.current;
@@ -298,14 +301,22 @@ function ReplyBox({
               style={{ width: "100%", marginBottom: "0.4rem", padding: "0.4rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.9rem", fontFamily: "inherit" }}
             />
           )}
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t.reply_placeholder}
-            rows={3}
-            style={{ width: "100%", resize: "vertical", padding: "0.5rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.95rem", fontFamily: "inherit" }}
-          />
+          <div style={{ position: "relative" }}>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={emojiAuto.onChange}
+              onKeyDown={emojiAuto.onKeyDown}
+              placeholder={t.reply_placeholder}
+              rows={3}
+              style={{ width: "100%", resize: "vertical", padding: "0.5rem 0.75rem", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--text)", fontSize: "0.95rem", fontFamily: "inherit" }}
+            />
+            <EmojiAutocompleteDropdown
+              suggestions={emojiAuto.suggestions}
+              activeIndex={emojiAuto.activeIndex}
+              onSelect={emojiAuto.select}
+            />
+          </div>
           {pollMode && (
             <div style={{ marginTop: "0.5rem", padding: "0.75rem", border: "1px solid var(--border)", borderRadius: "var(--radius)", background: "var(--bg)" }}>
               <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: "0.5rem" }}>Opciones de la encuesta</div>
@@ -320,7 +331,7 @@ function ReplyBox({
                     style={{ flex: 1, padding: "0.35rem 0.6rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text)", fontSize: "0.875rem" }}
                   />
                   {pollOptions.length > 2 && (
-                    <button type="button" className="btn btn-ghost btn-sm" style={{ color: "var(--danger)", padding: "0.2rem 0.4rem" }} onClick={() => setPollOptions((p) => p.filter((_, j) => j !== i))}>✕</button>
+                    <button type="button" className="btn btn-ghost btn-sm" style={{ color: "var(--danger)", padding: "0.2rem 0.4rem" }} onClick={() => setPollOptions((p) => p.filter((_, j) => j !== i))}><Icon name="times" color="var(--danger)" /></button>
                   )}
                 </div>
               ))}
@@ -350,9 +361,9 @@ function ReplyBox({
                     {f.type === "image" || f.type === "gifv" ? (
                       <Image src={f.preview_url ?? f.url} alt={f.description ?? ""} width={64} height={64} style={{ objectFit: "cover", borderRadius: "var(--radius-sm)" }} />
                     ) : (
-                      <div style={{ width: 64, height: 64, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}>{f.type === "audio" ? "🎵" : "🎬"}</div>
+                      <div style={{ width: 64, height: 64, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem" }}><Icon name={f.type === "audio" ? "music" : "film"} size="1.4rem" /></div>
                     )}
-                    <button type="button" onClick={() => setMediaFiles((prev) => prev.filter((x) => x.id !== f.id))} style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", color: "#fff", border: "none", borderRadius: "50%", width: 16, height: 16, cursor: "pointer", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                    <button type="button" onClick={() => setMediaFiles((prev) => prev.filter((x) => x.id !== f.id))} style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.65)", color: "#fff", border: "none", borderRadius: "50%", width: 16, height: 16, cursor: "pointer", fontSize: "0.6rem", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="times" color="#fff" /></button>
                   </div>
                   <input
                     type="text"
@@ -374,14 +385,14 @@ function ReplyBox({
                   />
                 </div>
               ))}
-              {uploadingMedia && <div style={{ width: 64, height: 64, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center" }}>⏳</div>}
+              {uploadingMedia && <div style={{ width: 64, height: 64, borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name="hourglass" spin /></div>}
             </div>
           )}
           {error && <div style={{ color: "var(--danger)", fontSize: "0.82rem", marginTop: "0.25rem" }}>{error}</div>}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
               <div ref={emojiRef} style={{ position: "relative" }}>
-                <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: emojiOpen ? "var(--accent-bg)" : undefined }} onClick={() => setEmojiOpen((o) => !o)} title={t.composer_emoji}>😊</button>
+                <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: emojiOpen ? "var(--accent-bg)" : undefined }} onClick={() => setEmojiOpen((o) => !o)} title={t.composer_emoji}><Icon name="smile-o" size="1.05rem" /></button>
                 <EmojiPicker
                   onInsert={insertEmoji}
                   open={emojiOpen}
@@ -390,19 +401,19 @@ function ReplyBox({
                   direction="up"
                 />
               </div>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem" }} onClick={() => fileInputRef.current?.click()} disabled={mediaFiles.length >= 4 || uploadingMedia || pollMode} title={t.composer_attach}>{uploadingMedia ? "⏳" : "📎"}</button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem" }} onClick={() => fileInputRef.current?.click()} disabled={mediaFiles.length >= 4 || uploadingMedia || pollMode} title={t.composer_attach}>{uploadingMedia ? <Icon name="hourglass" spin size="1.05rem" /> : <Icon name="paperclip" size="1.05rem" />}</button>
               <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" multiple style={{ display: "none" }} onChange={handleFileChange} />
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: showCw ? "var(--accent-bg)" : undefined }} onClick={() => setShowCw((v) => !v)} title={t.cw_placeholder}>⚠️</button>
-              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: pollMode ? "var(--accent-bg)" : undefined }} onClick={() => setPollMode((v) => !v)} disabled={mediaFiles.length > 0} title={t.composer_poll}>📊</button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: showCw ? "var(--accent-bg)" : undefined }} onClick={() => setShowCw((v) => !v)} title={t.cw_placeholder}><Icon name="exclamation-triangle" size="1.05rem" /></button>
+              <button type="button" className="btn btn-ghost btn-sm" style={{ fontSize: "1.05rem", padding: "0.2rem 0.35rem", background: pollMode ? "var(--accent-bg)" : undefined }} onClick={() => setPollMode((v) => !v)} disabled={mediaFiles.length > 0} title={t.composer_poll}><Icon name="bar-chart" size="1.05rem" /></button>
               <select
                 value={visibility}
                 onChange={(e) => setVisibility(e.target.value as typeof visibility)}
                 style={{ fontSize: "0.78rem", padding: "0.25rem 0.4rem", cursor: "pointer", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--bg-elevated)", color: "var(--text)" }}
               >
-                <option value="public">🌍 {t.vis_public}</option>
-                <option value="unlisted">🔓 {t.vis_unlisted}</option>
-                <option value="followers">👥 {t.vis_followers}</option>
-                <option value="direct">📩 {t.vis_direct}</option>
+                <option value="public">{t.vis_public}</option>
+                <option value="unlisted">{t.vis_unlisted}</option>
+                <option value="followers">{t.vis_followers}</option>
+                <option value="direct">{t.vis_direct}</option>
               </select>
             </div>
             <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -410,7 +421,7 @@ function ReplyBox({
                 {t.profile_cancel}
               </button>
               <button type="submit" className="btn btn-primary btn-sm" disabled={submitting || uploadingMedia || (!text.trim() && mediaFiles.length === 0 && !pollMode)}>
-                {submitting ? t.compose_posting : uploadingMedia ? "⏳" : t.reply_button}
+                {submitting ? t.compose_posting : uploadingMedia ? <Icon name="hourglass" spin /> : t.reply_button}
               </button>
             </div>
           </div>
@@ -632,7 +643,7 @@ export default function ThreadPage() {
               onClick={() => router.back()}
               style={{ fontSize: "1.1rem" }}
             >
-              ←
+              <Icon name="arrow-left" />
             </button>
             <span style={{ fontWeight: 600 }}>Post</span>
           </div>
@@ -675,7 +686,7 @@ export default function ThreadPage() {
             </div>
           ) : history.length === 0 ? (
             <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
-              <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}>📝</span>
+              <span style={{ fontSize: "2rem", display: "block", marginBottom: "0.75rem" }}><Icon name="pencil" size="2rem" /></span>
               No hay historial de ediciones.
             </div>
           ) : (
@@ -686,7 +697,7 @@ export default function ThreadPage() {
                 </div>
                 {edit.spoiler_text && (
                   <div style={{ padding: "0.375rem 0.625rem", background: "var(--bg-elevated)", borderRadius: "var(--radius-sm)", fontSize: "0.875rem", marginBottom: "0.4rem", color: "var(--text-secondary)" }}>
-                    ⚠️ {edit.spoiler_text}
+                    <Icon name="exclamation-triangle" size="0.875rem" /> {edit.spoiler_text}
                   </div>
                 )}
                 <div className="status-content" style={{ fontSize: "0.95rem", lineHeight: 1.6 }}>
@@ -761,7 +772,7 @@ export default function ThreadPage() {
             <div style={{ background: "var(--bg)", borderRadius: "var(--radius-lg)", padding: "1.25rem", width: "min(520px, 95vw)", border: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: "0.875rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontWeight: 700, fontSize: "1rem" }}>{t.edit_status_title}</span>
-                <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}>✕</button>
+                <button type="button" onClick={() => setEditingStatus(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "1.1rem", padding: "0.25rem" }}><Icon name="times" color="var(--text-muted)" /></button>
               </div>
               {editSpoiler !== "" || editingStatus.spoiler_text ? (
                 <input

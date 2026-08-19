@@ -5,14 +5,15 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getToken } from "@/lib/client-api";
 import { useLocale, type Translations } from "@/lib/i18n";
+import { Icon } from "@/components/Icon";
 
-const navItems: { key: keyof Translations; href: string }[] = [
-  { key: "admin_dashboard", href: "/admin" },
-  { key: "admin_accounts", href: "/admin/accounts" },
-  { key: "admin_suspended", href: "/admin/suspended" },
-  { key: "admin_blocked", href: "/admin/blocked" },
-  { key: "admin_reports", href: "/admin/reports" },
-  { key: "admin_moderation_log", href: "/admin/moderation_log" },
+const navItems: { key: keyof Translations; href: string; icon: string }[] = [
+  { key: "admin_dashboard", href: "/admin", icon: "bar-chart" },
+  { key: "admin_accounts", href: "/admin/accounts", icon: "users" },
+  { key: "admin_suspended", href: "/admin/suspended", icon: "ban" },
+  { key: "admin_blocked", href: "/admin/blocked", icon: "lock" },
+  { key: "admin_reports", href: "/admin/reports", icon: "flag" },
+  { key: "admin_moderation_log", href: "/admin/moderation_log", icon: "file-text-o" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -70,12 +71,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               href={item.href}
               className={`admin-nav-item${active ? " active" : ""}`}
             >
-              {t[item.key]}
+              <Icon name={item.icon} /> {t[item.key]}
             </Link>
           );
         })}
         <div className="admin-nav-back">
-          <Link href="/home">← {t.admin_back_to_app}</Link>
+          <Link href="/home"><Icon name="arrow-left" /> {t.admin_back_to_app}</Link>
         </div>
       </aside>
       <main className="admin-main">{children}</main>
