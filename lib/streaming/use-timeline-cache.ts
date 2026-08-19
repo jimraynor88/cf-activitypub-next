@@ -87,6 +87,10 @@ export function useTimelineCache<T extends { id: string }>(
   const statusesRef = useRef(statuses);
   const hasMoreRef = useRef(hasMore);
   const loadingMoreRef = useRef(loadingMore);
+  // Which feed the current `statuses` state belongs to. Guards the cache-sync
+  // effect (below) from writing the previous feed's items into the new key's
+  // cache entry while a tab switch's load is still pending.
+  const loadedKeyRef = useRef(key);
 
   // Keep the latest values available to stable callbacks without re-creating them
   useEffect(() => {
@@ -103,6 +107,9 @@ export function useTimelineCache<T extends { id: string }>(
     let cancelled = false;
     const load = () => {
       if (cancelled) return;
+      // From this point on `statuses` belongs to the new key, so the cache-sync
+      // effect may write it under the new key (and must not under the old one).
+      loadedKeyRef.current = key;
       const restore = restoredOnHistoryTraversal;
       restoredOnHistoryTraversal = false;
       const cached = getTimelineCache<T>(key);
@@ -116,7 +123,9 @@ export function useTimelineCache<T extends { id: string }>(
         return;
       }
 
-      if (cached) {
+      // Only a `ready` entry is safe to restore: a partially-initialized one
+      // (e.g. written by a previous in-flight load) must not be shown.
+      if (cached?.ready) {
         seenIdsRef.current = new Set(cached.seenIds);
         setStatuses(cached.items);
         setHasMore(cached.hasMore);
@@ -188,7 +197,11 @@ export function useTimelineCache<T extends { id: string }>(
   }, []);
 
   // Keep the cache in sync with the live statuses (streaming, favs, edits…).
+  // Skip while a tab switch is in flight: at that moment `statuses` still holds
+  // the previous feed's items and writing them into the new key's entry would
+  // corrupt it (the load effect then restores the wrong feed).
   useEffect(() => {
+    if (loadedKeyRef.current !== key) return;
     const prev = getTimelineCache<T>(key);
     setTimelineCache(key, {
       items: statuses,
