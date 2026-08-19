@@ -17,5 +17,5 @@ export async function GET(request: NextRequest): Promise<Response> {
   const description = env.INSTANCE_DESCRIPTION ?? "An ActivityPub server";
   const version = env.INSTANCE_VERSION ?? "0.1.0";
 
-  return json(serializeInstanceV2(domain, title, description, version, userCount));
+  return json(serializeInstanceV2(domain, title, description, version, userCount, null, env.VAPID_PUBLIC_KEY));
 }

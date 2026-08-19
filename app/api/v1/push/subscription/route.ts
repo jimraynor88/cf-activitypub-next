@@ -27,7 +27,7 @@ export async function GET(_request: NextRequest): Promise<Response> {
     endpoint: sub.endpoint,
     standard: sub.standard,
     alerts,
-    server_key: sub.serverKey,
+    server_key: env.VAPID_PUBLIC_KEY ?? sub.serverKey,
   });
 }
 
@@ -95,7 +95,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     standard,
     policy,
     alerts: JSON.stringify(alerts),
-    serverKey: "",
+    serverKey: env.VAPID_PUBLIC_KEY ?? "",
   });
 
   const sub = await getPushSubscription(env.DB, actor.id);
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     endpoint: sub.endpoint,
     standard: sub.standard,
     alerts: alerts,
-    server_key: sub.serverKey,
+    server_key: env.VAPID_PUBLIC_KEY ?? sub.serverKey,
   });
 }
 
@@ -159,7 +159,7 @@ export async function PUT(request: NextRequest): Promise<Response> {
     endpoint: updated.endpoint,
     standard: updated.standard,
     alerts: updatedAlerts,
-    server_key: updated.serverKey,
+    server_key: env.VAPID_PUBLIC_KEY ?? updated.serverKey,
   });
 }
 

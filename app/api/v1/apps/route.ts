@@ -46,7 +46,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     redirect_uri: redirect_uris,
     client_id: clientId,
     client_secret: clientSecret,
-    vapid_key: "",
+    vapid_key: env.VAPID_PUBLIC_KEY ?? "",
   });
 }
 

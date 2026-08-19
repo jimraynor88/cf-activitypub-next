@@ -77,9 +77,19 @@ export default function PushNotificationsPage() {
       }
 
       const registration = await navigator.serviceWorker.register("/sw.js");
+      // Use the instance's VAPID public key so the push service accepts
+      // VAPID-authenticated deliveries (required by Chrome and increasingly by others).
+      let vapidPublicKey: string | undefined;
+      try {
+        const instRes = await fetch("/api/v2/instance");
+        if (instRes.ok) {
+          const inst = await instRes.json() as { vapid_public_key?: string };
+          vapidPublicKey = inst.vapid_public_key;
+        }
+      } catch { /* fall back to a non-VAPID subscription */ }
       const pushSubscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: undefined,
+        applicationServerKey: vapidPublicKey,
       });
 
       const subJSON = pushSubscription.toJSON();

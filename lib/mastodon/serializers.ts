@@ -538,7 +538,8 @@ export function serializeInstanceV2(
   description: string,
   version: string,
   userCount: number,
-  contactAccount: MastodonAccount | null = null
+  contactAccount: MastodonAccount | null = null,
+  vapidPublicKey?: string
 ): MastodonInstance {
   return {
     uri: domain,
@@ -549,9 +550,11 @@ export function serializeInstanceV2(
     usage: { users: { active_month: userCount } },
     thumbnail: { url: `https://${domain}/logo.svg` },
     languages: ["en"],
+    ...(vapidPublicKey ? { vapid_public_key: vapidPublicKey } : {}),
     configuration: {
       urls: { streaming: `wss://${domain}/api/v1/streaming` },
       accounts: { max_featured_tags: 10 },
+      ...(vapidPublicKey ? { vapid: { secret_key: vapidPublicKey } } : {}),
       statuses: {
         max_characters: 500,
         max_media_attachments: 4,

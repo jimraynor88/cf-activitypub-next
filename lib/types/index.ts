@@ -664,9 +664,11 @@ export interface MastodonInstance {
   usage: { users: { active_month: number } };
   thumbnail: { url: string };
   languages: string[];
+  vapid_public_key?: string;
   configuration: {
     urls: { streaming: string };
     accounts: { max_featured_tags: number };
+    vapid?: { secret_key: string };
     statuses: {
       max_characters: number;
       max_media_attachments: number;

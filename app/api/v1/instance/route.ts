@@ -29,6 +29,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     thumbnail: `https://${domain}/logo.svg`,
     languages: ["en"],
     contact_account: null,
+    vapid_public_key: env.VAPID_PUBLIC_KEY ?? null,
     rules: [],
     registrations: true,
     approval_required: false,
