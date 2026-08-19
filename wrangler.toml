@@ -99,3 +99,5 @@ enabled = false
 [dev]
 port = 3000
 local_protocol = "http"
+
+keep_vars = true
