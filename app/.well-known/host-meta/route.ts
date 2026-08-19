@@ -18,7 +18,6 @@ export async function GET(request: Request): Promise<Response> {
   return new Response(xml, {
     headers: {
       "Content-Type": "application/xrd+xml; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
       "X-Content-Type-Options": "nosniff",
     },
   });

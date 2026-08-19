@@ -47,7 +47,17 @@ const nextConfig: NextConfig = {
     ];
   },
   async headers() {
+    const CORS = [
+      { key: "Access-Control-Allow-Origin", value: "*" },
+      { key: "Access-Control-Allow-Methods", value: "GET, POST, PUT, DELETE, OPTIONS" },
+      { key: "Access-Control-Allow-Headers", value: "Content-Type, Authorization, Accept" },
+    ];
     return [
+      // CORS for routes not matched by the Edge middleware (which only covers
+      // /users, /api, /nodeinfo and /@username). Keeping a single source per
+      // path prevents duplicated Access-Control-Allow-Origin headers (e.g. "*, *").
+      { source: "/.well-known/:path*", headers: CORS },
+      { source: "/oauth/:path*", headers: CORS },
       {
         source: "/:path*",
         headers: [

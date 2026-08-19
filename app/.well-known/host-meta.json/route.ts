@@ -18,7 +18,6 @@ export async function GET(request: Request): Promise<Response> {
     {
       headers: {
         "Content-Type": "application/jrd+json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
       },
     }
   );

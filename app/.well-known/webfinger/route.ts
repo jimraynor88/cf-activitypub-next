@@ -61,7 +61,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     {
       headers: {
         "Content-Type": "application/jrd+json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
       },
     }
   );
