@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
@@ -8,6 +8,7 @@ import { PageLayout } from "@/components/PageLayout";
 import { StatusCard, type Status } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
 import { Icon } from "@/components/Icon";
 
 interface List {
@@ -41,7 +42,6 @@ export default function ListDetailPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [list, setList] = useState<List | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [statuses, setStatuses] = useState<Status[]>([]);
   const [loading, setLoading] = useState(true);
   const [addAcct, setAddAcct] = useState("");
   const [adding, setAdding] = useState(false);
@@ -49,15 +49,41 @@ export default function ListDetailPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("members");
   const token = getToken();
   const { t } = useLocale();
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchPage = useCallback(async (maxId?: string) => {
+    if (!token || !listId) return { items: [], hasMore: false };
+    const base = `/api/v1/timelines/list?list_id=${encodeURIComponent(listId)}&limit=20`;
+    const url = maxId ? `${base}&max_id=${encodeURIComponent(maxId)}` : base;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Status[];
+    return { items, hasMore: items.length >= 20 };
+  }, [token, listId]);
+
+  const { statuses, loading: timelineLoading, loadingMore, hasMore, loadMore } = useTimelineCache(`list:${listId}`, fetchPage);
 
   useEffect(() => {
     if (!token || !params?.id) { router.push("/login"); return; }
     void fetchMe();
     void fetchList();
     void fetchAccounts();
-    void fetchTimeline();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params?.id]);
+
+  // Infinite scroll sentinel for the timeline tab
+  useEffect(() => {
+    if (!bottomRef.current || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) void loadMore();
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(bottomRef.current);
+    return () => observer.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuses, loadingMore, hasMore]);
 
   async function fetchMe() {
     if (!token) return;
@@ -82,14 +108,6 @@ export default function ListDetailPage() {
     });
     if (res.ok) setAccounts(await res.json() as Account[]);
     setLoading(false);
-  }
-
-  async function fetchTimeline() {
-    if (!token || !params?.id) return;
-    const res = await fetch(`/api/v1/timelines/list?list_id=${encodeURIComponent(listId)}&limit=20`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (res.ok) setStatuses(await res.json() as Status[]);
   }
 
   async function handleAdd(e: React.FormEvent) {
@@ -197,22 +215,30 @@ export default function ListDetailPage() {
         )}
 
         {activeTab === "timeline" && (
-          statuses.length === 0 ? (
+          timelineLoading ? (
+            <div className="p-4" style={{ color: "var(--text-muted)" }}>{t.loading}</div>
+          ) : statuses.length === 0 ? (
             <div style={{ padding: "4rem 2rem", textAlign: "center", color: "var(--text-muted)" }}>
               <div style={{ fontSize: "2rem", marginBottom: "0.75rem" }}><Icon name="inbox" size="2rem" /></div>
               <div>{t.timeline_empty}</div>
             </div>
           ) : (
-            statuses.map((s) => (
-              <StatusCard
-                key={s.id}
-                status={s}
-                onFav={() => {}}
-                onReblog={() => {}}
-                onReply={() => {}}
-                me={me}
-              />
-            ))
+            <>
+              {statuses.map((s) => (
+                <div key={s.id} data-status-id={s.id}>
+                  <StatusCard
+                    status={s}
+                    onFav={() => {}}
+                    onReblog={() => {}}
+                    onReply={() => {}}
+                    me={me}
+                  />
+                </div>
+              ))}
+              <div ref={bottomRef} style={{ padding: "1rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                {loadingMore ? t.loading : ""}
+              </div>
+            </>
           )
         )}
     </PageLayout>

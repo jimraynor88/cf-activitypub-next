@@ -1,0 +1,38 @@
+export interface TimelineCacheEntry<T> {
+  items: T[];
+  hasMore: boolean;
+  seenIds: string[];
+  scrollY: number;
+  fetchedAt: number;
+  ready: boolean;
+}
+
+const TIMELINE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const entries = new Map<string, TimelineCacheEntry<unknown>>();
+
+export function getTimelineCache<T>(key: string): TimelineCacheEntry<T> | undefined {
+  return entries.get(key) as TimelineCacheEntry<T> | undefined;
+}
+
+export function setTimelineCache<T>(key: string, entry: TimelineCacheEntry<T>): void {
+  entries.set(key, entry as TimelineCacheEntry<unknown>);
+}
+
+export function clearTimelineCache(key: string): void {
+  entries.delete(key);
+}
+
+export function isTimelineCacheFresh<T>(entry: TimelineCacheEntry<T>): boolean {
+  return entry.ready && Date.now() - entry.fetchedAt < TIMELINE_CACHE_TTL_MS;
+}
+
+let lastTimelineView: string | null = null;
+
+export function getLastTimelineView(): string | null {
+  return lastTimelineView;
+}
+
+export function setLastTimelineView(view: string): void {
+  lastTimelineView = view;
+}

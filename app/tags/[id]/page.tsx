@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
 import { Icon } from "@/components/Icon";
 
@@ -21,10 +22,6 @@ export default function TagPage() {
   const params = useParams();
   const tagName = typeof params.id === "string" ? decodeURIComponent(params.id) : "";
 
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
   const [me, setMe] = useState<Me | null>(null);
   const [tagInfo, setTagInfo] = useState<TagInfo | null>(null);
   const [following, setFollowing] = useState(false);
@@ -38,24 +35,20 @@ export default function TagPage() {
   const token = getToken();
   const router = useRouter();
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const seenIdsRef = useRef<Set<string>>(new Set());
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const totalAccounts = tagInfo?.history?.reduce((sum, h) => sum + parseInt(h.accounts || "0"), 0) ?? 0;
+  const fetchPage = useCallback(async (maxId?: string) => {
+    const base = `/api/v1/timelines/tag/${encodeURIComponent(tagName)}?limit=20`;
+    const url = maxId ? `${base}&max_id=${encodeURIComponent(maxId)}` : base;
+    const res = await fetch(url);
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Status[];
+    return { items, hasMore: items.length >= 20 };
+  }, [tagName]);
 
-  async function fetchTimeline() {
-    setLoading(true);
-    setHasMore(true);
-    seenIdsRef.current = new Set();
-    const res = await fetch(`/api/v1/timelines/tag/${encodeURIComponent(tagName)}?limit=20`);
-    if (res.ok) {
-      const data = await res.json() as Status[];
-      setStatuses(data);
-      for (const s of data) seenIdsRef.current.add(s.id);
-      if (data.length < 20) setHasMore(false);
-    }
-    setLoading(false);
-  }
+  const { statuses, setStatuses, loading, loadingMore, hasMore, seenIdsRef, loadMore } = useTimelineCache(`tag:${tagName}`, fetchPage);
+
+  const totalAccounts = tagInfo?.history?.reduce((sum, h) => sum + parseInt(h.accounts || "0"), 0) ?? 0;
 
   async function pollTimeline() {
     if (loading || statuses.length === 0) return;
@@ -113,21 +106,6 @@ export default function TagPage() {
     }
   }
 
-  async function loadMore() {
-    if (loadingMore || !hasMore || statuses.length === 0) return;
-    setLoadingMore(true);
-    const lastId = statuses[statuses.length - 1].id;
-    const res = await fetch(
-      `/api/v1/timelines/tag/${encodeURIComponent(tagName)}?max_id=${encodeURIComponent(lastId)}&limit=20`
-    );
-    if (res.ok) {
-      const more = await res.json() as Status[];
-      setStatuses((prev) => [...prev, ...more]);
-      if (more.length < 20) setHasMore(false);
-    }
-    setLoadingMore(false);
-  }
-
   function handleFav(updated: Status) {
     setStatuses((prev) => prev.map((x) => x.id === updated.id ? { ...x, favourited: updated.favourited, favourites_count: updated.favourites_count } : x));
   }
@@ -178,7 +156,6 @@ export default function TagPage() {
 
   useEffect(() => {
     if (!tagName) return;
-    Promise.resolve().then(() => void fetchTimeline());
     Promise.resolve().then(() => void fetchMe());
     Promise.resolve().then(() => void fetchTagInfo());
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -294,16 +271,17 @@ export default function TagPage() {
         {!loading && statuses.length > 0 && (
           <div>
             {statuses.map((s) => (
-              <StatusCard
-                key={s.id}
-                status={s}
-                onFav={handleFav}
-                onReblog={handleReblog}
-                onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
-                me={me ?? undefined}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-              />
+              <div key={s.id} data-status-id={s.id}>
+                <StatusCard
+                  status={s}
+                  onFav={handleFav}
+                  onReblog={handleReblog}
+                  onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
+                  me={me ?? undefined}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
+              </div>
             ))}
             <div ref={bottomRef} style={{ padding: "1rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.85rem" }}>
               {loadingMore ? t.loading : ""}

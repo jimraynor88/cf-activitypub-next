@@ -1,14 +1,13 @@
 "use client";
 
-/* eslint-disable react-hooks/set-state-in-effect */
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { RichText } from "@/components/RichText";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
 import { BackToTop } from "@/components/BackToTop";
 import { Icon, type IconName } from "@/components/Icon";
 
@@ -44,38 +43,22 @@ const NOTIF_LABELS: Record<string, { icon: IconName; key: string }> = {
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [pendingRequests, setPendingRequests] = useState<Account[]>([]);
   const [me, setMe] = useState<Account | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const { t } = useLocale();
 
-  async function fetchNotifications() {
-    const res = await fetch("/api/v1/notifications?limit=40", { credentials: "include" });
-    if (res.ok) {
-      const data = await res.json() as Notification[];
-      setNotifications(data);
-      setHasMore(data.length >= 40);
-    }
-    setLoading(false);
-  }
+  const fetchPage = useCallback(async (maxId?: string) => {
+    const base = "/api/v1/notifications?limit=40";
+    const url = maxId ? `${base}&max_id=${encodeURIComponent(maxId)}` : base;
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Notification[];
+    return { items, hasMore: items.length >= 40 };
+  }, []);
 
-  async function loadMore() {
-    if (loadingMore || !hasMore || notifications.length === 0) return;
-    setLoadingMore(true);
-    const lastId = notifications[notifications.length - 1].id;
-    const res = await fetch(`/api/v1/notifications?limit=40&max_id=${encodeURIComponent(lastId)}`, { credentials: "include" });
-    if (res.ok) {
-      const data = await res.json() as Notification[];
-      setNotifications((prev) => [...prev, ...data]);
-      setHasMore(data.length >= 40);
-    }
-    setLoadingMore(false);
-  }
+  const { statuses: notifications, setStatuses: setNotifications, loading, loadingMore, hasMore, loadMore } = useTimelineCache<Notification>("notifications", fetchPage);
 
   async function fetchFollowRequests() {
     const res = await fetch("/api/v1/follow_requests?limit=40", { credentials: "include" });
@@ -123,9 +106,8 @@ export default function NotificationsPage() {
   }
 
   useEffect(() => {
-    void fetchNotifications();
-    void fetchFollowRequests();
-    void fetchMe();
+    Promise.resolve().then(() => void fetchFollowRequests());
+    Promise.resolve().then(() => void fetchMe());
     void markAllRead();
   }, []);
 

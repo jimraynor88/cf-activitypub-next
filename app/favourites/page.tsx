@@ -1,22 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { StatusCard } from "@/components/StatusCard";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
 import type { Status, Me } from "@/components/StatusCard";
 import { Icon } from "@/components/Icon";
 
 export default function FavouritesPage() {
   const router = useRouter();
-  const [statuses, setStatuses] = useState<Status[]>([]);
   const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
   const token = getToken();
   const { t } = useLocale();
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchPage = useCallback(async (maxId?: string) => {
+    if (!token) return { items: [], hasMore: false };
+    const base = "/api/v1/favourites?limit=20";
+    const url = maxId ? `${base}&max_id=${encodeURIComponent(maxId)}` : base;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Status[];
+    return { items, hasMore: items.length >= 20 };
+  }, [token]);
+
+  const { statuses, loading, loadingMore, hasMore, loadMore } = useTimelineCache("favourites", fetchPage);
 
   useEffect(() => {
     async function fetchMe() {
@@ -27,20 +39,24 @@ export default function FavouritesPage() {
       if (res.ok) setMe(await res.json() as Me);
     }
 
-    async function fetchFavourites() {
-      if (!token) return;
-      const res = await fetch("/api/v1/favourites", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setStatuses(await res.json() as Status[]);
-      setLoading(false);
-    }
-
     if (!token) { router.push("/login"); return; }
     void fetchMe();
-    void fetchFavourites();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Infinite scroll sentinel
+  useEffect(() => {
+    if (!bottomRef.current || !hasMore) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) void loadMore();
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(bottomRef.current);
+    return () => observer.disconnect();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statuses, loadingMore, hasMore]);
 
   return (
     <PageLayout sidebar={<Sidebar me={me} currentPath="/favourites" />}>
@@ -56,18 +72,24 @@ export default function FavouritesPage() {
             <div style={{ fontSize: "0.875rem", marginTop: "0.25rem" }}>{t.favourites_empty_sub}</div>
           </div>
         ) : (
-          statuses.map((s) => (
-            <StatusCard
-              key={s.id}
-              status={s}
-              me={me}
-              onFav={() => {}}
-              onReblog={() => {}}
-              onReply={() => router.push(`/statuses/${encodeURIComponent(s.id)}`)}
-              onDelete={() => {}}
-              onEdit={() => {}}
-            />
-          ))
+          <>
+            {statuses.map((s) => (
+              <div key={s.id} data-status-id={s.id}>
+                <StatusCard
+                  status={s}
+                  me={me}
+                  onFav={() => {}}
+                  onReblog={() => {}}
+                  onReply={() => router.push(`/statuses/${encodeURIComponent(s.id)}`)}
+                  onDelete={() => {}}
+                  onEdit={() => {}}
+                />
+              </div>
+            ))}
+            <div ref={bottomRef} style={{ padding: "1rem", textAlign: "center", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+              {loadingMore ? t.loading : ""}
+            </div>
+          </>
         )}
     </PageLayout>
   );

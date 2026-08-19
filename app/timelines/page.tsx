@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sidebar } from "@/components/Sidebar";
@@ -8,6 +8,8 @@ import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { getToken } from "@/lib/client-api";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
+import { getLastTimelineView, setLastTimelineView } from "@/lib/streaming/timeline-cache";
 import { statusHtmlToPlain } from "@/lib/activitypub/content";
 import { StatusCard, Status, Me } from "@/components/StatusCard";
 import { BackToTop } from "@/components/BackToTop";
@@ -16,11 +18,10 @@ import { Icon } from "@/components/Icon";
 type TimelineView = "local" | "federated";
 
 export default function TimelinesPage() {
-  const [view, setView] = useState<TimelineView>("local");
-  const [statuses, setStatuses] = useState<Status[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [view, setView] = useState<TimelineView>(() => {
+    const saved = getLastTimelineView();
+    return saved === "local" || saved === "federated" ? saved : "local";
+  });
   const [me, setMe] = useState<Me | null>(null);
   const [editingStatus, setEditingStatus] = useState<Status | null>(null);
   const [editText, setEditText] = useState("");
@@ -31,7 +32,18 @@ export default function TimelinesPage() {
   const token = getToken();
   const router = useRouter();
   const bottomRef = useRef<HTMLDivElement | null>(null);
-  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const fetchPage = useCallback(async (maxId?: string) => {
+    const local = view === "local";
+    const limit = maxId ? 20 : 40;
+    const url = `/api/v1/timelines/public?limit=${limit}${local ? "&local=true" : ""}${maxId ? `&max_id=${encodeURIComponent(maxId)}` : ""}`;
+    const res = await fetch(url);
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Status[];
+    return { items, hasMore: items.length > 0 };
+  }, [view]);
+
+  const { statuses, setStatuses, loading, loadingMore, hasMore, seenIdsRef, loadMore } = useTimelineCache(view, fetchPage);
 
   // Streaming: subscribe to the correct channel whenever the view changes
   const streamName = view === "local" ? "public:local" : "public";
@@ -61,41 +73,6 @@ export default function TimelinesPage() {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) setMe(await res.json() as Me);
-  }
-
-  async function fetchTimeline(v: TimelineView) {
-    setLoading(true);
-    setStatuses([]);
-    setHasMore(true);
-    seenIdsRef.current = new Set();
-    const local = v === "local";
-    const res = await fetch(`/api/v1/timelines/public?limit=40${local ? "&local=true" : ""}`);
-    if (res.ok) {
-      const data = await res.json() as Status[];
-      setStatuses(data);
-      // Pre-fill the seen set so streaming duplicates are filtered out
-      for (const s of data) seenIdsRef.current.add(s.id);
-    }
-    setLoading(false);
-  }
-
-  async function loadMore() {
-    if (loadingMore || statuses.length === 0 || !hasMore) return;
-    setLoadingMore(true);
-    const lastId = statuses[statuses.length - 1].id;
-    const local = view === "local";
-    const res = await fetch(
-      `/api/v1/timelines/public?max_id=${encodeURIComponent(lastId)}&limit=20${local ? "&local=true" : ""}`
-    );
-    if (res.ok) {
-      const more = await res.json() as Status[];
-      if (more.length === 0) {
-        setHasMore(false);
-      } else {
-        setStatuses((prev) => [...prev, ...more]);
-      }
-    }
-    setLoadingMore(false);
   }
 
   function switchView(v: TimelineView) {
@@ -144,15 +121,15 @@ export default function TimelinesPage() {
     }
   }
 
-  // Mount: initial account load (timeline is loaded by the [view] effect below)
+  // Mount: initial account load (timeline is loaded by useTimelineCache)
   useEffect(() => {
     Promise.resolve().then(() => void fetchMe());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // View change: (re)load timeline — also runs on mount as the single loader.
+  // Persist the active tab so back-navigation restores local vs. public
   useEffect(() => {
-    Promise.resolve().then(() => void fetchTimeline(view));
+    setLastTimelineView(view);
   }, [view]);
 
   // Infinite scroll sentinel
@@ -282,16 +259,17 @@ export default function TimelinesPage() {
         {!loading && statuses.length > 0 && (
           <div>
             {statuses.map((s) => (
-              <StatusCard
-                key={s.id}
-                status={s}
-                onFav={handleFav}
-                onReblog={handleReblog}
-                onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
-                me={me ?? undefined}
-                onEdit={openEdit}
-                onDelete={handleDelete}
-              />
+              <div key={s.id} data-status-id={s.id}>
+                <StatusCard
+                  status={s}
+                  onFav={handleFav}
+                  onReblog={handleReblog}
+                  onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
+                  me={me ?? undefined}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
+              </div>
             ))}
             <div ref={bottomRef} style={{ height: 1 }} />
             {loadingMore && (

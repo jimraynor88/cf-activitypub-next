@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { PageLayout } from "@/components/PageLayout";
 import { useLocale } from "@/lib/i18n";
 import { useTimelineStream } from "@/lib/streaming/use-timeline-stream";
+import { useTimelineCache } from "@/lib/streaming/use-timeline-cache";
 import { StatusCard } from "@/components/StatusCard";
 import { EmojiPicker } from "@/components/EmojiPicker";
 import { useEmojiAutocomplete, EmojiAutocompleteDropdown } from "@/components/EmojiAutocomplete";
@@ -14,11 +15,15 @@ import { BackToTop } from "@/components/BackToTop";
 import { Icon } from "@/components/Icon";
 import type { Status, Me, MediaAttachment } from "@/components/StatusCard";
 
+// Earliest allowed schedule time: now + 5 minutes (computed once at module load)
+const SCHEDULE_MIN = (() => {
+  const d = new Date(Date.now() + 5 * 60 * 1000);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+})();
+
 export default function HomePage() {
   const router = useRouter();
-  const [statuses, setStatuses] = useState<Status[]>([]);
   const [me, setMe] = useState<Me | null>(null);
-  const [loading, setLoading] = useState(true);
   const [composing, setComposing] = useState("");
   const [posting, setPosting] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<MediaAttachment[]>([]);
@@ -35,12 +40,19 @@ export default function HomePage() {
   const emojiRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const mediaDescRefs = useRef<Record<string, string>>({});
-  const [hasMore, setHasMore] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const seenIdsRef = useRef<Set<string>>(new Set());
   const { t, locale } = useLocale();
   const emojiAuto = useEmojiAutocomplete(composing, setComposing, textareaRef);
   const editEmojiAuto = useEmojiAutocomplete(editText, setEditText, editTextareaRef);
+
+  const fetchPage = useCallback(async (maxId?: string) => {
+    const url = maxId ? `/api/v1/timelines/home?max_id=${encodeURIComponent(maxId)}` : "/api/v1/timelines/home";
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) return { items: [], hasMore: true };
+    const items = await res.json() as Status[];
+    return { items, hasMore: items.length >= 20 };
+  }, []);
+
+  const { statuses, setStatuses, loading, loadingMore, hasMore, seenIdsRef, loadMore, refresh } = useTimelineCache("home", fetchPage);
 
   // Real-time home feed streaming
   useTimelineStream("user", (event, payload) => {
@@ -90,40 +102,14 @@ export default function HomePage() {
 
   const closeEmoji = useCallback(() => setEmojiOpen(false), []);
 
-  useEffect(() => {
-    void fetchTimeline();
-    void fetchMe();
-  }, []);
-
-  async function fetchTimeline() {
-    const res = await fetch("/api/v1/timelines/home", { credentials: "include" });
-    if (res.ok) {
-      const data = await res.json() as Status[];
-      setStatuses(data);
-      setHasMore(data.length >= 20);
-      seenIdsRef.current = new Set(data.map((s) => s.id));
-    }
-    setLoading(false);
-  }
-
-  async function loadMore() {
-    if (loadingMore || !hasMore) return;
-    const oldestId = statuses[statuses.length - 1]?.id;
-    if (!oldestId) return;
-    setLoadingMore(true);
-    const res = await fetch(`/api/v1/timelines/home?max_id=${oldestId}`, { credentials: "include" });
-    if (res.ok) {
-      const data = await res.json() as Status[];
-      setStatuses((prev) => [...prev, ...data]);
-      setHasMore(data.length >= 20);
-    }
-    setLoadingMore(false);
-  }
-
   async function fetchMe() {
     const res = await fetch("/api/v1/accounts/verify_credentials", { credentials: "include" });
     if (res.ok) setMe(await res.json() as Me);
   }
+
+  useEffect(() => {
+    Promise.resolve().then(() => void fetchMe());
+  }, []);
 
   async function handlePost(e: React.FormEvent) {
     e.preventDefault();
@@ -185,7 +171,7 @@ export default function HomePage() {
       setPollMode(false);
       setPollOptions(["", ""]);
       setPollMultiple(false);
-      await fetchTimeline();
+      await refresh();
     }
     setPosting(false);
   }
@@ -371,7 +357,7 @@ export default function HomePage() {
                 className="input"
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
-                min={(() => { const d = new Date(Date.now() + 5 * 60 * 1000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); })()}
+                min={SCHEDULE_MIN}
                 style={{ fontSize: "0.85rem", width: "100%" }}
               />
             )}
@@ -532,16 +518,17 @@ export default function HomePage() {
           </div>
         ) : (
           statuses.map((s) => (
+            <div key={s.id} data-status-id={s.id}>
               <StatusCard
-                  key={s.id}
                   status={s}
-              onFav={handleFav}
-              onReblog={handleReblog}
-              onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
-              me={me}
-              onEdit={openEdit}
-              onDelete={handleDelete}
-            />
+                  onFav={handleFav}
+                  onReblog={handleReblog}
+                  onReply={(status) => router.push(`/statuses/${encodeURIComponent(status.id)}?reply=1`)}
+                  me={me}
+                  onEdit={openEdit}
+                  onDelete={handleDelete}
+                />
+            </div>
           ))
         )}
         {/* Infinite scroll sentinel */}
