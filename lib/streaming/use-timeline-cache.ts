@@ -34,7 +34,7 @@ function scrollToStatusAnchor(anchorId: string | null, fallbackY: number) {
         return;
       }
     }
-    if (fallbackY > 0) window.scrollTo(0, fallbackY);
+    window.scrollTo(0, fallbackY);
   };
   requestAnimationFrame(() => requestAnimationFrame(apply));
 }
@@ -43,7 +43,6 @@ function scrollToStatusAnchor(anchorId: string | null, fallbackY: number) {
 // the top again right after our restore (its scroll handler runs in the layout
 // phase of the navigation, potentially after ours).
 function restoreScroll(y: number) {
-  if (y <= 0) return;
   const apply = () => window.scrollTo(0, y);
   requestAnimationFrame(() => requestAnimationFrame(apply));
   let reapplied = false;
@@ -116,11 +115,14 @@ export function useTimelineCache<T extends { id: string }>(
       const tabSwitch = prevKeyRef.current !== key;
       prevKeyRef.current = key;
       const cached = getTimelineCache<T>(key);
+      // Position this feed should end up at: its own remembered offset, or the
+      // top when it has no usable cache. Enforced on tab switches (and history
+      // traversals); the initial mount leaves the browser's scroll alone.
+      const targetY = cached?.ready ? (cached.scrollY ?? 0) : 0;
 
       // Each feed keeps its own scroll position: a tab switch restores the new
       // feed's remembered offset (or starts at the top when it has none) instead
-      // of inheriting the previous feed's. History traversals restore too; the
-      // initial mount leaves the browser's own scroll handling alone.
+      // of inheriting the previous feed's. History traversals restore too.
       const shouldRestore = historyRestore || tabSwitch;
 
       if (cached?.ready && isTimelineCacheFresh(cached)) {
@@ -128,7 +130,7 @@ export function useTimelineCache<T extends { id: string }>(
         setStatuses(cached.items);
         setHasMore(cached.hasMore);
         setLoading(false);
-        if (shouldRestore) restoreScroll(cached.scrollY);
+        if (shouldRestore) restoreScroll(targetY);
         return;
       }
 
@@ -139,7 +141,7 @@ export function useTimelineCache<T extends { id: string }>(
         setStatuses(cached.items);
         setHasMore(cached.hasMore);
         setLoading(false);
-        if (shouldRestore) restoreScroll(cached.scrollY);
+        if (shouldRestore) restoreScroll(targetY);
       } else {
         seenIdsRef.current = new Set();
         setStatuses([]);
@@ -151,7 +153,7 @@ export function useTimelineCache<T extends { id: string }>(
       }
 
       const anchorId = shouldRestore ? (cached?.items[0]?.id ?? null) : null;
-      const fallbackY = shouldRestore ? (cached?.scrollY ?? 0) : 0;
+      const fallbackY = shouldRestore ? targetY : 0;
       (async () => {
         try {
           const result = await fetchPageRef.current();
