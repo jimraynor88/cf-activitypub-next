@@ -9,7 +9,7 @@
   "scripts": {
     "generate:openapi": "node scripts/generate-openapi.mjs",
     "predev": "npm run generate:openapi",
-    "prebuild": "npm run generate:openapi",
+    "prebuild": "echo 'Skipping OpenAPI generation'",
     "prepreview": "npm run generate:openapi",
     "predeploy": "npm run generate:openapi",
     "dev": "next dev",
