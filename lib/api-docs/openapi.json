@@ -7180,6 +7180,110 @@
             }
           }
         }
+      },
+      "put": {
+        "summary": "Update /api/v1/preferences",
+        "operationId": "put_api_v1_preferences",
+        "tags": [
+          "Preferences"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response."
+          },
+          "401": {
+            "description": "Unauthorized. Missing or invalid access token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update /api/v1/preferences",
+        "operationId": "patch_api_v1_preferences",
+        "tags": [
+          "Preferences"
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response."
+          },
+          "401": {
+            "description": "Unauthorized. Missing or invalid access token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/v1/profile/avatar": {
@@ -9065,6 +9169,22 @@
               "default": 20
             },
             "description": "Maximum number of results to return."
+          },
+          {
+            "name": "max_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Return results older than this ID (pagination)."
+          },
+          {
+            "name": "since_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Return results newer than this ID (pagination)."
           },
           {
             "name": "list_id",

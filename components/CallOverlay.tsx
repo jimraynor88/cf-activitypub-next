@@ -195,8 +195,11 @@ export function CallOverlay({ accessToken }: CallOverlayProps) {
   // ── Active call UI ────────────────────────────────────────────────────────
   if (callState.phase === "active") {
     const callType = callState.callType;
-    // Show the video panel when: call was initiated as video/screen OR camera/screen is currently active
-    const hasVideoPanel = callType === "video" || callType === "screen" || !isVideoOff || isSharingScreen;
+    // Show the video panel when: call was initiated as video/screen OR camera/screen is
+    // currently active locally OR the remote peer is sending video (e.g. they shared
+    // their screen mid audio call — without this the receiver never mounts a <video>).
+    const remoteHasVideo = (remoteStream?.getVideoTracks().length ?? 0) > 0;
+    const hasVideoPanel = callType === "video" || callType === "screen" || !isVideoOff || isSharingScreen || remoteHasVideo;
     // Local PiP should only render when there's actually something to display
     const localVideoStream = isSharingScreen && screenStream ? screenStream : localStream;
     const showLocalPip = localVideoStream != null && (localVideoStream.getVideoTracks().length > 0);

@@ -3,6 +3,7 @@ import { getCloudflareContext, json } from "@/lib/cf";
 import { getPublicTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
+import { buildPaginationLinks } from "@/lib/mastodon/pagination";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 import type { LocalActor } from "@/lib/types";
 
@@ -108,10 +109,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const response = json(result);
   if (result.length > 0) {
     const oldest = result[result.length - 1] as { id: string };
-    response.headers.set(
-      "Link",
-      `<${request.url.split("?")[0]}?max_id=${oldest.id}>; rel="next"`
-    );
+    response.headers.set("Link", buildPaginationLinks(request, oldest.id));
   }
 
   return response;

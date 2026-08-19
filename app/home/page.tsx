@@ -107,8 +107,18 @@ export default function HomePage() {
     if (res.ok) setMe(await res.json() as Me);
   }
 
+  async function fetchPrefs() {
+    const res = await fetch("/api/v1/preferences", { credentials: "include" });
+    if (!res.ok) return;
+    const data = await res.json() as Record<string, string | boolean | null>;
+    const vis = data["posting:default:visibility"];
+    if (typeof vis === "string") setVisibility(vis as "public" | "unlisted" | "followers" | "direct");
+    if (data["posting:default:sensitive"] === true) setShowCw(true);
+  }
+
   useEffect(() => {
     Promise.resolve().then(() => void fetchMe());
+    Promise.resolve().then(() => void fetchPrefs());
   }, []);
 
   async function handlePost(e: React.FormEvent) {

@@ -188,8 +188,12 @@ export function useCall(accessToken?: string | null): UseCallReturn {
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
                 ws.send(JSON.stringify({ type: "renegotiate-answer", sdp: answer.sdp }));
+                isNegotiatingRef.current = false;
               })
-              .catch((e) => console.error("[call] renegotiate error:", e));
+              .catch((e) => {
+                console.error("[call] renegotiate error:", e);
+                isNegotiatingRef.current = false;
+              });
           }
           break;
         case "renegotiate-answer":
@@ -610,6 +614,7 @@ export function useCall(accessToken?: string | null): UseCallReturn {
                 },
                 body: JSON.stringify({ type: "renegotiate-answer", sdp: answer.sdp }),
               });
+              isNegotiatingRef.current = false;
             })
             .catch((e) => {
               console.error("[call] call.renegotiate error:", e);

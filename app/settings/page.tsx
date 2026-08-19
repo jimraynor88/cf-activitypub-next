@@ -12,6 +12,7 @@ interface Preferences {
   "posting:default:visibility": string;
   "posting:default:sensitive": boolean;
   "posting:default:language": string | null;
+  "posting:default:quote_policy": string;
   "reading:expand:media": string;
   "reading:expand:spoilers": boolean;
 }
@@ -38,7 +39,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const token = getToken();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   useEffect(() => {
     async function fetchMe() {
@@ -70,8 +71,16 @@ export default function SettingsPage() {
   }, []);
 
   async function handleSave() {
-    if (!token) return;
+    if (!token || !prefs) return;
     setSaving(true);
+    // Persist the Mastodon-compatible preferences. The posting language is not
+    // user-editable here: it always mirrors the interface language selected in
+    // the sidebar (locale lives in localStorage on this instance).
+    const prefsRes = await fetch("/api/v1/preferences", {
+      method: "PUT",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...prefs, "posting:default:language": locale }),
+    });
     // Save the account-level settings (locked + auto-delete) via the profile
     // update endpoint, which persists them on the actors table.
     const form = new FormData();
@@ -82,7 +91,7 @@ export default function SettingsPage() {
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    if (res.ok) {
+    if (prefsRes.ok && res.ok) {
       const updated = await res.json() as Me;
       setLocked(Boolean(updated.locked));
       setAutoDelete(updated.source?.auto_delete_after ?? 0);
@@ -122,6 +131,32 @@ export default function SettingsPage() {
               <option value="unlisted">{t.vis_unlisted}</option>
               <option value="followers">{t.vis_followers}</option>
               <option value="direct">{t.vis_direct}</option>
+            </select>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>{t.settings_language}</label>
+            <select className="input" value={locale} disabled style={{ width: "100%", opacity: 0.6 }}>
+              <option value="en">EN</option>
+              <option value="es">ES</option>
+            </select>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
+              {t.settings_language_hint}
+            </p>
+          </div>
+
+          <div>
+            <label style={{ display: "block", fontWeight: 600, fontSize: "0.875rem", marginBottom: "0.375rem" }}>{t.settings_quote_policy}</label>
+            <select
+              className="input"
+              value={prefs?.["posting:default:quote_policy"] ?? "followers"}
+              onChange={(e) => update("posting:default:quote_policy", e.target.value)}
+              style={{ width: "100%" }}
+            >
+              <option value="public">{t.quote_policy_public}</option>
+              <option value="followers">{t.quote_policy_followers}</option>
+              <option value="followed">{t.quote_policy_followed}</option>
+              <option value="nobody">{t.quote_policy_nobody}</option>
             </select>
           </div>
 

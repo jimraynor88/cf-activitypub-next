@@ -1,24 +1,41 @@
 import { type NextRequest } from "next/server";
 import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getAuthenticatedActor } from "@/lib/auth";
+import { decodeStatusId } from "@/lib/mastodon/statusId";
+import { buildPaginationLinks } from "@/lib/mastodon/pagination";
 
 export async function GET(request: NextRequest): Promise<Response> {
   const { env } = getCloudflareContext();
   const domain = new URL(request.url).hostname;
   const listId = request.nextUrl.searchParams.get("list_id") ?? "";
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get("limit") ?? "20"), 40);
+  const maxIdRaw = request.nextUrl.searchParams.get("max_id") ?? undefined;
+  const maxId = maxIdRaw ? decodeStatusId(maxIdRaw, domain) : undefined;
+  const sinceIdRaw = request.nextUrl.searchParams.get("since_id") ?? undefined;
+  const sinceId = sinceIdRaw ? decodeStatusId(sinceIdRaw, domain) : undefined;
   const me = await getAuthenticatedActor(request, env.DB);
   if (!me) return unauthorized();
+
+  const where = `la.list_id = ?
+     AND o.visibility IN ('public', 'unlisted')`;
+  let sql = `SELECT o.* FROM objects o
+     JOIN list_accounts la ON la.actor_id = o.actor_id
+     WHERE ${where}`;
+  const args: unknown[] = [listId];
+
+  if (maxId) {
+    sql += ` AND o.published < (SELECT published FROM objects WHERE id = ?)`;
+    args.push(maxId);
+  } else if (sinceId) {
+    sql += ` AND o.published > (SELECT published FROM objects WHERE id = ?)`;
+    args.push(sinceId);
+  }
+  sql += ` ORDER BY o.published DESC LIMIT ?`;
+  args.push(limit);
+
   const rows = await env.DB
-    .prepare(
-      `SELECT o.* FROM objects o
-       JOIN list_accounts la ON la.actor_id = o.actor_id
-       WHERE la.list_id = ?
-         AND o.visibility IN ('public', 'unlisted')
-       ORDER BY o.published DESC
-       LIMIT ?`
-    )
-    .bind(listId, limit)
+    .prepare(sql)
+    .bind(...args)
     .all<Record<string, unknown>>();
   if (rows.results.length === 0) return json([]);
   const { getActorById, getAttachmentsByObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } = await import("@/lib/db");
@@ -55,5 +72,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       return serializeStatus(obj, author, domain, { attachments: attachmentMap.get(obj.id) ?? [], emojis: allEmojis, inReplyToAccountId: replyToMap.get(obj.id) ?? null });
     })
   );
-  return json(statuses.filter(Boolean));
+  const result = statuses.filter(Boolean);
+  const response = json(result);
+  if (result.length > 0) {
+    const oldest = result[result.length - 1] as { id: string };
+    response.headers.set("Link", buildPaginationLinks(request, oldest.id));
+  }
+  return response;
 }

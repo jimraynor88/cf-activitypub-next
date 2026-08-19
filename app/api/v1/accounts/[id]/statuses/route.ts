@@ -4,6 +4,7 @@ import { getActorById, getActorStatuses, getActorStatuses_withReplies, getAttach
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
+import { buildPaginationLinks } from "@/lib/mastodon/pagination";
 import { fetchAndCacheRemoteActorStatuses } from "@/lib/activitypub/remote";
 
 // GET /api/v1/accounts/:id/statuses
@@ -91,5 +92,10 @@ export async function GET(
     });
   });
 
-  return json(statuses);
+  const response = json(statuses);
+  if (statuses.length > 0) {
+    const oldest = statuses[statuses.length - 1] as { id: string };
+    response.headers.set("Link", buildPaginationLinks(request, oldest.id));
+  }
+  return response;
 }

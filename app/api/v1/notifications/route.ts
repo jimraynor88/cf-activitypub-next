@@ -3,6 +3,7 @@ import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getNotifications, getActorById, getObjectById } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeNotification } from "@/lib/mastodon/serializers";
+import { buildPaginationLinks } from "@/lib/mastodon/pagination";
 
 // GET /api/v1/notifications
 export async function GET(request: NextRequest): Promise<Response> {
@@ -33,5 +34,11 @@ export async function GET(request: NextRequest): Promise<Response> {
       })
   );
 
-  return json(serialized.filter(Boolean));
+  const result = serialized.filter(Boolean);
+  const response = json(result);
+  if (result.length > 0) {
+    const oldest = result[result.length - 1] as { id: string };
+    response.headers.set("Link", buildPaginationLinks(request, oldest.id));
+  }
+  return response;
 }

@@ -746,3 +746,16 @@ CREATE TABLE IF NOT EXISTS mls_messages (
 
 CREATE INDEX IF NOT EXISTS idx_mls_msg_recipient ON mls_messages(recipient_id, published DESC);
 CREATE INDEX IF NOT EXISTS idx_mls_msg_conv ON mls_messages(conversation);
+
+-- ─────────────────────────────────────────
+-- User preferences (Mastodon-compatible keys)
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS preferences (
+  actor_id   TEXT NOT NULL REFERENCES actors(id) ON DELETE CASCADE,
+  key        TEXT NOT NULL,             -- 'posting:default:visibility', 'reading:expand:media', ...
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (actor_id, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_preferences_actor ON preferences(actor_id);

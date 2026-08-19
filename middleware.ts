@@ -11,6 +11,9 @@ const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, Accept",
+  // Without this, cross-origin clients (Elk, Phanpy, …) can't read the `Link`
+  // pagination header (RFC 8288) and never load the next page of a timeline.
+  "Access-Control-Expose-Headers": "Link, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, Vary",
   "Access-Control-Max-Age": "86400",
 };
 

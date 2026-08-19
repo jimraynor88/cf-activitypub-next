@@ -3,6 +3,7 @@ import { getCloudflareContext, json, unauthorized } from "@/lib/cf";
 import { getHomeTimeline, getActorById, getAttachmentsByObjectIds, getPollsByObjectIds, getLikedObjectIds, getAnnouncedObjectIds, getAllCustomEmojis, getReplyToAccountIdMap } from "@/lib/db";
 import { getAuthenticatedActor } from "@/lib/auth";
 import { serializeStatus, serializePoll } from "@/lib/mastodon/serializers";
+import { buildPaginationLinks } from "@/lib/mastodon/pagination";
 import { decodeStatusId } from "@/lib/mastodon/statusId";
 
 // GET /api/v1/timelines/home
@@ -67,11 +68,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   if (result.length > 0) {
     const oldest = result[result.length - 1] as { id: string };
     const newest = result[0] as { id: string };
-    response.headers.set(
-      "Link",
-      `<${request.url.split("?")[0]}?max_id=${oldest.id}>; rel="next", ` +
-      `<${request.url.split("?")[0]}?min_id=${newest.id}>; rel="prev"`
-    );
+    response.headers.set("Link", buildPaginationLinks(request, oldest.id, newest.id));
   }
 
   return response;
