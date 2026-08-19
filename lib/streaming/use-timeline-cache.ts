@@ -83,6 +83,7 @@ export function useTimelineCache<T extends { id: string }>(
   const seenIdsRef = useRef<Set<string>>(new Set(initial?.seenIds ?? []));
 
   const keyRef = useRef(key);
+  const prevKeyRef = useRef(key);
   const fetchPageRef = useRef(fetchPage);
   const statusesRef = useRef(statuses);
   const hasMoreRef = useRef(hasMore);
@@ -110,16 +111,24 @@ export function useTimelineCache<T extends { id: string }>(
       // From this point on `statuses` belongs to the new key, so the cache-sync
       // effect may write it under the new key (and must not under the old one).
       loadedKeyRef.current = key;
-      const restore = restoredOnHistoryTraversal;
+      const historyRestore = restoredOnHistoryTraversal;
       restoredOnHistoryTraversal = false;
+      const tabSwitch = prevKeyRef.current !== key;
+      prevKeyRef.current = key;
       const cached = getTimelineCache<T>(key);
+
+      // Each feed keeps its own scroll position: a tab switch restores the new
+      // feed's remembered offset (or starts at the top when it has none) instead
+      // of inheriting the previous feed's. History traversals restore too; the
+      // initial mount leaves the browser's own scroll handling alone.
+      const shouldRestore = historyRestore || tabSwitch;
 
       if (cached?.ready && isTimelineCacheFresh(cached)) {
         seenIdsRef.current = new Set(cached.seenIds);
         setStatuses(cached.items);
         setHasMore(cached.hasMore);
         setLoading(false);
-        if (restore) restoreScroll(cached.scrollY);
+        if (shouldRestore) restoreScroll(cached.scrollY);
         return;
       }
 
@@ -130,16 +139,19 @@ export function useTimelineCache<T extends { id: string }>(
         setStatuses(cached.items);
         setHasMore(cached.hasMore);
         setLoading(false);
-        if (restore) restoreScroll(cached.scrollY);
+        if (shouldRestore) restoreScroll(cached.scrollY);
       } else {
         seenIdsRef.current = new Set();
         setStatuses([]);
         setHasMore(true);
         setLoading(true);
+        // A feed opened for the first time starts at the top instead of keeping
+        // the previous feed's scroll offset.
+        if (tabSwitch) window.scrollTo(0, 0);
       }
 
-      const anchorId = restore ? (cached?.items[0]?.id ?? null) : null;
-      const fallbackY = restore ? (cached?.scrollY ?? 0) : 0;
+      const anchorId = shouldRestore ? (cached?.items[0]?.id ?? null) : null;
+      const fallbackY = shouldRestore ? (cached?.scrollY ?? 0) : 0;
       (async () => {
         try {
           const result = await fetchPageRef.current();
@@ -161,7 +173,7 @@ export function useTimelineCache<T extends { id: string }>(
           });
           setHasMore(result.hasMore);
           setLoading(false);
-          if (restore) scrollToStatusAnchor(anchorId, fallbackY);
+          if (shouldRestore) scrollToStatusAnchor(anchorId, fallbackY);
         } catch {
           if (!cancelled) setLoading(false);
         }
