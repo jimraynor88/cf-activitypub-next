@@ -17,6 +17,8 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
     ".turbo/**",
     "coverage/**",
+    // Static assets (swagger-ui-dist is vendored minified third-party code)
+    "public/**",
   ]),
 ]);
 
