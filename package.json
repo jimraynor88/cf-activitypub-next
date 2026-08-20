@@ -13,7 +13,7 @@
     "prepreview": "npm run generate:openapi",
     "predeploy": "npm run generate:openapi",
     "dev": "next dev",
-    "build": "next build",
+    "build": "opennextjs-cloudflare build",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint",
