@@ -1,21 +1,22 @@
-name = "cf-activitypub"
+keep_vars = true
+#name = "cf-activitypub"
 main = "src/worker.ts"
 compatibility_date = "2026-08-04"
 compatibility_flags = ["nodejs_compat"]
 assets = { directory = ".open-next/assets", binding = "ASSETS" }
 
 [vars]
-INSTANCE_TITLE = "CF ActivityPub"
-INSTANCE_DESCRIPTION = "A federated social network powered by ActivityPub and Cloudflare"
+#INSTANCE_TITLE = "CF ActivityPub"
+#INSTANCE_DESCRIPTION = "A federated social network powered by ActivityPub and Cloudflare"
 INSTANCE_VERSION = "1.1.0"
-INSTANCE_URL = "https://cf-ap.example.com"
+#INSTANCE_URL = "https://cf-ap.example.com"
 NODE_ENV = "production"
-VAPID_PUBLIC_KEY = ""
-VAPID_EMAIL = "mailto:admin@cf-ap.example.com"
+#VAPID_PUBLIC_KEY = ""
+#VAPID_EMAIL = "mailto:admin@cf-ap.example.com"
 # Public Turnstile site key (replace with your actual key from dash.cloudflare.com/turnstile)
-TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
+#TURNSTILE_SITE_KEY = "1x00000000000000000000AA"
 # Sender address — must belong to a domain with Cloudflare Email Routing enabled
-FROM_EMAIL = "noreply@cf-ap.example.com"
+#FROM_EMAIL = "noreply@cf-ap.example.com"
 # LibreTranslate instance URL (set to empty to disable translation)
 LIBRETRANSLATE_URL = ""
 # Global daily AI budget for the Guardian (abstract units/day; 0 = unlimited).
@@ -37,22 +38,22 @@ AI_DAILY_BUDGET = "1000"
 # binding = "VECTORIZE"
 # index_name = "moderation-vectors"
 
-[[routes]]
-pattern = "cf-ap.example.com"
-custom_domain = true
+#[[routes]]
+#pattern = "cf-ap.example.com"
+#custom_domain = true
 
-[[d1_databases]]
-binding = "DB"
-database_name = "cf-activitypub"
-database_id = ""
+#[[d1_databases]]
+#binding = "DB"
+#database_name = "cf-activitypub"
+#database_id = ""
 
-[[kv_namespaces]]
-binding = "KV"
-id = ""
+#[[kv_namespaces]]
+#binding = "KV"
+#id = ""
 
-[[r2_buckets]]
-binding = "R2"
-bucket_name = "cf-activitypub-media"
+#[[r2_buckets]]
+#binding = "R2"
+#bucket_name = "cf-activitypub-media"
 
 # Email Workers binding for sending verification/notification emails.
 # Requires Email Routing to be enabled on your Cloudflare zone.
@@ -99,5 +100,3 @@ enabled = false
 [dev]
 port = 3000
 local_protocol = "http"
-
-keep_vars = true
